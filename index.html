@@ -777,7 +777,7 @@
         // ==================== Supabase 配置 ====================
         const SUPABASE_URL = 'https://prenbykygxskibdufhol.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZW5ieWt5Z3hza2liZHVmaG9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMDg0NDIsImV4cCI6MjA4NDU4NDQ0Mn0.45cg3ICRfd6N0aUFzbwFm5OMz44sghYaqtay255DAfg';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         // 智谱AI配置
         const ZHIPU_API_KEY = 'd3d055a805ab47bfbf92dd9ecb49cac3.591QZN3JSFqk6aoL';
@@ -824,6 +824,11 @@
                 return;
             }
             
+            // 显示加载状态
+            const btn = document.querySelector('.login-container .btn');
+            btn.textContent = '⏳ 登录中...';
+            btn.disabled = true;
+            
             currentUser = userId;
             localStorage.setItem('finance_user', userId);
             
@@ -865,9 +870,13 @@
                     .from('user_configs')
                     .select('categories')
                     .eq('user_id', currentUser)
-                    .single();
+                    .maybeSingle();
                 
-                if (configData && configData.categories) {
+                if (configError) {
+                    console.error('加载配置错误:', configError);
+                }
+                
+                if (configData && configData.categories && configData.categories.length > 0) {
                     categories = configData.categories;
                 } else {
                     // 新用户，使用默认类目
@@ -882,7 +891,11 @@
                     .eq('user_id', currentUser)
                     .order('date', { ascending: false });
                 
-                if (expenseData) {
+                if (expenseError) {
+                    console.error('加载消费记录错误:', expenseError);
+                }
+                
+                if (expenseData && expenseData.length > 0) {
                     expenses = expenseData.map(e => ({
                         id: e.id,
                         date: e.date,
@@ -892,6 +905,8 @@
                         categoryName: e.category_name,
                         type: e.type
                     }));
+                } else {
+                    expenses = [];
                 }
                 
                 setSyncStatus('synced');
@@ -903,9 +918,11 @@
                 setSyncStatus('error');
                 showToast('同步失败，使用本地数据', 'warning');
                 
-                // 使用本地缓存
-                categories = JSON.parse(localStorage.getItem('finance_categories_' + currentUser) || 'null') || DEFAULT_CATEGORIES;
-                expenses = JSON.parse(localStorage.getItem('finance_expenses_' + currentUser) || '[]');
+                // 使用本地缓存或默认值
+                const localCat = localStorage.getItem('finance_categories_' + currentUser);
+                const localExp = localStorage.getItem('finance_expenses_' + currentUser);
+                categories = localCat ? JSON.parse(localCat) : JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                expenses = localExp ? JSON.parse(localExp) : [];
                 init();
             }
         }
@@ -965,7 +982,7 @@
         
         async function deleteExpenseFromCloud(id) {
             try {
-                await supabase.from('expenses').delete().eq('id', id);
+                await db.from('expenses').delete().eq('id', id);
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
             } catch (error) {
                 console.error('删除失败:', error);
@@ -1324,8 +1341,8 @@
             if (!confirm('再次确认？')) return;
             
             try {
-                await supabase.from('expenses').delete().eq('user_id', currentUser);
-                await supabase.from('user_configs').delete().eq('user_id', currentUser);
+                await db.from('expenses').delete().eq('user_id', currentUser);
+                await db.from('user_configs').delete().eq('user_id', currentUser);
                 
                 expenses = [];
                 categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
