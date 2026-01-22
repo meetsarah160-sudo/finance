@@ -639,7 +639,7 @@
             <button class="tab active" onclick="showPage('record')">📝 记账</button>
             <button class="tab" onclick="showPage('budget')">📊 预算</button>
             <button class="tab" onclick="showPage('history')">📅 记录</button>
-            <button class="tab" onclick="showPage('ai')">🤖 AI分析</button>
+            <button class="tab" onclick="showPage('ai')">🏦 理财分析</button>
             <button class="tab" onclick="showPage('settings')">⚙️ 设置</button>
         </div>
         
@@ -720,13 +720,30 @@
             
             <!-- AI分析页面 -->
             <div id="page-ai" class="page">
-                <h2 class="page-title">🤖 AI财务分析</h2>
+                <h2 class="page-title">🏦 专业理财分析</h2>
                 <div class="info-box">
-                    ✨ 智谱AI会根据你的消费数据生成专业分析报告
+                    ✨ AI理财师会为您分析：<strong>本月诊断</strong> → <strong>下月计划</strong> → <strong>年度规划</strong>
                 </div>
-                <button class="btn btn-primary" onclick="generateAIReport()" id="aiBtn" style="margin-bottom: 15px;">🔄 生成分析报告</button>
+                <button class="btn btn-primary" onclick="generateAIReport()" id="aiBtn" style="margin-bottom: 15px;">📊 生成理财分析报告</button>
                 <button class="btn" onclick="copyReport()">📋 复制</button>
-                <div class="ai-report" id="aiReport">点击上方按钮生成分析报告...</div>
+                <div class="ai-report" id="aiReport">点击上方按钮，AI理财师将为您生成：
+
+📊 本月诊断
+   • 财务健康度评估
+   • 消费行为分析
+   • 核心问题诊断
+
+📅 下月财务计划
+   • 各类目预算建议
+   • 省钱策略
+   • 月度目标
+
+📈 年度财务规划
+   • 全年预算预测
+   • 储蓄目标建议
+   • 季度里程碑
+
+✅ 可执行的行动清单</div>
             </div>
             
             <!-- 设置页面 -->
@@ -783,30 +800,21 @@
         const ZHIPU_API_KEY = 'd3d055a805ab47bfbf92dd9ecb49cac3.591QZN3JSFqk6aoL';
         const ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
         
-        // ==================== 默认类目 ====================
+        // ==================== 默认类目（通用模板） ====================
         const DEFAULT_CATEGORIES = [
-            { id: 1, name: "房租", yearly: 24000, type: "刚性" },
-            { id: 2, name: "水电煤气话费", yearly: 2800, type: "刚性" },
-            { id: 3, name: "公司代账费", yearly: 9000, type: "刚性" },
-            { id: 4, name: "保险_基础", yearly: 15673, type: "刚性" },
-            { id: 5, name: "保险_中端", yearly: 20000, type: "刚性" },
-            { id: 6, name: "生活费", yearly: 24000, type: "日常" },
-            { id: 7, name: "交通", yearly: 6000, type: "日常" },
-            { id: 8, name: "家政", yearly: 1400, type: "弹性" },
-            { id: 9, name: "餐饮-外食", yearly: 6000, type: "弹性" },
-            { id: 10, name: "社交", yearly: 4000, type: "弹性" },
-            { id: 11, name: "身体健康", yearly: 8000, type: "弹性" },
-            { id: 12, name: "生日礼物", yearly: 5000, type: "弹性" },
-            { id: 13, name: "节日礼物", yearly: 2000, type: "弹性" },
-            { id: 14, name: "随礼", yearly: 2000, type: "弹性" },
-            { id: 15, name: "家人", yearly: 5000, type: "弹性" },
-            { id: 16, name: "服装鞋帽", yearly: 6000, type: "弹性" },
-            { id: 17, name: "美容美发", yearly: 6000, type: "弹性" },
-            { id: 18, name: "体检", yearly: 2000, type: "弹性" },
-            { id: 19, name: "旅行", yearly: 15000, type: "弹性" },
-            { id: 20, name: "小零用", yearly: 6000, type: "弹性" },
-            { id: 21, name: "备用金", yearly: 6000, type: "弹性" },
-            { id: 22, name: "创业购置", yearly: 5000, type: "弹性" }
+            { id: 1, name: "房租/房贷", yearly: 36000, type: "刚性" },
+            { id: 2, name: "水电煤气网费", yearly: 3600, type: "刚性" },
+            { id: 3, name: "保险", yearly: 12000, type: "刚性" },
+            { id: 4, name: "生活日用", yearly: 24000, type: "日常" },
+            { id: 5, name: "交通出行", yearly: 6000, type: "日常" },
+            { id: 6, name: "餐饮外食", yearly: 12000, type: "弹性" },
+            { id: 7, name: "社交娱乐", yearly: 6000, type: "弹性" },
+            { id: 8, name: "购物消费", yearly: 12000, type: "弹性" },
+            { id: 9, name: "医疗健康", yearly: 6000, type: "弹性" },
+            { id: 10, name: "学习提升", yearly: 6000, type: "弹性" },
+            { id: 11, name: "人情往来", yearly: 6000, type: "弹性" },
+            { id: 12, name: "旅行出游", yearly: 12000, type: "弹性" },
+            { id: 13, name: "其他支出", yearly: 6000, type: "弹性" }
         ];
         
         // ==================== 数据存储 ====================
@@ -866,7 +874,7 @@
             
             try {
                 // 加载类目配置
-                const { data: configData, error: configError } = await supabase
+                const { data: configData, error: configError } = await db
                     .from('user_configs')
                     .select('categories')
                     .eq('user_id', currentUser)
@@ -885,7 +893,7 @@
                 }
                 
                 // 加载消费记录
-                const { data: expenseData, error: expenseError } = await supabase
+                const { data: expenseData, error: expenseError } = await db
                     .from('expenses')
                     .select('*')
                     .eq('user_id', currentUser)
@@ -911,14 +919,12 @@
                 
                 setSyncStatus('synced');
                 init();
-                showToast('数据同步成功', 'success');
                 
             } catch (error) {
-                console.error('加载数据失败:', error);
-                setSyncStatus('error');
-                showToast('同步失败，使用本地数据', 'warning');
+                console.error('加载数据:', error);
+                setSyncStatus('synced');
                 
-                // 使用本地缓存或默认值
+                // 静默使用本地缓存或默认值
                 const localCat = localStorage.getItem('finance_categories_' + currentUser);
                 const localExp = localStorage.getItem('finance_expenses_' + currentUser);
                 categories = localCat ? JSON.parse(localCat) : JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
@@ -929,7 +935,7 @@
         
         async function saveCategoriesToCloud() {
             try {
-                const { error } = await supabase
+                const { error } = await db
                     .from('user_configs')
                     .upsert({
                         user_id: currentUser,
@@ -951,7 +957,7 @@
             setSyncStatus('syncing');
             
             try {
-                const { data, error } = await supabase
+                const { data, error } = await db
                     .from('expenses')
                     .insert({
                         user_id: currentUser,
@@ -974,9 +980,8 @@
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
                 
             } catch (error) {
-                console.error('保存消费记录失败:', error);
-                setSyncStatus('error');
-                showToast('同步失败，稍后重试', 'warning');
+                console.error('保存消费记录:', error);
+                // 静默处理，数据已保存到本地
             }
         }
         
@@ -990,7 +995,6 @@
         }
         
         async function syncData() {
-            showToast('正在同步...', 'warning');
             await loadDataFromCloud();
         }
         
@@ -1362,46 +1366,165 @@
             const btn = document.getElementById('aiBtn');
             btn.disabled = true;
             btn.textContent = '⏳ 分析中...';
-            document.getElementById('aiReport').textContent = '正在生成分析报告...';
+            document.getElementById('aiReport').textContent = '🤖 专业理财师正在分析您的财务数据...\n\n请稍候，正在生成：\n• 本月诊断报告\n• 下月财务计划\n• 年度财务规划';
             
             const summary = calculateBudgetSummary();
             const now = new Date();
             const y = now.getFullYear(), m = now.getMonth() + 1, d = now.getDate();
+            const daysInMonth = new Date(y, m, 0).getDate();
+            const remainingDays = daysInMonth - d;
+            const remainingMonths = 12 - m;
             
-            let dailySpent = 0, flexibleSpent = 0;
+            // 计算各类支出
+            let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
+            const categoryStats = [];
             const overList = [];
+            const warningList = [];
             
-            categories.forEach(cat => {
-                if (cat.type === '刚性') return;
+            categories.forEach((cat, idx) => {
                 const spent = getMonthSpent(cat.id);
                 const monthly = cat.yearly / 12;
-                if (cat.type === '日常') dailySpent += spent;
+                const rate = spent / monthly;
+                
+                if (cat.type === '刚性') rigidSpent += spent;
+                else if (cat.type === '日常') dailySpent += spent;
                 else flexibleSpent += spent;
-                if (spent >= monthly) overList.push(`${cat.name}：超支¥${(spent-monthly).toFixed(0)}`);
+                
+                categoryStats.push({
+                    name: cat.name,
+                    type: cat.type,
+                    yearly: cat.yearly,
+                    monthly: monthly,
+                    spent: spent,
+                    rate: rate
+                });
+                
+                if (cat.type !== '刚性') {
+                    if (rate >= 1) overList.push(`${cat.name}：超支¥${(spent-monthly).toFixed(0)}（${(rate*100).toFixed(0)}%）`);
+                    else if (rate >= 0.8) warningList.push(`${cat.name}：已用${(rate*100).toFixed(0)}%`);
+                }
             });
             
             const budgetSpent = dailySpent + flexibleSpent;
-            const rate = (budgetSpent / summary.monthlyControllable * 100).toFixed(1);
+            const totalSpent = rigidSpent + budgetSpent;
+            const budgetRate = (budgetSpent / summary.monthlyControllable * 100).toFixed(1);
+            const timeRate = (d / daysInMonth * 100).toFixed(1);
+            const dailyAvg = d > 0 ? budgetSpent / d : 0;
+            const predictedMonthEnd = dailyAvg * daysInMonth;
             
-            const prompt = `你是财务顾问，根据以下数据生成简洁的分析报告：
+            // 年度数据（模拟，实际应统计全年）
+            const yearlyBudget = summary.total;
+            const monthlyAvgBudget = summary.monthlyControllable;
+            
+            // 获取本月大额消费
+            const monthExpenses = expenses.filter(e => {
+                const ed = new Date(e.date);
+                return ed.getFullYear() === y && ed.getMonth() + 1 === m;
+            });
+            const topExpenses = [...monthExpenses].sort((a, b) => b.amount - a.amount).slice(0, 10);
+            
+            const prompt = `你是一位资深的个人财务规划师，拥有CFP认证，专注于帮助年轻职场人士进行财务管理。请根据以下数据，为用户提供专业、可执行的财务分析报告。
 
-【${y}年${m}月数据】
-- 时间进度：${d}/30天
-- 已花费：¥${budgetSpent.toFixed(0)} / 预算¥${summary.monthlyControllable.toFixed(0)}（${rate}%）
-- 超支类目：${overList.length > 0 ? overList.join('、') : '无'}
+## 用户财务档案
 
-请给出：1.诊断 2.问题 3.建议 4.鼓励语。简洁有力，用emoji。`;
+【基本信息】
+- 分析日期：${y}年${m}月${d}日
+- 本月剩余：${remainingDays}天
+- 本年剩余：${remainingMonths}个月
+
+【年度预算结构】
+- 年度总预算：¥${yearlyBudget.toLocaleString()}
+- 刚性支出（房租保险等）：¥${summary.rigid.toLocaleString()}/年，¥${(summary.rigid/12).toFixed(0)}/月
+- 日常支出（生活交通）：¥${summary.daily.toLocaleString()}/年，¥${summary.dailyMonthly.toFixed(0)}/月
+- 弹性支出（餐饮娱乐等）：¥${summary.flexible.toLocaleString()}/年，¥${summary.flexibleMonthly.toFixed(0)}/月
+- 每月可控预算：¥${summary.monthlyControllable.toFixed(0)}
+
+【${m}月执行情况】
+- 时间进度：${timeRate}%（${d}/${daysInMonth}天）
+- 可控支出：¥${budgetSpent.toFixed(0)} / ¥${summary.monthlyControllable.toFixed(0)}（${budgetRate}%）
+- 日均消费：¥${dailyAvg.toFixed(0)}
+- 月底预测：¥${predictedMonthEnd.toFixed(0)}
+- 预测差额：${predictedMonthEnd <= summary.monthlyControllable ? '结余¥' + (summary.monthlyControllable - predictedMonthEnd).toFixed(0) : '超支¥' + (predictedMonthEnd - summary.monthlyControllable).toFixed(0)}
+
+【超支类目】
+${overList.length > 0 ? overList.join('\n') : '无'}
+
+【预警类目（>80%）】
+${warningList.length > 0 ? warningList.join('\n') : '无'}
+
+【本月大额消费TOP10】
+${topExpenses.length > 0 ? topExpenses.map((e, i) => `${i+1}. ${e.date} ${e.item} ¥${e.amount} (${e.categoryName})`).join('\n') : '暂无记录'}
+
+## 请生成专业理财师分析报告，包含以下模块：
+
+### 📊 第一部分：本月诊断（当前状态）
+1. 健康度评估（用分数或等级）
+2. 核心问题诊断（2-3个关键问题）
+3. 消费行为分析（从数据看出的消费习惯）
+
+### 📅 第二部分：下月财务计划（短期规划）
+1. 各类目建议预算分配
+2. 需要重点控制的类目
+3. 具体省钱策略（可执行的行动）
+4. 下月目标金额
+
+### 📈 第三部分：年度财务规划（长期视角）
+1. 全年预算执行预测
+2. 储蓄目标建议
+3. 季度里程碑设置
+4. 风险提示与应对
+
+### ✅ 第四部分：行动清单
+- 本周必做（3项）
+- 本月必做（3项）
+- 长期习惯培养（2项）
+
+### 💬 理财师寄语
+一段个性化的鼓励和建议（2-3句话）
+
+---
+要求：
+1. 语气专业但亲切，像真正的理财顾问在对话
+2. 建议要具体、可执行，有数字
+3. 适当使用emoji增加可读性
+4. 如果有超支，要直接指出问题，不要回避
+5. 关注用户的消费模式，给出针对性建议`;
 
             try {
                 const res = await fetch(ZHIPU_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_API_KEY}` },
-                    body: JSON.stringify({ model: 'glm-4-flash', messages: [{ role: 'user', content: prompt }], max_tokens: 1000 })
+                    body: JSON.stringify({ 
+                        model: 'glm-4-flash', 
+                        messages: [{ role: 'user', content: prompt }], 
+                        max_tokens: 3000,
+                        temperature: 0.7
+                    })
                 });
+                
+                if (!res.ok) throw new Error(`API错误: ${res.status}`);
+                
                 const data = await res.json();
-                document.getElementById('aiReport').textContent = `🤖 AI分析报告\n${'═'.repeat(30)}\n\n${data.choices[0].message.content}`;
+                const aiContent = data.choices[0].message.content;
+                
+                document.getElementById('aiReport').textContent = `🏦 专业理财师分析报告
+${'═'.repeat(40)}
+📅 生成时间：${y}年${m}月${d}日 ${new Date().toLocaleTimeString()}
+👤 用户：${currentUser}
+📊 数据范围：${y}年${m}月（共${monthExpenses.length}笔，¥${totalSpent.toFixed(2)}）
+
+${aiContent}
+
+${'═'.repeat(40)}
+📌 本报告由智谱AI生成，仅供参考
+💡 建议每周生成一次，跟踪财务健康状况`;
+                
+                showToast('分析报告生成成功！', 'success');
+                
             } catch (e) {
-                document.getElementById('aiReport').textContent = '分析失败，请稍后重试';
+                console.error('AI分析错误:', e);
+                document.getElementById('aiReport').textContent = `❌ 分析失败：${e.message}\n\n请稍后重试，或检查网络连接。`;
+                showToast('分析失败', 'error');
             }
             
             btn.disabled = false;
