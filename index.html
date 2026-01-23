@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>💰 财务管理系统</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -580,6 +581,227 @@
         
         /* 隐藏 */
         .hidden { display: none !important; }
+        
+        /* 图表页面 */
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .chart-card {
+            background: var(--gray-100);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .chart-card.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .chart-card h3 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: var(--gray-800);
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 250px;
+        }
+        
+        .chart-wrapper-wide {
+            position: relative;
+            height: 300px;
+        }
+        
+        .chart-wrapper canvas,
+        .chart-wrapper-wide canvas {
+            max-width: 100%;
+        }
+        
+        /* 常用消费快捷按钮 */
+        .quick-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .quick-btn {
+            padding: 8px 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .quick-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* 搜索框 */
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .search-box input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid var(--gray-300);
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        /* 同比环比卡片 */
+        .compare-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .compare-card {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px;
+        }
+        
+        .compare-card h4 {
+            font-size: 14px;
+            color: var(--gray-600);
+            margin-bottom: 10px;
+        }
+        
+        .compare-card .value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .compare-card .change {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        
+        .compare-card .change.up {
+            background: var(--pink-100);
+            color: var(--danger);
+        }
+        
+        .compare-card .change.down {
+            background: var(--green-100);
+            color: var(--success);
+        }
+        
+        .compare-card .change.same {
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+        
+        /* 年度统计 */
+        .year-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 600px) {
+            .year-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        .month-card {
+            background: var(--gray-100);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .month-card:hover {
+            background: var(--gray-200);
+        }
+        
+        .month-card.current {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .month-card .month-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .month-card .month-amount {
+            font-size: 16px;
+            font-weight: 700;
+        }
+        
+        .month-card .month-count {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 3px;
+        }
+        
+        .year-summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .year-summary h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .year-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+        }
+        
+        .year-summary-item {
+            text-align: center;
+        }
+        
+        .year-summary-item .label {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        .year-summary-item .value {
+            font-size: 22px;
+            font-weight: 700;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -617,6 +839,8 @@
             <button class="tab" onclick="switchPage('budget', event)">📊 预算</button>
             <button class="tab" onclick="switchPage('history', event)">📅 记录</button>
             <button class="tab" onclick="switchPage('ai', event)">🏦 理财分析</button>
+            <button class="tab" onclick="switchPage('charts', event)">📈 图表</button>
+            <button class="tab" onclick="switchPage('yearly', event)">📅 年度</button>
             <button class="tab" onclick="switchPage('settings', event)">⚙️ 设置</button>
         </div>
         
@@ -627,6 +851,12 @@
                 <h2 class="page-title">📝 快速记账</h2>
                 
                 <div class="tip-bar" id="budgetTip"></div>
+                
+                <!-- 常用消费快捷按钮 -->
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: 500; margin-bottom: 8px; display: block;">⚡ 常用消费（一键记录）</label>
+                    <div class="quick-buttons" id="quickButtons"></div>
+                </div>
                 
                 <div class="quick-input-section">
                     <label style="font-weight: 500; margin-bottom: 8px; display: block;">快速输入</label>
@@ -663,6 +893,9 @@
                 
                 <div class="summary-cards" id="summaryCards"></div>
                 
+                <!-- 同比环比对比 -->
+                <div class="compare-cards" id="compareCards"></div>
+                
                 <div style="font-size: 14px; color: var(--gray-600); margin-bottom: 15px;">
                     💡 点击类目可展开查看具体消费明细
                 </div>
@@ -673,6 +906,12 @@
             <!-- 记录页面 -->
             <div id="page-history" class="page">
                 <h2 class="page-title">📅 消费记录</h2>
+                
+                <!-- 搜索框 -->
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="🔍 搜索消费记录..." oninput="searchExpenses()">
+                    <button class="btn btn-outline" onclick="clearSearch()">清除</button>
+                </div>
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <select id="historyMonth" onchange="renderHistory()" style="padding: 10px; border-radius: 8px; border: 2px solid var(--gray-300);"></select>
@@ -718,6 +957,68 @@
                 <div id="settingsList"></div>
                 
                 <button class="add-category-btn" onclick="addCategory()">➕ 添加新类目</button>
+            </div>
+            
+            <!-- 图表页面 -->
+            <div id="page-charts" class="page">
+                <h2 class="page-title">📈 可视化图表</h2>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <select id="chartMonth" onchange="renderCharts()" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300); font-size: 14px;"></select>
+                    <div style="font-size: 14px; color: var(--gray-600);">
+                        💡 图表数据根据所选月份自动更新
+                    </div>
+                </div>
+                
+                <!-- 汇总卡片 -->
+                <div class="summary-cards" id="chartSummary" style="margin-bottom: 25px;"></div>
+                
+                <!-- 图表区域 -->
+                <div class="charts-container">
+                    <!-- 饼图：支出构成 -->
+                    <div class="chart-card">
+                        <h3>🥧 支出构成</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="pieChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- 折线图：每日消费趋势 -->
+                    <div class="chart-card">
+                        <h3>📉 每日消费趋势</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="lineChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- 柱状图：预算vs实际 -->
+                    <div class="chart-card full-width">
+                        <h3>📊 预算 vs 实际支出</h3>
+                        <div class="chart-wrapper-wide">
+                            <canvas id="barChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 年度统计页面 -->
+            <div id="page-yearly" class="page">
+                <h2 class="page-title">📅 年度统计</h2>
+                
+                <div style="margin-bottom: 20px;">
+                    <select id="yearSelect" onchange="renderYearlyStats()" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300); font-size: 14px;"></select>
+                </div>
+                
+                <!-- 年度汇总 -->
+                <div class="year-summary" id="yearSummary"></div>
+                
+                <!-- 月度卡片 -->
+                <h3 style="margin-bottom: 15px; font-size: 16px;">📆 各月消费</h3>
+                <div class="year-grid" id="yearGrid"></div>
+                
+                <!-- 年度类目排行 -->
+                <h3 style="margin-bottom: 15px; font-size: 16px;">🏆 类目消费排行</h3>
+                <div id="yearCategoryRank"></div>
             </div>
         </div>
     </div>
@@ -1020,7 +1321,9 @@
             document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
             renderCategoryGrid();
             renderBudgetTip();
+            renderQuickButtons();
             renderBudgetStatus();
+            renderCompareCards();
             renderMonthSelector();
             renderHistory();
             renderSettings();
@@ -1035,6 +1338,14 @@
             if (page === 'budget') renderBudgetStatus();
             if (page === 'history') renderHistory();
             if (page === 'settings') renderSettings();
+            if (page === 'charts') {
+                initChartMonthSelector();
+                renderCharts();
+            }
+            if (page === 'yearly') {
+                initYearSelector();
+                renderYearlyStats();
+            }
         }
         
         // ==================== 记账功能 ====================
@@ -1047,6 +1358,49 @@
             
             document.getElementById('budgetTip').innerHTML = 
                 `💡 每月可控预算 = ¥${dailyBudget}(日常) + ¥${flexibleBudget}(弹性) = <strong>¥${dailyBudget + flexibleBudget}</strong>`;
+        }
+        
+        // ==================== 常用消费快捷按钮 ====================
+        const QUICK_ITEMS = [
+            { name: '☕ 咖啡', amount: 25, categoryId: 6 },
+            { name: '🚕 打车', amount: 15, categoryId: 5 },
+            { name: '🍜 外卖', amount: 35, categoryId: 6 },
+            { name: '🚇 地铁', amount: 5, categoryId: 5 },
+            { name: '🧋 奶茶', amount: 18, categoryId: 6 },
+            { name: '🍎 水果', amount: 30, categoryId: 4 },
+            { name: '🛒 超市', amount: 50, categoryId: 4 },
+            { name: '💊 药品', amount: 30, categoryId: 9 }
+        ];
+        
+        function renderQuickButtons() {
+            const container = document.getElementById('quickButtons');
+            container.innerHTML = QUICK_ITEMS.map((item, index) => `
+                <button class="quick-btn" onclick="quickRecord(${index})">${item.name} ¥${item.amount}</button>
+            `).join('');
+        }
+        
+        async function quickRecord(index) {
+            const item = QUICK_ITEMS[index];
+            const cat = categories.find(c => c.id === item.categoryId);
+            if (!cat) {
+                showToast('类目不存在', 'error');
+                return;
+            }
+            
+            const expense = {
+                id: Date.now(),
+                date: new Date().toISOString().split('T')[0],
+                item: item.name.replace(/^[^\s]+\s/, ''), // 去掉emoji
+                amount: item.amount,
+                categoryId: item.categoryId,
+                categoryName: cat.name,
+                type: cat.type
+            };
+            
+            expenses.unshift(expense);
+            await saveExpenseToCloud(expense);
+            renderBudgetStatus();
+            showToast(`已记录 ${item.name} ¥${item.amount}`, 'success');
         }
         
         function renderCategoryGrid() {
@@ -1263,6 +1617,73 @@
             document.getElementById('budgetList').innerHTML = html;
         }
         
+        // ==================== 同比环比对比 ====================
+        function renderCompareCards() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            
+            // 本月数据
+            const thisMonthExpenses = expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            });
+            const thisMonthTotal = thisMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+            
+            // 上月数据
+            const lastMonth = month === 1 ? 12 : month - 1;
+            const lastYear = month === 1 ? year - 1 : year;
+            const lastMonthExpenses = expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === lastYear && d.getMonth() + 1 === lastMonth;
+            });
+            const lastMonthTotal = lastMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+            
+            // 去年同期数据
+            const lastYearExpenses = expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year - 1 && d.getMonth() + 1 === month;
+            });
+            const lastYearTotal = lastYearExpenses.reduce((sum, e) => sum + e.amount, 0);
+            
+            // 计算变化
+            function getChange(current, previous) {
+                if (previous === 0) return { text: '无数据', class: 'same' };
+                const diff = current - previous;
+                const percent = ((diff / previous) * 100).toFixed(1);
+                if (diff > 0) return { text: `↑ +${percent}%`, class: 'up' };
+                if (diff < 0) return { text: `↓ ${percent}%`, class: 'down' };
+                return { text: '持平', class: 'same' };
+            }
+            
+            const momChange = getChange(thisMonthTotal, lastMonthTotal); // 环比
+            const yoyChange = getChange(thisMonthTotal, lastYearTotal); // 同比
+            
+            // 日均对比
+            const daysElapsed = now.getDate();
+            const dailyAvg = thisMonthTotal / daysElapsed;
+            const lastMonthDailyAvg = lastMonthTotal / new Date(lastYear, lastMonth, 0).getDate();
+            const dailyChange = getChange(dailyAvg, lastMonthDailyAvg);
+            
+            document.getElementById('compareCards').innerHTML = `
+                <div class="compare-card">
+                    <h4>📊 环比（vs上月）</h4>
+                    <div class="value">¥${thisMonthTotal.toFixed(0)} vs ¥${lastMonthTotal.toFixed(0)}</div>
+                    <span class="change ${momChange.class}">${momChange.text}</span>
+                </div>
+                <div class="compare-card">
+                    <h4>📈 同比（vs去年${month}月）</h4>
+                    <div class="value">¥${thisMonthTotal.toFixed(0)} vs ¥${lastYearTotal.toFixed(0)}</div>
+                    <span class="change ${yoyChange.class}">${yoyChange.text}</span>
+                </div>
+                <div class="compare-card">
+                    <h4>📉 日均消费对比</h4>
+                    <div class="value">¥${dailyAvg.toFixed(0)}/天 vs ¥${lastMonthDailyAvg.toFixed(0)}/天</div>
+                    <span class="change ${dailyChange.class}">${dailyChange.text}</span>
+                </div>
+            `;
+        }
+        
         function toggleCategory(id) {
             if (expandedCategories.has(id)) {
                 expandedCategories.delete(id);
@@ -1316,6 +1737,45 @@
                     </div>
                 </div>
             `).join('') || '<div class="no-data" style="text-align: center; padding: 40px;">本月暂无记录</div>';
+        }
+        
+        // ==================== 搜索功能 ====================
+        function searchExpenses() {
+            const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            
+            if (!keyword) {
+                renderHistory();
+                return;
+            }
+            
+            const results = expenses.filter(e => 
+                e.item.toLowerCase().includes(keyword) ||
+                e.categoryName.toLowerCase().includes(keyword) ||
+                e.date.includes(keyword)
+            );
+            
+            const total = results.reduce((sum, e) => sum + e.amount, 0);
+            document.getElementById('historyTotal').textContent = `搜索结果: ${results.length} 笔，¥${total.toFixed(2)}`;
+            
+            document.getElementById('historyList').innerHTML = results.slice(0, 50).map(e => `
+                <div class="record-item">
+                    <div class="info">
+                        <div class="date">${e.date}</div>
+                        <div class="desc">${e.item}</div>
+                        <div class="cat">${e.categoryName} · ${e.type}</div>
+                    </div>
+                    <div class="amount">¥${e.amount.toFixed(2)}</div>
+                    <div class="record-actions">
+                        <button class="btn btn-sm btn-outline" onclick="editExpense(${e.id})">✏️</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteExpense(${e.id})">🗑️</button>
+                    </div>
+                </div>
+            `).join('') || '<div class="no-data" style="text-align: center; padding: 40px;">未找到匹配记录</div>';
+        }
+        
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            renderHistory();
         }
         
         function editExpense(id) {
@@ -1599,6 +2059,462 @@ ${top10 || '暂无数据'}
             
             btn.disabled = false;
             btn.textContent = '🤖 生成理财分析报告';
+        }
+        
+        // ==================== 图表功能 ====================
+        let pieChart = null;
+        let lineChart = null;
+        let barChart = null;
+        
+        function initChartMonthSelector() {
+            const select = document.getElementById('chartMonth');
+            if (select.options.length > 0) return; // 已初始化
+            
+            const now = new Date();
+            const year = now.getFullYear();
+            
+            for (let m = 12; m >= 1; m--) {
+                const opt = document.createElement('option');
+                opt.value = `${year}-${m}`;
+                opt.textContent = `${year}年${m}月`;
+                if (m === now.getMonth() + 1) opt.selected = true;
+                select.appendChild(opt);
+            }
+        }
+        
+        function getChartMonthExpenses() {
+            const [year, month] = document.getElementById('chartMonth').value.split('-').map(Number);
+            return expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            });
+        }
+        
+        function renderCharts() {
+            const monthExpenses = getChartMonthExpenses();
+            const [year, month] = document.getElementById('chartMonth').value.split('-').map(Number);
+            
+            // 计算汇总数据
+            let categorySpending = {};
+            let dailySpending = {};
+            let totalSpent = 0;
+            
+            categories.forEach(cat => {
+                categorySpending[cat.id] = { name: cat.name, spent: 0, budget: getMonthly(cat), type: cat.type };
+            });
+            
+            monthExpenses.forEach(e => {
+                if (categorySpending[e.categoryId]) {
+                    categorySpending[e.categoryId].spent += e.amount;
+                }
+                totalSpent += e.amount;
+                
+                const day = new Date(e.date).getDate();
+                dailySpending[day] = (dailySpending[day] || 0) + e.amount;
+            });
+            
+            // 渲染汇总卡片
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const avgDaily = totalSpent / (Object.keys(dailySpending).length || 1);
+            
+            document.getElementById('chartSummary').innerHTML = `
+                <div class="summary-card">
+                    <h3>本月总支出</h3>
+                    <div class="amount">¥${totalSpent.toFixed(0)}</div>
+                    <div class="sub">${monthExpenses.length} 笔消费</div>
+                </div>
+                <div class="summary-card">
+                    <h3>日均消费</h3>
+                    <div class="amount">¥${avgDaily.toFixed(0)}</div>
+                    <div class="sub">平均每天</div>
+                </div>
+                <div class="summary-card">
+                    <h3>最高单笔</h3>
+                    <div class="amount">¥${monthExpenses.length > 0 ? Math.max(...monthExpenses.map(e => e.amount)).toFixed(0) : 0}</div>
+                    <div class="sub">单笔最大</div>
+                </div>
+                <div class="summary-card">
+                    <h3>消费天数</h3>
+                    <div class="amount">${Object.keys(dailySpending).length}</div>
+                    <div class="sub">共 ${daysInMonth} 天</div>
+                </div>
+            `;
+            
+            // 渲染饼图
+            renderPieChart(categorySpending);
+            
+            // 渲染折线图
+            renderLineChart(dailySpending, year, month);
+            
+            // 渲染柱状图
+            renderBarChart(categorySpending);
+        }
+        
+        function renderPieChart(categorySpending) {
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            
+            // 过滤有消费的类目
+            const data = Object.values(categorySpending)
+                .filter(c => c.spent > 0)
+                .sort((a, b) => b.spent - a.spent);
+            
+            if (pieChart) pieChart.destroy();
+            
+            if (data.length === 0) {
+                pieChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['暂无数据'],
+                        datasets: [{
+                            data: [1],
+                            backgroundColor: ['#e2e8f0']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } }
+                    }
+                });
+                return;
+            }
+            
+            const colors = [
+                '#667eea', '#764ba2', '#48bb78', '#ed8936', '#f56565',
+                '#38b2ac', '#9f7aea', '#ed64a6', '#4299e1', '#ecc94b',
+                '#fc8181', '#68d391', '#63b3ed', '#f6ad55', '#b794f4'
+            ];
+            
+            pieChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(c => c.name),
+                    datasets: [{
+                        data: data.map(c => c.spent),
+                        backgroundColor: colors.slice(0, data.length),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 10,
+                                font: { size: 11 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const value = context.raw;
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `¥${value.toFixed(0)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderLineChart(dailySpending, year, month) {
+            const ctx = document.getElementById('lineChart').getContext('2d');
+            const daysInMonth = new Date(year, month, 0).getDate();
+            
+            // 生成每天的数据
+            const labels = [];
+            const data = [];
+            let cumulative = 0;
+            const cumulativeData = [];
+            
+            for (let d = 1; d <= daysInMonth; d++) {
+                labels.push(`${month}/${d}`);
+                const daySpent = dailySpending[d] || 0;
+                data.push(daySpent);
+                cumulative += daySpent;
+                cumulativeData.push(cumulative);
+            }
+            
+            if (lineChart) lineChart.destroy();
+            
+            lineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '每日消费',
+                            data: data,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 2,
+                            pointHoverRadius: 5
+                        },
+                        {
+                            label: '累计消费',
+                            data: cumulativeData,
+                            borderColor: '#ed8936',
+                            backgroundColor: 'transparent',
+                            borderDash: [5, 5],
+                            tension: 0.3,
+                            pointRadius: 0,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { boxWidth: 12, padding: 10, font: { size: 11 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ¥${context.raw.toFixed(0)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { 
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 10,
+                                font: { size: 10 }
+                            }
+                        },
+                        y: {
+                            position: 'left',
+                            grid: { color: '#e2e8f0' },
+                            ticks: {
+                                callback: function(value) { return '¥' + value; },
+                                font: { size: 10 }
+                            }
+                        },
+                        y1: {
+                            position: 'right',
+                            grid: { display: false },
+                            ticks: {
+                                callback: function(value) { return '¥' + value; },
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderBarChart(categorySpending) {
+            const ctx = document.getElementById('barChart').getContext('2d');
+            
+            // 只显示计入预算的类目（日常+弹性）
+            const data = Object.values(categorySpending)
+                .filter(c => c.type !== '刚性')
+                .sort((a, b) => b.spent - a.spent);
+            
+            if (barChart) barChart.destroy();
+            
+            barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(c => c.name),
+                    datasets: [
+                        {
+                            label: '实际支出',
+                            data: data.map(c => c.spent),
+                            backgroundColor: data.map(c => {
+                                const rate = c.spent / c.budget;
+                                if (rate >= 1) return '#f56565';
+                                if (rate >= 0.8) return '#ed8936';
+                                return '#48bb78';
+                            }),
+                            borderRadius: 4
+                        },
+                        {
+                            label: '月预算',
+                            data: data.map(c => c.budget),
+                            backgroundColor: 'rgba(102, 126, 234, 0.3)',
+                            borderColor: '#667eea',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { boxWidth: 12, padding: 15, font: { size: 11 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ¥${context.raw.toFixed(0)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { 
+                                font: { size: 10 },
+                                maxRotation: 45,
+                                minRotation: 0
+                            }
+                        },
+                        y: {
+                            grid: { color: '#e2e8f0' },
+                            ticks: {
+                                callback: function(value) { return '¥' + value; },
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // ==================== 年度统计 ====================
+        function initYearSelector() {
+            const select = document.getElementById('yearSelect');
+            if (select.options.length > 0) return;
+            
+            const currentYear = new Date().getFullYear();
+            for (let y = currentYear; y >= currentYear - 3; y--) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = `${y}年`;
+                select.appendChild(opt);
+            }
+        }
+        
+        function renderYearlyStats() {
+            const year = parseInt(document.getElementById('yearSelect').value);
+            
+            // 筛选该年所有消费
+            const yearExpenses = expenses.filter(e => new Date(e.date).getFullYear() === year);
+            const totalSpent = yearExpenses.reduce((sum, e) => sum + e.amount, 0);
+            
+            // 月度数据
+            const monthlyData = {};
+            for (let m = 1; m <= 12; m++) {
+                monthlyData[m] = { total: 0, count: 0 };
+            }
+            
+            yearExpenses.forEach(e => {
+                const m = new Date(e.date).getMonth() + 1;
+                monthlyData[m].total += e.amount;
+                monthlyData[m].count++;
+            });
+            
+            // 类目统计
+            const categoryData = {};
+            yearExpenses.forEach(e => {
+                if (!categoryData[e.categoryName]) {
+                    categoryData[e.categoryName] = 0;
+                }
+                categoryData[e.categoryName] += e.amount;
+            });
+            
+            // 排序
+            const sortedCategories = Object.entries(categoryData)
+                .sort((a, b) => b[1] - a[1]);
+            
+            // 计算统计数据
+            const monthsWithData = Object.values(monthlyData).filter(m => m.total > 0).length;
+            const avgMonthly = monthsWithData > 0 ? totalSpent / monthsWithData : 0;
+            const maxMonth = Math.max(...Object.values(monthlyData).map(m => m.total));
+            const minMonthWithData = Math.min(...Object.values(monthlyData).filter(m => m.total > 0).map(m => m.total)) || 0;
+            
+            // 渲染年度汇总
+            document.getElementById('yearSummary').innerHTML = `
+                <h3>📊 ${year}年度汇总</h3>
+                <div class="year-summary-grid">
+                    <div class="year-summary-item">
+                        <div class="label">年度总支出</div>
+                        <div class="value">¥${totalSpent.toFixed(0)}</div>
+                    </div>
+                    <div class="year-summary-item">
+                        <div class="label">消费笔数</div>
+                        <div class="value">${yearExpenses.length}</div>
+                    </div>
+                    <div class="year-summary-item">
+                        <div class="label">月均消费</div>
+                        <div class="value">¥${avgMonthly.toFixed(0)}</div>
+                    </div>
+                    <div class="year-summary-item">
+                        <div class="label">日均消费</div>
+                        <div class="value">¥${(totalSpent / 365).toFixed(0)}</div>
+                    </div>
+                    <div class="year-summary-item">
+                        <div class="label">最高月份</div>
+                        <div class="value">¥${maxMonth.toFixed(0)}</div>
+                    </div>
+                    <div class="year-summary-item">
+                        <div class="label">最低月份</div>
+                        <div class="value">¥${minMonthWithData.toFixed(0)}</div>
+                    </div>
+                </div>
+            `;
+            
+            // 渲染月度卡片
+            const currentMonth = new Date().getMonth() + 1;
+            const thisYear = new Date().getFullYear();
+            
+            document.getElementById('yearGrid').innerHTML = Object.entries(monthlyData).map(([m, data]) => `
+                <div class="month-card ${year === thisYear && parseInt(m) === currentMonth ? 'current' : ''}" 
+                     onclick="jumpToMonth(${year}, ${m})">
+                    <div class="month-name">${m}月</div>
+                    <div class="month-amount">¥${data.total.toFixed(0)}</div>
+                    <div class="month-count">${data.count}笔</div>
+                </div>
+            `).join('');
+            
+            // 渲染类目排行
+            document.getElementById('yearCategoryRank').innerHTML = sortedCategories.length > 0 ? 
+                sortedCategories.map(([name, amount], index) => `
+                    <div class="record-item" style="margin-bottom: 8px;">
+                        <div class="info">
+                            <div class="desc" style="font-weight: 600;">
+                                ${index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}.`} ${name}
+                            </div>
+                            <div class="cat">${((amount / totalSpent) * 100).toFixed(1)}% 占比</div>
+                        </div>
+                        <div class="amount" style="color: var(--gray-800);">¥${amount.toFixed(0)}</div>
+                    </div>
+                `).join('') : '<div class="no-data">暂无消费数据</div>';
+        }
+        
+        function jumpToMonth(year, month) {
+            // 切换到记录页面并选择对应月份
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('page-history').classList.add('active');
+            document.querySelector('.tab:nth-child(3)').classList.add('active');
+            
+            const select = document.getElementById('historyMonth');
+            select.value = `${year}-${month}`;
+            renderHistory();
         }
         
         // ==================== 自动登录 ====================
