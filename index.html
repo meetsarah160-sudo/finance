@@ -814,7 +814,8 @@
         <button class="login-btn" id="loginBtn" onclick="login()">🚀 登录</button>
         <button class="login-btn" id="registerBtn" style="margin-top: 10px; background: var(--success);" onclick="showRegister()">✨ 新用户注册</button>
         <div class="tip">
-            🔒 密码保护，只有你能看到自己的数据
+            🔒 密码保护，防止他人查看你的数据<br>
+            <small style="color: #718096;">⚠️ 密码存在本地，换设备需重新设置</small>
         </div>
     </div>
     
@@ -1153,13 +1154,26 @@
             document.getElementById('loginPage').classList.remove('hidden');
         }
         
-        // 简单的密码哈希（用于基本保护）
+        // 简单的密码哈希
         async function hashPassword(password) {
             const encoder = new TextEncoder();
             const data = encoder.encode(password + 'finance_salt_2026');
             const hashBuffer = await crypto.subtle.digest('SHA-256', data);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+        
+        // 获取本地存储的密码
+        function getLocalPassword(nickname) {
+            const passwords = JSON.parse(localStorage.getItem('finance_passwords') || '{}');
+            return passwords[nickname];
+        }
+        
+        // 设置本地密码
+        function setLocalPassword(nickname, hashedPwd) {
+            const passwords = JSON.parse(localStorage.getItem('finance_passwords') || '{}');
+            passwords[nickname] = hashedPwd;
+            localStorage.setItem('finance_passwords', JSON.stringify(passwords));
         }
         
         async function register() {
@@ -1194,8 +1208,14 @@
                     .eq('user_id', nickname)
                     .maybeSingle();
                 
-                if (existing) {
-                    showToast('该昵称已被注册，请直接登录', 'error');
+                const { data: expenseData } = await db
+                    .from('expenses')
+                    .select('id')
+                    .eq('user_id', nickname)
+                    .limit(1);
+                
+                if (existing || (expenseData && expenseData.length > 0)) {
+                    showToast('该昵称已被使用，请直接登录', 'warning');
                     btn.disabled = false;
                     btn.textContent = '✅ 完成注册';
                     showLogin();
@@ -1205,9 +1225,10 @@
                 
                 // 创建新用户
                 const hashedPwd = await hashPassword(password);
+                setLocalPassword(nickname, hashedPwd);
+                
                 await db.from('user_configs').insert({
                     user_id: nickname,
-                    password: hashedPwd,
                     categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES))
                 });
                 
@@ -1244,37 +1265,40 @@
             btn.textContent = '⏳ 登录中...';
             
             try {
-                // 查询用户
+                // 检查用户是否存在
                 const { data: userData } = await db
                     .from('user_configs')
-                    .select('password, categories')
+                    .select('user_id, categories')
                     .eq('user_id', nickname)
                     .maybeSingle();
                 
-                if (!userData) {
+                const { data: expenseData } = await db
+                    .from('expenses')
+                    .select('id')
+                    .eq('user_id', nickname)
+                    .limit(1);
+                
+                const isExistingUser = userData || (expenseData && expenseData.length > 0);
+                
+                if (!isExistingUser) {
                     showToast('用户不存在，请先注册', 'error');
                     btn.disabled = false;
                     btn.textContent = '🚀 登录';
                     return;
                 }
                 
-                // 验证密码
                 const hashedPwd = await hashPassword(password);
+                const storedPwd = getLocalPassword(nickname);
                 
-                // 兼容老用户（没有密码的）
-                if (userData.password && userData.password !== hashedPwd) {
+                // 老用户第一次使用密码功能
+                if (!storedPwd) {
+                    setLocalPassword(nickname, hashedPwd);
+                    showToast('已为您设置密码，请牢记！', 'success');
+                } else if (storedPwd !== hashedPwd) {
                     showToast('密码错误', 'error');
                     btn.disabled = false;
                     btn.textContent = '🚀 登录';
                     return;
-                }
-                
-                // 如果老用户没有密码，帮他设置
-                if (!userData.password) {
-                    await db.from('user_configs')
-                        .update({ password: hashedPwd })
-                        .eq('user_id', nickname);
-                    showToast('已为老账户设置密码', 'success');
                 }
                 
                 // 登录成功
@@ -2133,24 +2157,16 @@
             }
             
             try {
-                // 验证当前密码
-                const { data: userData } = await db
-                    .from('user_configs')
-                    .select('password')
-                    .eq('user_id', currentUser)
-                    .single();
-                
                 const oldHash = await hashPassword(oldPwd);
-                if (userData.password !== oldHash) {
+                const storedPwd = getLocalPassword(currentUser);
+                
+                if (storedPwd !== oldHash) {
                     showToast('当前密码错误', 'error');
                     return;
                 }
                 
-                // 更新密码
                 const newHash = await hashPassword(newPwd);
-                await db.from('user_configs')
-                    .update({ password: newHash })
-                    .eq('user_id', currentUser);
+                setLocalPassword(currentUser, newHash);
                 
                 closePasswordModal();
                 showToast('密码修改成功', 'success');
@@ -2211,15 +2227,10 @@
             }
             
             try {
-                // 验证密码
-                const { data: userData } = await db
-                    .from('user_configs')
-                    .select('password')
-                    .eq('user_id', currentUser)
-                    .single();
-                
                 const hash = await hashPassword(password);
-                if (userData.password !== hash) {
+                const storedPwd = getLocalPassword(currentUser);
+                
+                if (storedPwd !== hash) {
                     showToast('密码错误', 'error');
                     return;
                 }
@@ -2227,6 +2238,11 @@
                 // 删除所有数据
                 await db.from('expenses').delete().eq('user_id', currentUser);
                 await db.from('user_configs').delete().eq('user_id', currentUser);
+                
+                // 删除本地密码
+                const passwords = JSON.parse(localStorage.getItem('finance_passwords') || '{}');
+                delete passwords[currentUser];
+                localStorage.setItem('finance_passwords', JSON.stringify(passwords));
                 
                 closeDeleteAccountModal();
                 showToast('账户已注销', 'success');
