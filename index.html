@@ -998,48 +998,149 @@
         
         .calendar-day {
             aspect-ratio: 1;
-            min-height: 60px;
+            min-height: 70px;
             background: var(--gray-100);
-            border-radius: 8px;
-            padding: 5px;
+            border-radius: 10px;
+            padding: 6px;
             cursor: pointer;
             transition: all 0.2s;
             display: flex;
             flex-direction: column;
+            position: relative;
+            overflow: hidden;
         }
         
         .calendar-day:hover {
-            background: var(--gray-200);
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10;
         }
         
         .calendar-day.empty {
             background: transparent;
             cursor: default;
         }
+        .calendar-day.empty:hover {
+            transform: none;
+            box-shadow: none;
+        }
         
         .calendar-day.today {
-            border: 2px solid var(--primary);
+            border: 3px solid var(--primary);
         }
         
         .calendar-day.selected {
-            background: var(--primary);
-            color: white;
+            border: 3px solid var(--gray-800);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        /* 热力图颜色 - 支出级别 */
+        .calendar-day.level-0 { background: #f0fdf4; } /* 无消费 - 浅绿 */
+        .calendar-day.level-1 { background: #dcfce7; } /* <50 - 绿色 */
+        .calendar-day.level-2 { background: #fef9c3; } /* 50-100 - 浅黄 */
+        .calendar-day.level-3 { background: #fef08a; } /* 100-200 - 黄色 */
+        .calendar-day.level-4 { background: #fed7aa; } /* 200-300 - 浅橙 */
+        .calendar-day.level-5 { background: #fdba74; } /* 300-500 - 橙色 */
+        .calendar-day.level-6 { background: #fca5a5; } /* 500-800 - 浅红 */
+        .calendar-day.level-7 { background: #f87171; } /* 800-1000 - 红色 */
+        .calendar-day.level-8 { background: #ef4444; color: white; } /* >1000 - 深红 */
+        .calendar-day.level-8 .day-num { color: white; }
+        
+        /* 有收入的日期标记 */
+        .calendar-day.has-income::before {
+            content: '💰';
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 10px;
         }
         
         .calendar-day .day-num {
-            font-size: 12px;
-            font-weight: 600;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        
+        .calendar-day .day-bar-container {
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            padding-top: 4px;
+        }
+        
+        .calendar-day .day-bar {
+            width: 100%;
+            border-radius: 3px;
+            transition: height 0.3s;
+        }
+        
+        .calendar-day .day-bar.expense {
+            background: linear-gradient(to top, #ef4444, #fca5a5);
+        }
+        
+        .calendar-day .day-bar.income {
+            background: linear-gradient(to top, #22c55e, #86efac);
         }
         
         .calendar-day .day-amount {
-            font-size: 10px;
-            margin-top: auto;
-            font-weight: 600;
+            font-size: 9px;
+            font-weight: 700;
+            text-align: center;
+            margin-top: 2px;
         }
         
-        .calendar-day .day-amount.expense { color: var(--danger); }
-        .calendar-day .day-amount.income { color: var(--success); }
-        .calendar-day.selected .day-amount { color: white; }
+        .calendar-day .day-amount.expense { color: #dc2626; }
+        .calendar-day .day-amount.income { color: #16a34a; }
+        .calendar-day.level-8 .day-amount { color: white; }
+        
+        /* 日历图例 */
+        .calendar-legend {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: var(--gray-600);
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        
+        /* 月度汇总条 */
+        .calendar-summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+        }
+        
+        .calendar-summary-item {
+            text-align: center;
+        }
+        
+        .calendar-summary-item .label {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+        
+        .calendar-summary-item .value {
+            font-size: 18px;
+            font-weight: 700;
+        }
         
         .calendar-detail {
             background: var(--gray-100);
@@ -1160,12 +1261,12 @@
         <!-- 导航标签 -->
         <div class="tabs">
             <button class="tab active" onclick="switchPage('record', event)">📝 记账</button>
+            <button class="tab" onclick="switchPage('history', event)">📋 记录</button>
             <button class="tab" onclick="switchPage('budget', event)">📊 预算</button>
             <button class="tab" onclick="switchPage('calendar', event)">📅 日历</button>
-            <button class="tab" onclick="switchPage('goals', event)">🎯 目标</button>
-            <button class="tab" onclick="switchPage('report', event)">📋 报告</button>
-            <button class="tab" onclick="switchPage('history', event)">📜 记录</button>
             <button class="tab" onclick="switchPage('charts', event)">📈 图表</button>
+            <button class="tab" onclick="switchPage('report', event)">📋 报告</button>
+            <button class="tab" onclick="switchPage('goals', event)">🎯 目标</button>
             <button class="tab" onclick="switchPage('settings', event)">⚙️ 设置</button>
         </div>
         
@@ -1271,7 +1372,10 @@
             
             <!-- 消费日历页面 -->
             <div id="page-calendar" class="page">
-                <h2 class="page-title">📅 消费日历</h2>
+                <h2 class="page-title">📅 消费热力图</h2>
+                
+                <!-- 月度汇总 -->
+                <div class="calendar-summary" id="calendarSummary"></div>
                 
                 <div class="calendar-header">
                     <div class="calendar-nav">
@@ -1283,6 +1387,18 @@
                 </div>
                 
                 <div class="calendar-grid" id="calendarGrid"></div>
+                
+                <!-- 图例 -->
+                <div class="calendar-legend">
+                    <div class="legend-item"><div class="legend-color" style="background:#f0fdf4;"></div>无</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#dcfce7;"></div>&lt;50</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#fef9c3;"></div>50-100</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#fef08a;"></div>100-200</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#fdba74;"></div>300-500</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#fca5a5;"></div>500-800</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#ef4444;"></div>&gt;1000</div>
+                    <div class="legend-item">💰=有收入</div>
+                </div>
                 
                 <div class="calendar-detail" id="calendarDetail">
                     <h4>📋 选择日期查看明细</h4>
@@ -1311,10 +1427,15 @@
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <select id="reportMonth" onchange="renderReport()" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300);"></select>
-                    <button class="btn btn-primary btn-sm" onclick="generateAIReport()">🤖 AI深度分析</button>
+                    <button id="aiReportBtn2" class="btn btn-primary btn-sm" onclick="generateAIReportInPage()">🤖 生成理财分析报告</button>
                 </div>
                 
                 <div id="reportContent"></div>
+                
+                <!-- AI分析结果区域 -->
+                <div id="reportAISection" class="ai-report" style="display: none; margin-top: 20px;">
+                    点击上方按钮生成AI分析...
+                </div>
             </div>
             
             <!-- 记录页面 -->
@@ -1344,7 +1465,7 @@
                     <p>AI会分析您的消费数据，生成：<strong>本月诊断</strong> → <strong>下月计划</strong> → <strong>年度规划</strong> → <strong>行动清单</strong></p>
                 </div>
                 
-                <button class="btn btn-primary" style="width: 100%; padding: 15px; font-size: 16px; margin-bottom: 20px;" onclick="generateAIReport()">🤖 生成理财分析报告</button>
+                <button id="aiReportBtn" class="btn btn-primary" style="width: 100%; padding: 15px; font-size: 16px; margin-bottom: 20px;" onclick="generateAIReport()">🤖 生成理财分析报告</button>
                 
                 <div class="ai-report" id="aiReport">
                     点击上方按钮，让AI为您分析财务状况...
@@ -2783,145 +2904,358 @@
         }
         
         // ==================== AI分析 ====================
+        // 在月度报告页面调用
+        async function generateAIReportInPage() {
+            const btn = document.getElementById('aiReportBtn2');
+            const resultDiv = document.getElementById('reportAISection');
+            
+            if (btn) { btn.disabled = true; btn.textContent = '🤖 分析中...'; }
+            
+            // 显示结果区域
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '🤖 专业理财师正在分析您的财务数据...\n\n请稍候...';
+            
+            try {
+                const report = await callAIAnalysis();
+                resultDiv.innerHTML = `
+                    <h4 style="margin-bottom: 15px; color: var(--primary);">🤖 AI理财分析报告</h4>
+                    <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
+                        📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser}
+                    </div>
+                    ${report.replace(/\n/g, '<br>')}
+                `;
+            } catch (error) {
+                resultDiv.textContent = '❌ 分析失败，请稍后重试\n\n错误信息：' + error.message;
+            }
+            
+            if (btn) { btn.disabled = false; btn.textContent = '🤖 生成理财分析报告'; }
+        }
+        
+        // 在AI分析页面调用
         async function generateAIReport() {
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = '🤖 分析中...';
+            const btn = document.getElementById('aiReportBtn');
+            const resultDiv = document.getElementById('aiReport');
             
-            document.getElementById('aiReport').textContent = '🤖 专业理财师正在分析您的财务数据...\n\n请稍候，正在生成：\n• 本月诊断报告\n• 下月财务计划\n• 年度财务规划';
+            if (btn) { btn.disabled = true; btn.textContent = '🤖 分析中...'; }
+            resultDiv.textContent = '🤖 专业理财师正在分析您的财务数据...\n\n请稍候，正在生成：\n• 本月诊断报告\n• 下月财务计划\n• 年度财务规划';
             
+            try {
+                const report = await callAIAnalysis();
+                resultDiv.innerHTML = `
+                    <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
+                        📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser}
+                    </div>
+                    ${report.replace(/\n/g, '<br>')}
+                `;
+            } catch (error) {
+                console.error('AI分析失败:', error);
+                resultDiv.textContent = '❌ 分析失败，请稍后重试\n\n错误信息：' + error.message;
+            }
+            
+            if (btn) { btn.disabled = false; btn.textContent = '🤖 生成理财分析报告'; }
+        }
+        
+        // 核心AI调用逻辑 - 升级版
+        async function callAIAnalysis() {
             const now = new Date();
             const year = now.getFullYear();
             const month = now.getMonth() + 1;
             const day = now.getDate();
             const daysInMonth = new Date(year, month, 0).getDate();
+            const remainingDays = daysInMonth - day;
             const timeProgress = (day / daysInMonth * 100).toFixed(1);
             
-            // 计算各类数据
+            // ==================== 1. 本月支出数据 ====================
             let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
             let dailyBudget = 0, flexibleBudget = 0;
             
+            // 类目详情（带超支标记）
+            const categoryAnalysis = [];
             categories.forEach(cat => {
                 const spent = getMonthSpent(cat.id);
-                if (cat.type === '刚性') rigidSpent += spent;
-                else if (cat.type === '日常') {
+                const monthly = getMonthly(cat);
+                const rate = monthly > 0 ? (spent / monthly * 100) : 0;
+                const status = rate >= 100 ? '🔴超支' : rate >= 80 ? '🟡警戒' : '🟢正常';
+                
+                if (cat.type === '刚性') {
+                    rigidSpent += spent;
+                } else if (cat.type === '日常') {
                     dailySpent += spent;
-                    dailyBudget += getMonthly(cat);
+                    dailyBudget += monthly;
                 } else {
                     flexibleSpent += spent;
-                    flexibleBudget += getMonthly(cat);
+                    flexibleBudget += monthly;
+                }
+                
+                if (cat.type !== '刚性') {
+                    categoryAnalysis.push({
+                        name: cat.name,
+                        type: cat.type,
+                        spent: spent,
+                        budget: monthly,
+                        rate: rate,
+                        status: status,
+                        overspent: spent - monthly
+                    });
                 }
             });
             
             const totalBudget = dailyBudget + flexibleBudget;
             const budgetSpent = dailySpent + flexibleSpent;
-            const spendingProgress = (budgetSpent / totalBudget * 100).toFixed(1);
+            const spendingProgress = totalBudget > 0 ? (budgetSpent / totalBudget * 100) : 0;
+            const remainingBudget = totalBudget - budgetSpent;
+            const dailyAllowance = remainingDays > 0 ? (remainingBudget / remainingDays) : 0;
             
-            // 类目详情
-            let categoryDetails = categories.map(cat => {
-                const spent = getMonthSpent(cat.id);
-                const monthly = getMonthly(cat);
-                const rate = (spent / monthly * 100).toFixed(1);
-                return `${cat.name}：已花¥${spent.toFixed(0)}，预算¥${monthly}，${rate}%`;
-            }).join('\n');
+            // ==================== 2. 本月收入数据 ====================
+            const monthIncomeList = incomes.filter(i => {
+                const d = new Date(i.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            });
+            const totalIncome = monthIncomeList.reduce((sum, i) => sum + i.amount, 0);
+            const incomeByType = {};
+            monthIncomeList.forEach(i => {
+                incomeByType[i.type] = (incomeByType[i.type] || 0) + i.amount;
+            });
+            const incomeDetails = Object.entries(incomeByType).map(([type, amount]) => `${type}: ¥${amount}`).join('、') || '暂无收入记录';
             
-            // 消费明细TOP10
-            const monthExpenses = expenses.filter(e => {
+            // 储蓄率计算
+            const totalExpense = rigidSpent + dailySpent + flexibleSpent;
+            const balance = totalIncome - totalExpense;
+            const savingRate = totalIncome > 0 ? ((balance / totalIncome) * 100) : 0;
+            
+            // ==================== 3. 上月对比（环比分析） ====================
+            const lastMonth = month === 1 ? 12 : month - 1;
+            const lastYear = month === 1 ? year - 1 : year;
+            
+            const lastMonthExpenses = expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === lastYear && d.getMonth() + 1 === lastMonth;
+            });
+            const lastMonthTotal = lastMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+            const expenseChange = lastMonthTotal > 0 ? ((totalExpense - lastMonthTotal) / lastMonthTotal * 100) : 0;
+            const expenseChangeText = expenseChange > 0 ? `增加${expenseChange.toFixed(1)}%` : `减少${Math.abs(expenseChange).toFixed(1)}%`;
+            
+            // 上月各类目对比
+            const lastMonthByCategory = {};
+            lastMonthExpenses.forEach(e => {
+                lastMonthByCategory[e.categoryName] = (lastMonthByCategory[e.categoryName] || 0) + e.amount;
+            });
+            
+            // ==================== 4. 年度累计 ====================
+            const yearExpenses = expenses.filter(e => new Date(e.date).getFullYear() === year);
+            const yearTotal = yearExpenses.reduce((sum, e) => sum + e.amount, 0);
+            const yearIncomes = incomes.filter(i => new Date(i.date).getFullYear() === year);
+            const yearIncomeTotal = yearIncomes.reduce((sum, i) => sum + i.amount, 0);
+            const yearBalance = yearIncomeTotal - yearTotal;
+            const monthlyAvgExpense = month > 0 ? (yearTotal / month) : 0;
+            
+            // ==================== 5. 异常消费识别 ====================
+            const monthExpenseList = expenses.filter(e => {
                 const d = new Date(e.date);
                 return d.getFullYear() === year && d.getMonth() + 1 === month;
-            }).sort((a, b) => b.amount - a.amount).slice(0, 10);
+            });
             
-            let top10 = monthExpenses.map(e => `${e.date.slice(5)} ${e.item} ¥${e.amount}`).join('\n');
+            // 大额消费（>500）
+            const bigExpenses = monthExpenseList.filter(e => e.amount >= 500).sort((a, b) => b.amount - a.amount);
+            const bigExpenseText = bigExpenses.length > 0 
+                ? bigExpenses.map(e => `${e.date.slice(5)} ${e.item} ¥${e.amount} (${e.categoryName})`).join('\n')
+                : '无';
             
-            const prompt = `你是一位CFP持证的专业理财师。请根据以下数据为用户生成专业、实用的财务分析报告。
+            // 高频消费（同类目出现>5次）
+            const frequencyByCategory = {};
+            monthExpenseList.forEach(e => {
+                frequencyByCategory[e.categoryName] = (frequencyByCategory[e.categoryName] || 0) + 1;
+            });
+            const highFrequency = Object.entries(frequencyByCategory)
+                .filter(([_, count]) => count >= 5)
+                .map(([name, count]) => `${name}(${count}次)`)
+                .join('、') || '无';
+            
+            // ==================== 6. 消费日分布 ====================
+            const spendingByWeekday = [0, 0, 0, 0, 0, 0, 0]; // 周日到周六
+            const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            monthExpenseList.forEach(e => {
+                const weekday = new Date(e.date).getDay();
+                spendingByWeekday[weekday] += e.amount;
+            });
+            const maxWeekday = spendingByWeekday.indexOf(Math.max(...spendingByWeekday));
+            const minWeekday = spendingByWeekday.indexOf(Math.min(...spendingByWeekday.filter(v => v > 0)) || 0);
+            
+            // ==================== 7. 超支/警戒类目 ====================
+            const problemCategories = categoryAnalysis
+                .filter(c => c.rate >= 80)
+                .sort((a, b) => b.rate - a.rate);
+            const problemText = problemCategories.length > 0
+                ? problemCategories.map(c => `${c.status} ${c.name}：已花¥${c.spent.toFixed(0)}/预算¥${c.budget}，${c.rate.toFixed(0)}%${c.overspent > 0 ? '，超支¥' + c.overspent.toFixed(0) : ''}`).join('\n')
+                : '全部正常 ✅';
+            
+            // 健康类目
+            const healthyCategories = categoryAnalysis
+                .filter(c => c.rate < 50 && c.spent > 0)
+                .map(c => `${c.name}(${c.rate.toFixed(0)}%)`)
+                .join('、') || '无';
+            
+            // ==================== 8. TOP10消费明细 ====================
+            const top10 = monthExpenseList
+                .sort((a, b) => b.amount - a.amount)
+                .slice(0, 10)
+                .map((e, i) => `${i+1}. ${e.date.slice(5)} ${e.item} ¥${e.amount} [${e.categoryName}]`)
+                .join('\n') || '暂无数据';
+            
+            // ==================== 9. 类目排行 ====================
+            const categoryRanking = categoryAnalysis
+                .sort((a, b) => b.spent - a.spent)
+                .slice(0, 5)
+                .map((c, i) => `${i+1}. ${c.name}：¥${c.spent.toFixed(0)} (${(c.spent/budgetSpent*100).toFixed(1)}%)`)
+                .join('\n');
+            
+            // ==================== 构建超级Prompt ====================
+            const prompt = `你是一位CFP持证的专业理财师，服务过500+客户。请根据以下详细数据，为用户生成一份**超级实用**的财务分析报告。
 
-【用户基本信息】
+⚠️ 重要要求：
+1. 所有建议必须带**具体数字**（如"本周预算¥800"而非"控制消费"）
+2. 指出**最需要控制的1-2个类目**，给出具体省钱金额
+3. 根据数据识别**消费习惯问题**
+4. 用户是创业者，收入可能不稳定，建议要考虑现金流安全
+
+═══════════════════════════════════════
+📋 用户画像
+═══════════════════════════════════════
 用户：${currentUser}
-时间：${year}年${month}月${day}日
+分析时间：${year}年${month}月${day}日
+本月剩余：${remainingDays}天
 
-【预算设置】
-月可控预算：¥${totalBudget}（日常¥${dailyBudget} + 弹性¥${flexibleBudget}）
+═══════════════════════════════════════
+💰 收支总览
+═══════════════════════════════════════
+【本月收入】¥${totalIncome.toFixed(0)}
+收入构成：${incomeDetails}
 
-【本月消费情况】
-时间进度：${timeProgress}%
-消费进度：${spendingProgress}%
-日均消费：¥${(budgetSpent / day).toFixed(0)}
-预计月末：¥${(budgetSpent / day * daysInMonth).toFixed(0)}
+【本月支出】¥${totalExpense.toFixed(0)}
+├─ 刚性支出：¥${rigidSpent.toFixed(0)}（房租、保险等固定支出）
+├─ 日常支出：¥${dailySpent.toFixed(0)} / 预算¥${dailyBudget}
+└─ 弹性支出：¥${flexibleSpent.toFixed(0)} / 预算¥${flexibleBudget}
 
-刚性支出：¥${rigidSpent.toFixed(0)}
-日常支出：¥${dailySpent.toFixed(0)}（预算¥${dailyBudget}）
-弹性支出：¥${flexibleSpent.toFixed(0)}（预算¥${flexibleBudget}）
+【结余】¥${balance.toFixed(0)} ${balance >= 0 ? '✅' : '❌赤字'}
+【储蓄率】${savingRate.toFixed(1)}% ${savingRate >= 20 ? '(优秀)' : savingRate >= 10 ? '(及格)' : savingRate >= 0 ? '(偏低)' : '(负储蓄!)'}
 
-【各类目明细】
-${categoryDetails}
+═══════════════════════════════════════
+📊 预算执行情况
+═══════════════════════════════════════
+时间进度：${timeProgress}%（${day}/${daysInMonth}天）
+消费进度：${spendingProgress.toFixed(1)}%（¥${budgetSpent.toFixed(0)}/¥${totalBudget}）
+进度差：${(spendingProgress - parseFloat(timeProgress)).toFixed(1)}% ${spendingProgress > parseFloat(timeProgress) ? '⚠️消费超前' : '✅控制良好'}
 
-【TOP10消费】
-${top10 || '暂无数据'}
+剩余可用：¥${Math.max(0, remainingBudget).toFixed(0)}
+日均可花：¥${Math.max(0, dailyAllowance).toFixed(0)}/天
 
-请按以下格式输出报告：
+═══════════════════════════════════════
+🚨 问题类目预警
+═══════════════════════════════════════
+${problemText}
 
-📊 本月诊断
-（评估财务健康度，指出2-3个核心问题，分析消费行为）
+控制良好的类目：${healthyCategories}
 
-📅 下月财务计划
-（具体的预算分配建议，需要控制的类目，省钱策略，月度目标）
+═══════════════════════════════════════
+📈 环比分析（vs上月）
+═══════════════════════════════════════
+上月总支出：¥${lastMonthTotal.toFixed(0)}
+本月总支出：¥${totalExpense.toFixed(0)}
+变化：${expenseChangeText} ${expenseChange > 20 ? '⚠️涨幅过大' : expenseChange < -10 ? '✅有效控制' : ''}
 
-📈 年度财务规划
-（全年预算预测，储蓄目标建议，季度里程碑）
+═══════════════════════════════════════
+📅 年度累计
+═══════════════════════════════════════
+${year}年已支出：¥${yearTotal.toFixed(0)}
+${year}年已收入：¥${yearIncomeTotal.toFixed(0)}
+年度结余：¥${yearBalance.toFixed(0)}
+月均支出：¥${monthlyAvgExpense.toFixed(0)}
 
-✅ 行动清单
-本周必做：
-1. xxx
-2. xxx
-3. xxx
+═══════════════════════════════════════
+🔍 消费行为分析
+═══════════════════════════════════════
+【大额消费（≥¥500）】
+${bigExpenseText}
 
-本月必做：
-1. xxx
-2. xxx
-3. xxx
+【高频消费类目】${highFrequency}
 
-长期习惯：
-1. xxx
-2. xxx
+【消费日规律】
+花钱最多：${weekdayNames[maxWeekday]}（¥${spendingByWeekday[maxWeekday].toFixed(0)}）
+花钱最少：${weekdayNames[minWeekday]}（¥${spendingByWeekday[minWeekday].toFixed(0)}）
 
-💬 理财师寄语
-（2-3句鼓励和建议）`;
+═══════════════════════════════════════
+🏆 支出TOP5类目
+═══════════════════════════════════════
+${categoryRanking}
 
-            try {
-                const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${ZHIPU_API_KEY}`
-                    },
-                    body: JSON.stringify({
-                        model: 'glm-4-flash',
-                        messages: [{ role: 'user', content: prompt }],
-                        temperature: 0.7,
-                        max_tokens: 3000
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.choices && data.choices[0]) {
-                    const report = data.choices[0].message.content;
-                    document.getElementById('aiReport').innerHTML = `
-                        <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
-                            📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser}
-                        </div>
-                        ${report.replace(/\n/g, '<br>')}
-                    `;
-                } else {
-                    throw new Error('AI返回数据异常');
-                }
-            } catch (error) {
-                console.error('AI分析失败:', error);
-                document.getElementById('aiReport').textContent = '❌ 分析失败，请稍后重试\n\n错误信息：' + error.message;
-            }
+═══════════════════════════════════════
+📝 本月消费TOP10
+═══════════════════════════════════════
+${top10}
+
+═══════════════════════════════════════
+
+请按以下格式输出报告（每个部分都要有具体数字！）：
+
+🏥 财务健康诊断
+健康评分：XX分（满分100）
+核心问题：
+1. [最严重的问题+具体数据]
+2. [第二个问题+具体数据]
+消费习惯洞察：[根据数据发现的行为模式]
+
+💡 本周行动指南（未来7天）
+预算上限：¥XXX
+重点控制：[具体类目] - 目标省¥XXX
+具体建议：
+1. [可立即执行的动作+预期省多少]
+2. [可立即执行的动作+预期省多少]
+3. [可立即执行的动作+预期省多少]
+
+📅 本月收尾策略（剩余${remainingDays}天）
+剩余预算：¥${Math.max(0, remainingBudget).toFixed(0)}
+日均上限：¥${Math.max(0, dailyAllowance).toFixed(0)}
+必须控制的类目：[1-2个最该控制的]
+可以放松的类目：[控制良好的]
+月末目标：[具体的结余目标]
+
+🎯 下月预算建议
+建议总预算：¥XXX
+调整建议：
+- [某类目]：建议¥XXX→¥XXX（原因）
+- [某类目]：建议¥XXX→¥XXX（原因）
+
+💰 创业者现金流提醒
+应急储备建议：¥XXX（X个月支出）
+本月储蓄目标：¥XXX
+风险提示：[如有]
+
+✅ 三句话总结
+1. [最重要的发现]
+2. [最关键的行动]
+3. [鼓励的话]`;
+
+            const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ZHIPU_API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: 'glm-4-flash',
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: 0.7,
+                    max_tokens: 4000
+                })
+            });
             
-            btn.disabled = false;
-            btn.textContent = '🤖 生成理财分析报告';
+            const data = await response.json();
+            
+            if (data.choices && data.choices[0]) {
+                return data.choices[0].message.content;
+            } else {
+                throw new Error('AI返回数据异常');
+            }
         }
         
         // ==================== 图表功能 ====================
@@ -3488,12 +3822,16 @@ ${top10 || '暂无数据'}
             // 获取本月数据
             const monthExpenses = {};
             const monthIncomes = {};
+            let totalExpense = 0, totalIncome = 0, maxExpense = 0;
+            let expenseDays = 0;
             
             expenses.forEach(e => {
                 const d = new Date(e.date);
                 if (d.getFullYear() === calendarYear && d.getMonth() + 1 === calendarMonth) {
                     const day = d.getDate();
                     monthExpenses[day] = (monthExpenses[day] || 0) + e.amount;
+                    totalExpense += e.amount;
+                    if (monthExpenses[day] > maxExpense) maxExpense = monthExpenses[day];
                 }
             });
             
@@ -3502,8 +3840,45 @@ ${top10 || '暂无数据'}
                 if (d.getFullYear() === calendarYear && d.getMonth() + 1 === calendarMonth) {
                     const day = d.getDate();
                     monthIncomes[day] = (monthIncomes[day] || 0) + i.amount;
+                    totalIncome += i.amount;
                 }
             });
+            
+            expenseDays = Object.keys(monthExpenses).length;
+            const avgExpense = expenseDays > 0 ? totalExpense / expenseDays : 0;
+            
+            // 渲染月度汇总
+            document.getElementById('calendarSummary').innerHTML = `
+                <div class="calendar-summary-item">
+                    <div class="label">月支出</div>
+                    <div class="value">¥${totalExpense.toFixed(0)}</div>
+                </div>
+                <div class="calendar-summary-item">
+                    <div class="label">月收入</div>
+                    <div class="value">¥${totalIncome.toFixed(0)}</div>
+                </div>
+                <div class="calendar-summary-item">
+                    <div class="label">消费天数</div>
+                    <div class="value">${expenseDays}天</div>
+                </div>
+                <div class="calendar-summary-item">
+                    <div class="label">日均消费</div>
+                    <div class="value">¥${avgExpense.toFixed(0)}</div>
+                </div>
+            `;
+            
+            // 获取消费级别（用于热力图）
+            function getExpenseLevel(amount) {
+                if (amount === 0) return 0;
+                if (amount < 50) return 1;
+                if (amount < 100) return 2;
+                if (amount < 200) return 3;
+                if (amount < 300) return 4;
+                if (amount < 500) return 5;
+                if (amount < 800) return 6;
+                if (amount < 1000) return 7;
+                return 8;
+            }
             
             let html = `
                 <div class="calendar-weekday">日</div>
@@ -3528,13 +3903,20 @@ ${top10 || '暂无数据'}
                 const isSelected = selectedCalendarDate === d;
                 const expense = monthExpenses[d] || 0;
                 const income = monthIncomes[d] || 0;
+                const level = getExpenseLevel(expense);
+                const hasIncome = income > 0;
+                
+                // 计算条形图高度（最大40px）
+                const barHeight = maxExpense > 0 ? Math.min((expense / maxExpense) * 35, 35) : 0;
                 
                 html += `
-                    <div class="calendar-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" 
+                    <div class="calendar-day level-${level} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${hasIncome ? 'has-income' : ''}" 
                          onclick="selectCalendarDate(${d})">
                         <div class="day-num">${d}</div>
-                        ${expense > 0 ? `<div class="day-amount expense">-${expense.toFixed(0)}</div>` : ''}
-                        ${income > 0 ? `<div class="day-amount income">+${income.toFixed(0)}</div>` : ''}
+                        <div class="day-bar-container">
+                            ${expense > 0 ? `<div class="day-bar expense" style="height:${barHeight}px;"></div>` : ''}
+                        </div>
+                        ${expense > 0 ? `<div class="day-amount expense">${expense >= 1000 ? (expense/1000).toFixed(1)+'k' : expense.toFixed(0)}</div>` : ''}
                     </div>
                 `;
             }
