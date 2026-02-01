@@ -3007,14 +3007,15 @@
             const dailyAllowance = remainingDays > 0 ? (remainingBudget / remainingDays) : 0;
             
             // ==================== 2. 本月收入数据 ====================
-            const monthIncomeList = incomes.filter(i => {
+            const safeIncomes = incomes || [];
+            const monthIncomeList = safeIncomes.filter(i => {
                 const d = new Date(i.date);
                 return d.getFullYear() === year && d.getMonth() + 1 === month;
             });
-            const totalIncome = monthIncomeList.reduce((sum, i) => sum + i.amount, 0);
+            const totalIncome = monthIncomeList.reduce((sum, i) => sum + (i.amount || 0), 0);
             const incomeByType = {};
             monthIncomeList.forEach(i => {
-                incomeByType[i.type] = (incomeByType[i.type] || 0) + i.amount;
+                incomeByType[i.type || '其他'] = (incomeByType[i.type || '其他'] || 0) + (i.amount || 0);
             });
             const incomeDetails = Object.entries(incomeByType).map(([type, amount]) => `${type}: ¥${amount}`).join('、') || '暂无收入记录';
             
@@ -3027,11 +3028,12 @@
             const lastMonth = month === 1 ? 12 : month - 1;
             const lastYear = month === 1 ? year - 1 : year;
             
-            const lastMonthExpenses = expenses.filter(e => {
+            const safeExpenses = expenses || [];
+            const lastMonthExpenses = safeExpenses.filter(e => {
                 const d = new Date(e.date);
                 return d.getFullYear() === lastYear && d.getMonth() + 1 === lastMonth;
             });
-            const lastMonthTotal = lastMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+            const lastMonthTotal = lastMonthExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
             const expenseChange = lastMonthTotal > 0 ? ((totalExpense - lastMonthTotal) / lastMonthTotal * 100) : 0;
             const expenseChangeText = expenseChange > 0 ? `增加${expenseChange.toFixed(1)}%` : `减少${Math.abs(expenseChange).toFixed(1)}%`;
             
@@ -3078,21 +3080,30 @@
                 const weekday = new Date(e.date).getDay();
                 spendingByWeekday[weekday] += e.amount;
             });
-            const maxWeekday = spendingByWeekday.indexOf(Math.max(...spendingByWeekday));
-            const minWeekday = spendingByWeekday.indexOf(Math.min(...spendingByWeekday.filter(v => v > 0)) || 0);
+            const maxWeekdayAmount = Math.max(...spendingByWeekday);
+            const maxWeekday = maxWeekdayAmount > 0 ? spendingByWeekday.indexOf(maxWeekdayAmount) : 0;
+            const nonZeroWeekdays = spendingByWeekday.filter(v => v > 0);
+            const minWeekdayAmount = nonZeroWeekdays.length > 0 ? Math.min(...nonZeroWeekdays) : 0;
+            const minWeekday = minWeekdayAmount > 0 ? spendingByWeekday.indexOf(minWeekdayAmount) : 0;
             
             // ==================== 7. 超支/警戒类目 ====================
             const problemCategories = categoryAnalysis
                 .filter(c => c.rate >= 80)
                 .sort((a, b) => b.rate - a.rate);
             const problemText = problemCategories.length > 0
-                ? problemCategories.map(c => `${c.status} ${c.name}：已花¥${c.spent.toFixed(0)}/预算¥${c.budget}，${c.rate.toFixed(0)}%${c.overspent > 0 ? '，超支¥' + c.overspent.toFixed(0) : ''}`).join('\n')
+                ? problemCategories.map(c => {
+                    const spent = c.spent || 0;
+                    const budget = c.budget || 0;
+                    const rate = c.rate || 0;
+                    const overspent = c.overspent || 0;
+                    return `${c.status} ${c.name}：已花¥${spent.toFixed(0)}/预算¥${budget}，${rate.toFixed(0)}%${overspent > 0 ? '，超支¥' + overspent.toFixed(0) : ''}`;
+                }).join('\n')
                 : '全部正常 ✅';
             
             // 健康类目
             const healthyCategories = categoryAnalysis
                 .filter(c => c.rate < 50 && c.spent > 0)
-                .map(c => `${c.name}(${c.rate.toFixed(0)}%)`)
+                .map(c => `${c.name}(${(c.rate || 0).toFixed(0)}%)`)
                 .join('、') || '无';
             
             // ==================== 8. TOP10消费明细 ====================
@@ -3103,11 +3114,13 @@
                 .join('\n') || '暂无数据';
             
             // ==================== 9. 类目排行 ====================
-            const categoryRanking = categoryAnalysis
-                .sort((a, b) => b.spent - a.spent)
-                .slice(0, 5)
-                .map((c, i) => `${i+1}. ${c.name}：¥${c.spent.toFixed(0)} (${(c.spent/budgetSpent*100).toFixed(1)}%)`)
-                .join('\n');
+            const categoryRanking = categoryAnalysis.length > 0 
+                ? categoryAnalysis
+                    .sort((a, b) => b.spent - a.spent)
+                    .slice(0, 5)
+                    .map((c, i) => `${i+1}. ${c.name}：¥${(c.spent || 0).toFixed(0)} (${budgetSpent > 0 ? ((c.spent/budgetSpent)*100).toFixed(1) : 0}%)`)
+                    .join('\n')
+                : '暂无数据';
             
             // ==================== 构建超级Prompt ====================
             const prompt = `你是一位CFP持证的专业理财师，服务过500+客户。请根据以下详细数据，为用户生成一份**超级实用**的财务分析报告。
@@ -3180,8 +3193,8 @@ ${bigExpenseText}
 【高频消费类目】${highFrequency}
 
 【消费日规律】
-花钱最多：${weekdayNames[maxWeekday]}（¥${spendingByWeekday[maxWeekday].toFixed(0)}）
-花钱最少：${weekdayNames[minWeekday]}（¥${spendingByWeekday[minWeekday].toFixed(0)}）
+花钱最多：${weekdayNames[maxWeekday]}（¥${(spendingByWeekday[maxWeekday] || 0).toFixed(0)}）
+花钱最少：${weekdayNames[minWeekday]}（¥${(spendingByWeekday[minWeekday] || 0).toFixed(0)}）
 
 ═══════════════════════════════════════
 🏆 支出TOP5类目
@@ -4211,30 +4224,105 @@ ${top10}
             });
             const topCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]).slice(0, 5);
             
-            // 健康评分
-            let score = 60;
-            if (savingRate >= 30) score += 20;
-            else if (savingRate >= 20) score += 15;
-            else if (savingRate >= 10) score += 10;
-            else if (savingRate < 0) score -= 20;
+            // 计算预算相关数据
+            let totalBudget = 0, budgetSpent = 0;
+            categories.forEach(cat => {
+                if (cat.type !== '刚性') {
+                    totalBudget += getMonthly(cat);
+                    // 获取该月该类目的消费
+                    const catSpent = monthExpenses
+                        .filter(e => e.categoryId === cat.id)
+                        .reduce((sum, e) => sum + e.amount, 0);
+                    budgetSpent += catSpent;
+                }
+            });
             
-            if (monthExpenses.length > 0) score += 10; // 有记账习惯
-            if (totalIncome > 0) score += 10; // 记录了收入
-            
-            score = Math.min(100, Math.max(0, score));
-            let scoreClass = score >= 80 ? 'excellent' : score >= 60 ? 'good' : score >= 40 ? 'warning' : 'danger';
-            let scoreText = score >= 80 ? '优秀' : score >= 60 ? '良好' : score >= 40 ? '一般' : '需改善';
-            
-            // 上月对比
+            // 上月数据
             const lastMonth = month === 1 ? 12 : month - 1;
             const lastYear = month === 1 ? year - 1 : year;
-            const lastMonthExpense = expenses
+            
+            // ==================== 专业财务健康度评分系统 ====================
+            // 基于 CFP (注册理财规划师) 标准和 "50/30/20法则"
+            
+            let score = 0;
+            let scoreDetails = [];
+            
+            // 1. 储蓄率评分 (满分40分) - 基于50/30/20法则：20%储蓄为及格线
+            let savingScore = 0;
+            if (savingRate >= 30) { savingScore = 40; scoreDetails.push('储蓄率≥30%: +40'); }
+            else if (savingRate >= 20) { savingScore = 32; scoreDetails.push('储蓄率≥20%: +32'); }
+            else if (savingRate >= 10) { savingScore = 24; scoreDetails.push('储蓄率≥10%: +24'); }
+            else if (savingRate >= 0) { savingScore = 16; scoreDetails.push('储蓄率≥0%: +16'); }
+            else { savingScore = 0; scoreDetails.push('储蓄率<0%(赤字): +0'); }
+            score += savingScore;
+            
+            // 2. 预算执行率评分 (满分25分) - 80-100%为最佳区间
+            const budgetRate = totalBudget > 0 ? (budgetSpent / totalBudget * 100) : 0;
+            let budgetScore = 0;
+            if (budgetRate >= 80 && budgetRate <= 100) { budgetScore = 25; scoreDetails.push('预算执行80-100%: +25'); }
+            else if (budgetRate >= 70 && budgetRate < 80) { budgetScore = 20; scoreDetails.push('预算执行70-80%: +20'); }
+            else if (budgetRate > 100 && budgetRate <= 110) { budgetScore = 18; scoreDetails.push('预算执行100-110%: +18'); }
+            else if (budgetRate > 110 && budgetRate <= 120) { budgetScore = 12; scoreDetails.push('预算执行110-120%: +12'); }
+            else if (budgetRate > 120) { budgetScore = 5; scoreDetails.push('预算超支>20%: +5'); }
+            else { budgetScore = 15; scoreDetails.push('预算执行<70%: +15'); }
+            score += budgetScore;
+            
+            // 3. 记账完整性评分 (满分15分)
+            let recordScore = 0;
+            if (totalIncome > 0) { recordScore += 8; scoreDetails.push('有收入记录: +8'); }
+            if (monthExpenses.length > 0) { recordScore += 7; scoreDetails.push('有支出记录: +7'); }
+            score += recordScore;
+            
+            // 4. 消费结构评分 (满分10分) - 超支类目数量
+            const overBudgetCount = categories.filter(cat => {
+                if (cat.type === '刚性') return false;
+                const spent = getMonthSpent(cat.id);
+                const budget = getMonthly(cat);
+                return budget > 0 && spent > budget;
+            }).length;
+            let structureScore = 0;
+            if (overBudgetCount === 0) { structureScore = 10; scoreDetails.push('无超支类目: +10'); }
+            else if (overBudgetCount === 1) { structureScore = 6; scoreDetails.push('1个类目超支: +6'); }
+            else if (overBudgetCount === 2) { structureScore = 3; scoreDetails.push('2个类目超支: +3'); }
+            else { structureScore = 0; scoreDetails.push('3+类目超支: +0'); }
+            score += structureScore;
+            
+            // 5. 消费趋势评分 (满分10分) - 环比变化
+            const lastMonthData = (expenses || [])
                 .filter(e => {
                     const d = new Date(e.date);
                     return d.getFullYear() === lastYear && d.getMonth() + 1 === lastMonth;
                 })
                 .reduce((sum, e) => sum + e.amount, 0);
+            const trendChange = lastMonthData > 0 ? ((totalExpense - lastMonthData) / lastMonthData * 100) : 0;
+            let trendScore = 0;
+            if (trendChange <= -10) { trendScore = 10; scoreDetails.push('支出↓10%+: +10'); }
+            else if (trendChange <= 10) { trendScore = 6; scoreDetails.push('支出持平: +6'); }
+            else { trendScore = 2; scoreDetails.push('支出↑10%+: +2'); }
+            score += trendScore;
             
+            // 最终评分
+            score = Math.min(100, Math.max(0, Math.round(score)));
+            let scoreClass = score >= 80 ? 'excellent' : score >= 60 ? 'good' : score >= 40 ? 'warning' : 'danger';
+            let scoreText = score >= 80 ? '优秀' : score >= 60 ? '良好' : score >= 40 ? '一般' : '需改善';
+            
+            // 评分解读
+            const scoreExplanation = `
+                <div style="font-size: 12px; color: var(--gray-600); margin-top: 10px; line-height: 1.6;">
+                    <strong>📊 评分依据（CFP专业标准）：</strong><br>
+                    • 储蓄率(40分)：基于50/30/20法则，20%为及格线<br>
+                    • 预算执行(25分)：80-100%为最佳区间<br>
+                    • 记账完整(15分)：收支记录完整性<br>
+                    • 消费结构(10分)：超支类目数量<br>
+                    • 消费趋势(10分)：环比变化方向<br>
+                    <br>
+                    <strong>本月得分明细：</strong><br>
+                    ${scoreDetails.join('<br>')}
+                </div>
+            `;
+            
+            // 上月对比
+            const lastMonthExpense = lastMonthData;
             const expenseChange = lastMonthExpense > 0 ? ((totalExpense - lastMonthExpense) / lastMonthExpense * 100).toFixed(1) : 0;
             
             document.getElementById('reportContent').innerHTML = `
@@ -4255,6 +4343,7 @@ ${top10}
                             </p>
                         </div>
                     </div>
+                    ${scoreExplanation}
                 </div>
                 
                 <!-- 收支概览 -->
