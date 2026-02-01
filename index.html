@@ -802,6 +802,313 @@
             font-weight: 700;
             margin-top: 5px;
         }
+        
+        /* 收入支出切换 */
+        .type-switch {
+            display: flex;
+            background: var(--gray-200);
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 15px;
+        }
+        
+        .type-switch button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: transparent;
+        }
+        
+        .type-switch button.active {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .type-switch button.expense.active {
+            color: var(--danger);
+        }
+        
+        .type-switch button.income.active {
+            color: var(--success);
+        }
+        
+        /* 月度总览卡片 */
+        .overview-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .overview-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 15px;
+        }
+        
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        
+        @media (max-width: 600px) {
+            .overview-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        .overview-item {
+            text-align: center;
+        }
+        
+        .overview-item .label {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        .overview-item .value {
+            font-size: 20px;
+            font-weight: 700;
+            margin-top: 5px;
+        }
+        
+        .overview-item .value.positive { color: #9ae6b4; }
+        .overview-item .value.negative { color: #feb2b2; }
+        
+        /* 储蓄目标 */
+        .goal-card {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .goal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .goal-header h4 {
+            font-size: 16px;
+        }
+        
+        .goal-progress {
+            background: var(--gray-200);
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .goal-progress .fill {
+            height: 100%;
+            background: linear-gradient(90deg, #48bb78, #38a169);
+            border-radius: 10px;
+            transition: width 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .goal-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        
+        .add-goal-btn {
+            width: 100%;
+            padding: 15px;
+            background: var(--gray-100);
+            border: 2px dashed var(--gray-300);
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--gray-600);
+        }
+        
+        .add-goal-btn:hover {
+            border-color: var(--success);
+            color: var(--success);
+        }
+        
+        /* 消费日历 */
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .calendar-nav {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .calendar-nav button {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: var(--gray-100);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .calendar-nav button:hover {
+            background: var(--gray-200);
+        }
+        
+        .calendar-nav span {
+            font-size: 18px;
+            font-weight: 600;
+            min-width: 120px;
+            text-align: center;
+        }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+        
+        .calendar-weekday {
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            padding: 8px 0;
+        }
+        
+        .calendar-day {
+            aspect-ratio: 1;
+            min-height: 60px;
+            background: var(--gray-100);
+            border-radius: 8px;
+            padding: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .calendar-day:hover {
+            background: var(--gray-200);
+        }
+        
+        .calendar-day.empty {
+            background: transparent;
+            cursor: default;
+        }
+        
+        .calendar-day.today {
+            border: 2px solid var(--primary);
+        }
+        
+        .calendar-day.selected {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .calendar-day .day-num {
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .calendar-day .day-amount {
+            font-size: 10px;
+            margin-top: auto;
+            font-weight: 600;
+        }
+        
+        .calendar-day .day-amount.expense { color: var(--danger); }
+        .calendar-day .day-amount.income { color: var(--success); }
+        .calendar-day.selected .day-amount { color: white; }
+        
+        .calendar-detail {
+            background: var(--gray-100);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .calendar-detail h4 {
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        /* 月度报告 */
+        .report-section {
+            background: var(--gray-100);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .report-section h4 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .report-list {
+            list-style: none;
+        }
+        
+        .report-list li {
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--gray-300);
+            font-size: 14px;
+        }
+        
+        .report-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .health-score {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .score-circle {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+        
+        .score-circle.excellent { background: linear-gradient(135deg, #48bb78, #38a169); color: white; }
+        .score-circle.good { background: linear-gradient(135deg, #4299e1, #3182ce); color: white; }
+        .score-circle.warning { background: linear-gradient(135deg, #ed8936, #dd6b20); color: white; }
+        .score-circle.danger { background: linear-gradient(135deg, #f56565, #e53e3e); color: white; }
+        
+        .score-circle .score { font-size: 28px; }
+        .score-circle .label { font-size: 12px; opacity: 0.9; }
     </style>
 </head>
 <body>
@@ -854,10 +1161,11 @@
         <div class="tabs">
             <button class="tab active" onclick="switchPage('record', event)">📝 记账</button>
             <button class="tab" onclick="switchPage('budget', event)">📊 预算</button>
-            <button class="tab" onclick="switchPage('history', event)">📅 记录</button>
-            <button class="tab" onclick="switchPage('ai', event)">🏦 理财分析</button>
+            <button class="tab" onclick="switchPage('calendar', event)">📅 日历</button>
+            <button class="tab" onclick="switchPage('goals', event)">🎯 目标</button>
+            <button class="tab" onclick="switchPage('report', event)">📋 报告</button>
+            <button class="tab" onclick="switchPage('history', event)">📜 记录</button>
             <button class="tab" onclick="switchPage('charts', event)">📈 图表</button>
-            <button class="tab" onclick="switchPage('yearly', event)">📅 年度</button>
             <button class="tab" onclick="switchPage('settings', event)">⚙️ 设置</button>
         </div>
         
@@ -867,41 +1175,82 @@
             <div id="page-record" class="page active">
                 <h2 class="page-title">📝 快速记账</h2>
                 
-                <div class="tip-bar" id="budgetTip"></div>
+                <!-- 月度总览 -->
+                <div class="overview-card" id="monthOverview"></div>
                 
-                <!-- 常用消费快捷按钮 -->
-                <div style="margin-bottom: 15px;">
-                    <label style="font-weight: 500; margin-bottom: 8px; display: block;">⚡ 常用消费（一键记录）</label>
-                    <div class="quick-buttons" id="quickButtons"></div>
+                <!-- 收入/支出切换 -->
+                <div class="type-switch">
+                    <button class="expense active" onclick="switchRecordType('expense')">💸 支出</button>
+                    <button class="income" onclick="switchRecordType('income')">💰 收入</button>
                 </div>
                 
-                <div class="quick-input-section">
-                    <label style="font-weight: 500; margin-bottom: 8px; display: block;">快速输入</label>
-                    <div class="quick-input">
-                        <input type="text" id="quickInput" placeholder="例如：咖啡25、打车15">
-                        <button class="btn btn-primary" onclick="parseQuickInput()">解析</button>
+                <!-- 支出记录区 -->
+                <div id="expenseForm">
+                    <!-- 常用消费快捷按钮 -->
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: 500; margin-bottom: 8px; display: block;">⚡ 常用消费（一键记录）</label>
+                        <div class="quick-buttons" id="quickButtons"></div>
                     </div>
+                    
+                    <div class="quick-input-section">
+                        <label style="font-weight: 500; margin-bottom: 8px; display: block;">快速输入</label>
+                        <div class="quick-input">
+                            <input type="text" id="quickInput" placeholder="例如：咖啡25、打车15">
+                            <button class="btn btn-primary" onclick="parseQuickInput()">解析</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>日期</label>
+                            <input type="date" id="expenseDate">
+                        </div>
+                        <div class="form-group">
+                            <label>项目</label>
+                            <input type="text" id="expenseItem" placeholder="消费项目">
+                        </div>
+                        <div class="form-group">
+                            <label>金额</label>
+                            <input type="number" id="expenseAmount" placeholder="0.00" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <label style="font-weight: 500; margin-bottom: 10px; display: block;">选择类目</label>
+                    <div id="categoryGrid"></div>
+                    
+                    <button class="btn btn-danger" style="width: 100%; padding: 15px; font-size: 16px; margin-top: 15px;" onclick="saveExpense()">💸 记录支出</button>
                 </div>
                 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>日期</label>
-                        <input type="date" id="expenseDate">
+                <!-- 收入记录区 -->
+                <div id="incomeForm" class="hidden">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>日期</label>
+                            <input type="date" id="incomeDate">
+                        </div>
+                        <div class="form-group">
+                            <label>来源</label>
+                            <input type="text" id="incomeItem" placeholder="如：工资、兼职">
+                        </div>
+                        <div class="form-group">
+                            <label>金额</label>
+                            <input type="number" id="incomeAmount" placeholder="0.00" step="0.01">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>项目</label>
-                        <input type="text" id="expenseItem" placeholder="消费项目">
+                    
+                    <label style="font-weight: 500; margin-bottom: 10px; display: block;">收入类型</label>
+                    <div class="quick-buttons" style="margin-bottom: 15px;">
+                        <button class="quick-btn" style="background: linear-gradient(135deg, #48bb78, #38a169);" onclick="selectIncomeType('工资')">💼 工资</button>
+                        <button class="quick-btn" style="background: linear-gradient(135deg, #48bb78, #38a169);" onclick="selectIncomeType('兼职')">💪 兼职</button>
+                        <button class="quick-btn" style="background: linear-gradient(135deg, #48bb78, #38a169);" onclick="selectIncomeType('理财')">📈 理财</button>
+                        <button class="quick-btn" style="background: linear-gradient(135deg, #48bb78, #38a169);" onclick="selectIncomeType('红包')">🧧 红包</button>
+                        <button class="quick-btn" style="background: linear-gradient(135deg, #48bb78, #38a169);" onclick="selectIncomeType('报销')">📄 报销</button>
+                        <button class="quick-btn" style="background: linear-gradient(135deg, #48bb78, #38a169);" onclick="selectIncomeType('其他')">📦 其他</button>
                     </div>
-                    <div class="form-group">
-                        <label>金额</label>
-                        <input type="number" id="expenseAmount" placeholder="0.00" step="0.01">
-                    </div>
+                    <input type="hidden" id="incomeType" value="工资">
+                    
+                    <button class="btn btn-success" style="width: 100%; padding: 15px; font-size: 16px;" onclick="saveIncome()">💰 记录收入</button>
                 </div>
-                
-                <label style="font-weight: 500; margin-bottom: 10px; display: block;">选择类目</label>
-                <div id="categoryGrid"></div>
-                
-                <button class="btn btn-success" style="width: 100%; padding: 15px; font-size: 16px; margin-top: 15px;" onclick="saveExpense()">💾 保存</button>
             </div>
             
             <!-- 预算页面 -->
@@ -918,6 +1267,54 @@
                 </div>
                 
                 <div id="budgetList"></div>
+            </div>
+            
+            <!-- 消费日历页面 -->
+            <div id="page-calendar" class="page">
+                <h2 class="page-title">📅 消费日历</h2>
+                
+                <div class="calendar-header">
+                    <div class="calendar-nav">
+                        <button onclick="prevMonth()">◀</button>
+                        <span id="calendarTitle"></span>
+                        <button onclick="nextMonth()">▶</button>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="goToToday()">今天</button>
+                </div>
+                
+                <div class="calendar-grid" id="calendarGrid"></div>
+                
+                <div class="calendar-detail" id="calendarDetail">
+                    <h4>📋 选择日期查看明细</h4>
+                    <div id="dayDetail">点击日历中的日期查看当天消费明细</div>
+                </div>
+            </div>
+            
+            <!-- 储蓄目标页面 -->
+            <div id="page-goals" class="page">
+                <h2 class="page-title">🎯 储蓄目标</h2>
+                
+                <div class="overview-card">
+                    <h3>💰 储蓄概览</h3>
+                    <div class="overview-grid" id="savingsOverview"></div>
+                </div>
+                
+                <h3 style="font-size: 16px; margin-bottom: 15px;">📋 我的目标</h3>
+                <div id="goalsList"></div>
+                
+                <button class="add-goal-btn" onclick="showAddGoal()">➕ 添加新目标</button>
+            </div>
+            
+            <!-- 月度报告页面 -->
+            <div id="page-report" class="page">
+                <h2 class="page-title">📋 月度财务报告</h2>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <select id="reportMonth" onchange="renderReport()" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300);"></select>
+                    <button class="btn btn-primary btn-sm" onclick="generateAIReport()">🤖 AI深度分析</button>
+                </div>
+                
+                <div id="reportContent"></div>
             </div>
             
             <!-- 记录页面 -->
@@ -1095,8 +1492,14 @@
         let currentUser = null;
         let categories = [];
         let expenses = [];
+        let incomes = [];
+        let goals = [];
         let selectedCategory = null;
         let expandedCategories = new Set();
+        let currentRecordType = 'expense';
+        let calendarYear = new Date().getFullYear();
+        let calendarMonth = new Date().getMonth() + 1;
+        let selectedCalendarDate = null;
         
         // ==================== 工具函数 ====================
         function showToast(msg, type = 'success') {
@@ -1351,6 +1754,7 @@
                     await saveCategoriesToCloud();
                 }
                 
+                // 加载支出
                 const { data: expenseData } = await db
                     .from('expenses')
                     .select('*')
@@ -1371,6 +1775,49 @@
                     expenses = [];
                 }
                 
+                // 尝试加载收入（表可能不存在）
+                try {
+                    const { data: incomeData } = await db
+                        .from('incomes')
+                        .select('*')
+                        .eq('user_id', currentUser)
+                        .order('date', { ascending: false });
+                    
+                    if (incomeData && incomeData.length > 0) {
+                        incomes = incomeData.map(i => ({
+                            id: i.id,
+                            date: i.date,
+                            item: i.item,
+                            amount: parseFloat(i.amount),
+                            type: i.type
+                        }));
+                    }
+                } catch (e) {
+                    console.log('收入表不存在，使用本地数据');
+                    incomes = JSON.parse(localStorage.getItem('finance_incomes_' + currentUser) || '[]');
+                }
+                
+                // 尝试加载目标（表可能不存在）
+                try {
+                    const { data: goalsData } = await db
+                        .from('goals')
+                        .select('*')
+                        .eq('user_id', currentUser);
+                    
+                    if (goalsData && goalsData.length > 0) {
+                        goals = goalsData.map(g => ({
+                            id: g.id,
+                            name: g.name,
+                            targetAmount: parseFloat(g.target_amount),
+                            currentAmount: parseFloat(g.current_amount || 0),
+                            deadline: g.deadline
+                        }));
+                    }
+                } catch (e) {
+                    console.log('目标表不存在，使用本地数据');
+                    goals = JSON.parse(localStorage.getItem('finance_goals_' + currentUser) || '[]');
+                }
+                
                 setSyncStatus('synced');
                 init();
                 
@@ -1381,6 +1828,8 @@
                 const localExp = localStorage.getItem('finance_expenses_' + currentUser);
                 categories = localCat ? JSON.parse(localCat) : JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
                 expenses = localExp ? JSON.parse(localExp) : [];
+                incomes = JSON.parse(localStorage.getItem('finance_incomes_' + currentUser) || '[]');
+                goals = JSON.parse(localStorage.getItem('finance_goals_' + currentUser) || '[]');
                 init();
             }
         }
@@ -1425,6 +1874,72 @@
             } catch (error) {
                 console.error('删除失败:', error);
             }
+        }
+        
+        async function saveIncomeToCloud(income) {
+            try {
+                const { data, error } = await db.from('incomes').insert({
+                    user_id: currentUser,
+                    date: income.date,
+                    item: income.item,
+                    amount: income.amount,
+                    type: income.type
+                }).select().single();
+                
+                if (data) income.id = data.id;
+            } catch (error) {
+                console.log('收入表可能不存在，仅保存本地');
+            }
+            localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
+        }
+        
+        async function deleteIncomeFromCloud(id) {
+            try {
+                await db.from('incomes').delete().eq('id', id);
+            } catch (error) {
+                console.log('删除收入失败');
+            }
+            localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
+        }
+        
+        async function saveGoalToCloud(goal) {
+            try {
+                const { data, error } = await db.from('goals').insert({
+                    user_id: currentUser,
+                    name: goal.name,
+                    target_amount: goal.targetAmount,
+                    current_amount: goal.currentAmount,
+                    deadline: goal.deadline
+                }).select().single();
+                
+                if (data) goal.id = data.id;
+            } catch (error) {
+                console.log('目标表可能不存在，仅保存本地');
+            }
+            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+        }
+        
+        async function updateGoalInCloud(goal) {
+            try {
+                await db.from('goals').update({
+                    name: goal.name,
+                    target_amount: goal.targetAmount,
+                    current_amount: goal.currentAmount,
+                    deadline: goal.deadline
+                }).eq('id', goal.id);
+            } catch (error) {
+                console.log('更新目标失败');
+            }
+            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+        }
+        
+        async function deleteGoalFromCloud(id) {
+            try {
+                await db.from('goals').delete().eq('id', id);
+            } catch (error) {
+                console.log('删除目标失败');
+            }
+            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
         }
         
         async function syncData() {
@@ -1503,14 +2018,16 @@
         // ==================== 初始化 ====================
         function init() {
             document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('incomeDate').value = new Date().toISOString().split('T')[0];
             renderCategoryGrid();
-            renderBudgetTip();
+            renderMonthOverview();
             renderQuickButtons();
             renderBudgetStatus();
             renderCompareCards();
             renderMonthSelector();
             renderHistory();
             renderSettings();
+            initReportMonthSelector();
         }
         
         function switchPage(page, event) {
@@ -1529,6 +2046,16 @@
             if (page === 'yearly') {
                 initYearSelector();
                 renderYearlyStats();
+            }
+            if (page === 'calendar') {
+                renderCalendar();
+            }
+            if (page === 'goals') {
+                renderGoals();
+            }
+            if (page === 'report') {
+                initReportMonthSelector();
+                renderReport();
             }
         }
         
@@ -1916,8 +2443,8 @@
                     </div>
                     <div class="amount">¥${e.amount.toFixed(2)}</div>
                     <div class="record-actions">
-                        <button class="btn btn-sm btn-outline" onclick="editExpense(${e.id})">✏️</button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteExpense(${e.id})">🗑️</button>
+                        <button class="btn btn-sm btn-outline" onclick="editExpense('${e.id}')">✏️</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">🗑️</button>
                     </div>
                 </div>
             `).join('') || '<div class="no-data" style="text-align: center; padding: 40px;">本月暂无记录</div>';
@@ -1950,8 +2477,8 @@
                     </div>
                     <div class="amount">¥${e.amount.toFixed(2)}</div>
                     <div class="record-actions">
-                        <button class="btn btn-sm btn-outline" onclick="editExpense(${e.id})">✏️</button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteExpense(${e.id})">🗑️</button>
+                        <button class="btn btn-sm btn-outline" onclick="editExpense('${e.id}')">✏️</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">🗑️</button>
                     </div>
                 </div>
             `).join('') || '<div class="no-data" style="text-align: center; padding: 40px;">未找到匹配记录</div>';
@@ -1963,7 +2490,7 @@
         }
         
         function editExpense(id) {
-            const expense = expenses.find(e => e.id === id);
+            const expense = expenses.find(e => String(e.id) === String(id));
             if (!expense) return;
             
             const modal = document.createElement('div');
@@ -1994,7 +2521,7 @@
                     </div>
                     <div class="modal-buttons">
                         <button class="btn btn-outline" onclick="closeEditModal()">取消</button>
-                        <button class="btn btn-primary" onclick="saveEditExpense(${id})">保存</button>
+                        <button class="btn btn-primary" onclick="saveEditExpense('${id}')">保存</button>
                     </div>
                 </div>
             `;
@@ -2012,7 +2539,7 @@
             const categoryId = parseInt(document.getElementById('editCategory').value);
             const cat = categories.find(c => c.id === categoryId);
             
-            const expense = expenses.find(e => e.id === id);
+            const expense = expenses.find(e => String(e.id) === String(id));
             if (expense) {
                 expense.date = date;
                 expense.item = item;
@@ -2044,10 +2571,11 @@
         async function deleteExpense(id) {
             if (!confirm('确定删除这条记录吗？')) return;
             
-            expenses = expenses.filter(e => e.id !== id);
+            expenses = expenses.filter(e => String(e.id) !== String(id));
             await deleteExpenseFromCloud(id);
             renderHistory();
             renderBudgetStatus();
+            renderCompareCards();
             showToast('已删除', 'success');
         }
         
@@ -2845,11 +3373,577 @@ ${top10 || '暂无数据'}
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.getElementById('page-history').classList.add('active');
-            document.querySelector('.tab:nth-child(3)').classList.add('active');
+            document.querySelector('.tab:nth-child(6)').classList.add('active');
             
             const select = document.getElementById('historyMonth');
             select.value = `${year}-${month}`;
             renderHistory();
+        }
+        
+        // ==================== 收入功能 ====================
+        function switchRecordType(type) {
+            currentRecordType = type;
+            document.querySelectorAll('.type-switch button').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.type-switch .${type}`).classList.add('active');
+            
+            if (type === 'expense') {
+                document.getElementById('expenseForm').classList.remove('hidden');
+                document.getElementById('incomeForm').classList.add('hidden');
+            } else {
+                document.getElementById('expenseForm').classList.add('hidden');
+                document.getElementById('incomeForm').classList.remove('hidden');
+            }
+        }
+        
+        function selectIncomeType(type) {
+            document.getElementById('incomeType').value = type;
+            showToast(`已选择: ${type}`, 'success');
+        }
+        
+        async function saveIncome() {
+            const date = document.getElementById('incomeDate').value;
+            const item = document.getElementById('incomeItem').value.trim();
+            const amount = parseFloat(document.getElementById('incomeAmount').value);
+            const type = document.getElementById('incomeType').value;
+            
+            if (!date || !item || !amount) {
+                showToast('请填写完整信息', 'error');
+                return;
+            }
+            
+            const income = {
+                id: Date.now(),
+                date,
+                item,
+                amount,
+                type
+            };
+            
+            incomes.unshift(income);
+            await saveIncomeToCloud(income);
+            
+            document.getElementById('incomeItem').value = '';
+            document.getElementById('incomeAmount').value = '';
+            
+            renderMonthOverview();
+            showToast(`已记录收入 ¥${amount}`, 'success');
+        }
+        
+        function renderMonthOverview() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            
+            // 本月收入
+            const monthIncome = incomes
+                .filter(i => {
+                    const d = new Date(i.date);
+                    return d.getFullYear() === year && d.getMonth() + 1 === month;
+                })
+                .reduce((sum, i) => sum + i.amount, 0);
+            
+            // 本月支出
+            const monthExpense = expenses
+                .filter(e => {
+                    const d = new Date(e.date);
+                    return d.getFullYear() === year && d.getMonth() + 1 === month;
+                })
+                .reduce((sum, e) => sum + e.amount, 0);
+            
+            // 结余
+            const balance = monthIncome - monthExpense;
+            const savingRate = monthIncome > 0 ? ((balance / monthIncome) * 100).toFixed(1) : 0;
+            
+            document.getElementById('monthOverview').innerHTML = `
+                <h3>📊 ${month}月财务概览</h3>
+                <div class="overview-grid">
+                    <div class="overview-item">
+                        <div class="label">本月收入</div>
+                        <div class="value positive">¥${monthIncome.toFixed(0)}</div>
+                    </div>
+                    <div class="overview-item">
+                        <div class="label">本月支出</div>
+                        <div class="value negative">¥${monthExpense.toFixed(0)}</div>
+                    </div>
+                    <div class="overview-item">
+                        <div class="label">本月结余</div>
+                        <div class="value ${balance >= 0 ? 'positive' : 'negative'}">¥${balance.toFixed(0)}</div>
+                    </div>
+                    <div class="overview-item">
+                        <div class="label">储蓄率</div>
+                        <div class="value ${savingRate >= 20 ? 'positive' : savingRate >= 0 ? '' : 'negative'}">${savingRate}%</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // ==================== 消费日历 ====================
+        function renderCalendar() {
+            document.getElementById('calendarTitle').textContent = `${calendarYear}年${calendarMonth}月`;
+            
+            const firstDay = new Date(calendarYear, calendarMonth - 1, 1).getDay();
+            const daysInMonth = new Date(calendarYear, calendarMonth, 0).getDate();
+            const today = new Date();
+            
+            // 获取本月数据
+            const monthExpenses = {};
+            const monthIncomes = {};
+            
+            expenses.forEach(e => {
+                const d = new Date(e.date);
+                if (d.getFullYear() === calendarYear && d.getMonth() + 1 === calendarMonth) {
+                    const day = d.getDate();
+                    monthExpenses[day] = (monthExpenses[day] || 0) + e.amount;
+                }
+            });
+            
+            incomes.forEach(i => {
+                const d = new Date(i.date);
+                if (d.getFullYear() === calendarYear && d.getMonth() + 1 === calendarMonth) {
+                    const day = d.getDate();
+                    monthIncomes[day] = (monthIncomes[day] || 0) + i.amount;
+                }
+            });
+            
+            let html = `
+                <div class="calendar-weekday">日</div>
+                <div class="calendar-weekday">一</div>
+                <div class="calendar-weekday">二</div>
+                <div class="calendar-weekday">三</div>
+                <div class="calendar-weekday">四</div>
+                <div class="calendar-weekday">五</div>
+                <div class="calendar-weekday">六</div>
+            `;
+            
+            // 空白天数
+            for (let i = 0; i < firstDay; i++) {
+                html += `<div class="calendar-day empty"></div>`;
+            }
+            
+            // 日期
+            for (let d = 1; d <= daysInMonth; d++) {
+                const isToday = today.getFullYear() === calendarYear && 
+                               today.getMonth() + 1 === calendarMonth && 
+                               today.getDate() === d;
+                const isSelected = selectedCalendarDate === d;
+                const expense = monthExpenses[d] || 0;
+                const income = monthIncomes[d] || 0;
+                
+                html += `
+                    <div class="calendar-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" 
+                         onclick="selectCalendarDate(${d})">
+                        <div class="day-num">${d}</div>
+                        ${expense > 0 ? `<div class="day-amount expense">-${expense.toFixed(0)}</div>` : ''}
+                        ${income > 0 ? `<div class="day-amount income">+${income.toFixed(0)}</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            document.getElementById('calendarGrid').innerHTML = html;
+        }
+        
+        function selectCalendarDate(day) {
+            selectedCalendarDate = day;
+            renderCalendar();
+            
+            const dateStr = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            
+            const dayExpenses = expenses.filter(e => e.date === dateStr);
+            const dayIncomes = incomes.filter(i => i.date === dateStr);
+            
+            let html = `<h4>📅 ${calendarMonth}月${day}日明细</h4>`;
+            
+            if (dayIncomes.length > 0) {
+                html += `<div style="margin-bottom: 10px;"><strong style="color: var(--success);">收入：</strong></div>`;
+                dayIncomes.forEach(i => {
+                    html += `<div class="detail-item"><span>${i.type}</span><span class="item">${i.item}</span><span class="amount" style="color: var(--success);">+¥${i.amount.toFixed(2)}</span></div>`;
+                });
+            }
+            
+            if (dayExpenses.length > 0) {
+                html += `<div style="margin: 10px 0;"><strong style="color: var(--danger);">支出：</strong></div>`;
+                dayExpenses.forEach(e => {
+                    html += `<div class="detail-item"><span>${e.categoryName}</span><span class="item">${e.item}</span><span class="amount" style="color: var(--danger);">-¥${e.amount.toFixed(2)}</span></div>`;
+                });
+            }
+            
+            if (dayExpenses.length === 0 && dayIncomes.length === 0) {
+                html += `<div style="color: var(--gray-600); padding: 20px; text-align: center;">当天无收支记录</div>`;
+            }
+            
+            document.getElementById('calendarDetail').innerHTML = html;
+        }
+        
+        function prevMonth() {
+            calendarMonth--;
+            if (calendarMonth < 1) {
+                calendarMonth = 12;
+                calendarYear--;
+            }
+            selectedCalendarDate = null;
+            renderCalendar();
+            document.getElementById('calendarDetail').innerHTML = '<h4>📋 选择日期查看明细</h4><div id="dayDetail">点击日历中的日期查看当天消费明细</div>';
+        }
+        
+        function nextMonth() {
+            calendarMonth++;
+            if (calendarMonth > 12) {
+                calendarMonth = 1;
+                calendarYear++;
+            }
+            selectedCalendarDate = null;
+            renderCalendar();
+            document.getElementById('calendarDetail').innerHTML = '<h4>📋 选择日期查看明细</h4><div id="dayDetail">点击日历中的日期查看当天消费明细</div>';
+        }
+        
+        function goToToday() {
+            const today = new Date();
+            calendarYear = today.getFullYear();
+            calendarMonth = today.getMonth() + 1;
+            selectedCalendarDate = today.getDate();
+            renderCalendar();
+            selectCalendarDate(selectedCalendarDate);
+        }
+        
+        // ==================== 储蓄目标 ====================
+        function renderGoals() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            
+            // 计算本月结余
+            const monthIncome = incomes
+                .filter(i => {
+                    const d = new Date(i.date);
+                    return d.getFullYear() === year && d.getMonth() + 1 === month;
+                })
+                .reduce((sum, i) => sum + i.amount, 0);
+            
+            const monthExpense = expenses
+                .filter(e => {
+                    const d = new Date(e.date);
+                    return d.getFullYear() === year && d.getMonth() + 1 === month;
+                })
+                .reduce((sum, e) => sum + e.amount, 0);
+            
+            const monthBalance = monthIncome - monthExpense;
+            
+            // 年度累计结余
+            const yearIncome = incomes
+                .filter(i => new Date(i.date).getFullYear() === year)
+                .reduce((sum, i) => sum + i.amount, 0);
+            
+            const yearExpense = expenses
+                .filter(e => new Date(e.date).getFullYear() === year)
+                .reduce((sum, e) => sum + e.amount, 0);
+            
+            const yearBalance = yearIncome - yearExpense;
+            
+            document.getElementById('savingsOverview').innerHTML = `
+                <div class="overview-item">
+                    <div class="label">本月结余</div>
+                    <div class="value ${monthBalance >= 0 ? 'positive' : 'negative'}">¥${monthBalance.toFixed(0)}</div>
+                </div>
+                <div class="overview-item">
+                    <div class="label">年度累计结余</div>
+                    <div class="value ${yearBalance >= 0 ? 'positive' : 'negative'}">¥${yearBalance.toFixed(0)}</div>
+                </div>
+                <div class="overview-item">
+                    <div class="label">目标数量</div>
+                    <div class="value">${goals.length}个</div>
+                </div>
+                <div class="overview-item">
+                    <div class="label">已完成</div>
+                    <div class="value">${goals.filter(g => g.currentAmount >= g.targetAmount).length}个</div>
+                </div>
+            `;
+            
+            if (goals.length === 0) {
+                document.getElementById('goalsList').innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: var(--gray-600);">
+                        <p>还没有储蓄目标</p>
+                        <p style="font-size: 14px; margin-top: 10px;">点击下方按钮添加你的第一个目标</p>
+                    </div>
+                `;
+            } else {
+                document.getElementById('goalsList').innerHTML = goals.map((goal, index) => {
+                    const progress = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
+                    const remaining = goal.targetAmount - goal.currentAmount;
+                    const isCompleted = progress >= 100;
+                    
+                    return `
+                        <div class="goal-card" style="${isCompleted ? 'border-color: var(--success);' : ''}">
+                            <div class="goal-header">
+                                <h4>${isCompleted ? '✅' : '🎯'} ${goal.name}</h4>
+                                <div>
+                                    <button class="btn btn-sm btn-primary" onclick="addToGoal(${index})">💰 存入</button>
+                                    <button class="btn btn-sm btn-outline" onclick="editGoal(${index})">✏️</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteGoal(${index})">🗑️</button>
+                                </div>
+                            </div>
+                            <div class="goal-progress">
+                                <div class="fill" style="width: ${progress}%; ${isCompleted ? 'background: linear-gradient(90deg, #48bb78, #38a169);' : ''}">${progress.toFixed(0)}%</div>
+                            </div>
+                            <div class="goal-stats">
+                                <span>已存: ¥${goal.currentAmount.toFixed(0)}</span>
+                                <span>目标: ¥${goal.targetAmount.toFixed(0)}</span>
+                                <span>${isCompleted ? '🎉 已达成!' : `还差: ¥${remaining.toFixed(0)}`}</span>
+                            </div>
+                            ${goal.deadline ? `<div style="font-size: 12px; color: var(--gray-600); margin-top: 8px;">截止日期: ${goal.deadline}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+        
+        function showAddGoal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'goalModal';
+            modal.innerHTML = `
+                <div class="modal">
+                    <h3>🎯 添加储蓄目标</h3>
+                    <div class="form-group">
+                        <label>目标名称</label>
+                        <input type="text" id="goalName" placeholder="如：旅行基金、应急储蓄">
+                    </div>
+                    <div class="form-group">
+                        <label>目标金额</label>
+                        <input type="number" id="goalAmount" placeholder="10000">
+                    </div>
+                    <div class="form-group">
+                        <label>截止日期（可选）</label>
+                        <input type="date" id="goalDeadline">
+                    </div>
+                    <div class="modal-buttons">
+                        <button class="btn btn-outline" onclick="closeGoalModal()">取消</button>
+                        <button class="btn btn-success" onclick="saveGoal()">保存</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        function closeGoalModal() {
+            document.getElementById('goalModal')?.remove();
+        }
+        
+        async function saveGoal() {
+            const name = document.getElementById('goalName').value.trim();
+            const targetAmount = parseFloat(document.getElementById('goalAmount').value);
+            const deadline = document.getElementById('goalDeadline').value;
+            
+            if (!name || !targetAmount) {
+                showToast('请填写目标名称和金额', 'error');
+                return;
+            }
+            
+            const goal = {
+                id: Date.now(),
+                name,
+                targetAmount,
+                currentAmount: 0,
+                deadline: deadline || null
+            };
+            
+            goals.push(goal);
+            await saveGoalToCloud(goal);
+            
+            closeGoalModal();
+            renderGoals();
+            showToast('目标已添加', 'success');
+        }
+        
+        function addToGoal(index) {
+            const goal = goals[index];
+            const amount = prompt(`为「${goal.name}」存入金额：`, '1000');
+            if (amount && !isNaN(amount)) {
+                goal.currentAmount += parseFloat(amount);
+                updateGoalInCloud(goal);
+                renderGoals();
+                showToast(`已存入 ¥${amount}`, 'success');
+            }
+        }
+        
+        function editGoal(index) {
+            const goal = goals[index];
+            const newAmount = prompt(`修改「${goal.name}」的目标金额：`, goal.targetAmount);
+            if (newAmount && !isNaN(newAmount)) {
+                goal.targetAmount = parseFloat(newAmount);
+                updateGoalInCloud(goal);
+                renderGoals();
+                showToast('已更新', 'success');
+            }
+        }
+        
+        async function deleteGoal(index) {
+            if (!confirm('确定删除这个目标吗？')) return;
+            const goal = goals[index];
+            goals.splice(index, 1);
+            await deleteGoalFromCloud(goal.id);
+            renderGoals();
+            showToast('已删除', 'success');
+        }
+        
+        // ==================== 月度报告 ====================
+        function initReportMonthSelector() {
+            const select = document.getElementById('reportMonth');
+            if (!select || select.options.length > 0) return;
+            
+            const now = new Date();
+            const year = now.getFullYear();
+            
+            for (let m = 12; m >= 1; m--) {
+                const opt = document.createElement('option');
+                opt.value = `${year}-${m}`;
+                opt.textContent = `${year}年${m}月`;
+                if (m === now.getMonth() + 1) opt.selected = true;
+                select.appendChild(opt);
+            }
+        }
+        
+        function renderReport() {
+            const [year, month] = document.getElementById('reportMonth').value.split('-').map(Number);
+            
+            // 计算数据
+            const monthExpenses = expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            });
+            
+            const monthIncomes = incomes.filter(i => {
+                const d = new Date(i.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            });
+            
+            const totalExpense = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+            const totalIncome = monthIncomes.reduce((sum, i) => sum + i.amount, 0);
+            const balance = totalIncome - totalExpense;
+            const savingRate = totalIncome > 0 ? ((balance / totalIncome) * 100) : 0;
+            
+            // 类目统计
+            const categoryStats = {};
+            monthExpenses.forEach(e => {
+                if (!categoryStats[e.categoryName]) categoryStats[e.categoryName] = 0;
+                categoryStats[e.categoryName] += e.amount;
+            });
+            const topCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            
+            // 健康评分
+            let score = 60;
+            if (savingRate >= 30) score += 20;
+            else if (savingRate >= 20) score += 15;
+            else if (savingRate >= 10) score += 10;
+            else if (savingRate < 0) score -= 20;
+            
+            if (monthExpenses.length > 0) score += 10; // 有记账习惯
+            if (totalIncome > 0) score += 10; // 记录了收入
+            
+            score = Math.min(100, Math.max(0, score));
+            let scoreClass = score >= 80 ? 'excellent' : score >= 60 ? 'good' : score >= 40 ? 'warning' : 'danger';
+            let scoreText = score >= 80 ? '优秀' : score >= 60 ? '良好' : score >= 40 ? '一般' : '需改善';
+            
+            // 上月对比
+            const lastMonth = month === 1 ? 12 : month - 1;
+            const lastYear = month === 1 ? year - 1 : year;
+            const lastMonthExpense = expenses
+                .filter(e => {
+                    const d = new Date(e.date);
+                    return d.getFullYear() === lastYear && d.getMonth() + 1 === lastMonth;
+                })
+                .reduce((sum, e) => sum + e.amount, 0);
+            
+            const expenseChange = lastMonthExpense > 0 ? ((totalExpense - lastMonthExpense) / lastMonthExpense * 100).toFixed(1) : 0;
+            
+            document.getElementById('reportContent').innerHTML = `
+                <!-- 健康评分 -->
+                <div class="report-section">
+                    <div class="health-score">
+                        <div class="score-circle ${scoreClass}">
+                            <div class="score">${score}</div>
+                            <div class="label">${scoreText}</div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 10px;">财务健康度</h4>
+                            <p style="font-size: 14px; color: var(--gray-600);">
+                                ${score >= 80 ? '太棒了！你的财务状况非常健康，继续保持！' :
+                                  score >= 60 ? '不错！财务状况良好，还有提升空间。' :
+                                  score >= 40 ? '需要注意！建议控制支出，增加储蓄。' :
+                                  '警告！支出过大，建议立即调整财务计划。'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 收支概览 -->
+                <div class="report-section">
+                    <h4>💰 收支概览</h4>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 10px;">
+                        <div style="text-align: center; padding: 15px; background: var(--green-100); border-radius: 10px;">
+                            <div style="font-size: 12px; color: var(--gray-600);">总收入</div>
+                            <div style="font-size: 24px; font-weight: 700; color: var(--success);">¥${totalIncome.toFixed(0)}</div>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: var(--pink-100); border-radius: 10px;">
+                            <div style="font-size: 12px; color: var(--gray-600);">总支出</div>
+                            <div style="font-size: 24px; font-weight: 700; color: var(--danger);">¥${totalExpense.toFixed(0)}</div>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: ${balance >= 0 ? 'var(--green-100)' : 'var(--pink-100)'}; border-radius: 10px;">
+                            <div style="font-size: 12px; color: var(--gray-600);">结余</div>
+                            <div style="font-size: 24px; font-weight: 700; color: ${balance >= 0 ? 'var(--success)' : 'var(--danger)'};">¥${balance.toFixed(0)}</div>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: var(--gray-100); border-radius: 10px;">
+                            <div style="font-size: 12px; color: var(--gray-600);">储蓄率</div>
+                            <div style="font-size: 24px; font-weight: 700;">${savingRate.toFixed(1)}%</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 支出排行 -->
+                <div class="report-section">
+                    <h4>🏆 支出类目TOP5</h4>
+                    <ul class="report-list">
+                        ${topCategories.map(([name, amount], i) => `
+                            <li style="display: flex; justify-content: space-between;">
+                                <span>${['🥇','🥈','🥉','4.','5.'][i]} ${name}</span>
+                                <span style="font-weight: 600;">¥${amount.toFixed(0)} (${(amount/totalExpense*100).toFixed(1)}%)</span>
+                            </li>
+                        `).join('')}
+                        ${topCategories.length === 0 ? '<li style="color: var(--gray-600);">暂无数据</li>' : ''}
+                    </ul>
+                </div>
+                
+                <!-- 环比分析 -->
+                <div class="report-section">
+                    <h4>📊 环比分析</h4>
+                    <ul class="report-list">
+                        <li style="display: flex; justify-content: space-between;">
+                            <span>上月支出</span>
+                            <span>¥${lastMonthExpense.toFixed(0)}</span>
+                        </li>
+                        <li style="display: flex; justify-content: space-between;">
+                            <span>本月支出</span>
+                            <span>¥${totalExpense.toFixed(0)}</span>
+                        </li>
+                        <li style="display: flex; justify-content: space-between;">
+                            <span>变化</span>
+                            <span style="color: ${expenseChange > 0 ? 'var(--danger)' : 'var(--success)'}">
+                                ${expenseChange > 0 ? '↑' : '↓'} ${Math.abs(expenseChange)}%
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <!-- 建议 -->
+                <div class="report-section">
+                    <h4>💡 本月建议</h4>
+                    <ul class="report-list">
+                        ${savingRate < 20 ? '<li>⚠️ 储蓄率偏低，建议减少非必要支出，目标储蓄率20%以上</li>' : '<li>✅ 储蓄率健康，继续保持</li>'}
+                        ${topCategories.length > 0 && topCategories[0][1] > totalExpense * 0.3 ? `<li>⚠️「${topCategories[0][0]}」占比过高(${(topCategories[0][1]/totalExpense*100).toFixed(0)}%)，建议控制</li>` : ''}
+                        ${totalIncome === 0 ? '<li>💡 建议记录收入，更好地了解财务状况</li>' : ''}
+                        ${monthExpenses.length < 10 ? '<li>💡 记账笔数较少，建议坚持每日记账</li>' : '<li>✅ 记账习惯良好，继续保持</li>'}
+                    </ul>
+                </div>
+            `;
         }
         
         // ==================== 自动登录 ====================
