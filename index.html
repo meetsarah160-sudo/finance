@@ -1476,6 +1476,31 @@
             font-weight: 600;
         }
         
+        .income-table .income-cell.editable {
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .income-table .income-cell.editable:hover {
+            background: rgba(72, 187, 120, 0.15);
+            border-radius: 4px;
+        }
+        
+        .income-table .income-cell.editable::after {
+            content: '✏️';
+            position: absolute;
+            right: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .income-table .income-cell.editable:hover::after {
+            opacity: 0.7;
+        }
+        
         .income-table .expense-cell {
             color: var(--danger);
             font-weight: 600;
@@ -2316,17 +2341,6 @@
                             <canvas id="balanceTrendChart"></canvas>
                         </div>
                     </div>
-                </div>
-                
-                <!-- 收入明细列表 -->
-                <div class="chart-card full-width">
-                    <div class="card-header-flex">
-                        <h3>📋 收入明细</h3>
-                        <select id="incomeMonthFilter" onchange="renderIncomeList()" class="month-filter">
-                            <option value="all">全部月份</option>
-                        </select>
-                    </div>
-                    <div id="incomeDetailList" class="income-detail-list"></div>
                 </div>
             </div>
             
@@ -5415,15 +5429,6 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
                 opt.textContent = y + '年';
                 select.appendChild(opt);
             }
-            
-            // 初始化月份筛选器
-            const monthFilter = document.getElementById('incomeMonthFilter');
-            for (let m = 1; m <= 12; m++) {
-                const opt = document.createElement('option');
-                opt.value = m;
-                opt.textContent = m + '月';
-                monthFilter.appendChild(opt);
-            }
         }
         
         function renderIncomeTable() {
@@ -5512,14 +5517,15 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             tbody.innerHTML = monthlyData.map(m => {
                 const rateClass = m.savingRate >= 30 ? 'good' : m.savingRate >= 0 ? 'warning' : 'bad';
                 const hasData = m.totalIncome > 0 || m.totalExpense > 0;
+                const year = document.getElementById('incomeYearSelect').value;
                 
                 return `
                     <tr>
                         <td class="month-cell">${m.month}月</td>
-                        <td class="income-cell">${m.salary > 0 ? '¥' + m.salary.toLocaleString() : '-'}</td>
-                        <td class="income-cell">${m.bonus > 0 ? '¥' + m.bonus.toLocaleString() : '-'}</td>
-                        <td class="income-cell">${m.side > 0 ? '¥' + m.side.toLocaleString() : '-'}</td>
-                        <td class="income-cell">${m.other > 0 ? '¥' + m.other.toLocaleString() : '-'}</td>
+                        <td class="income-cell editable" onclick="editMonthIncome(${year}, ${m.month}, '工资', ${m.salary})">${m.salary > 0 ? '¥' + m.salary.toLocaleString() : '-'}</td>
+                        <td class="income-cell editable" onclick="editMonthIncome(${year}, ${m.month}, '奖金', ${m.bonus})">${m.bonus > 0 ? '¥' + m.bonus.toLocaleString() : '-'}</td>
+                        <td class="income-cell editable" onclick="editMonthIncome(${year}, ${m.month}, '副业', ${m.side})">${m.side > 0 ? '¥' + m.side.toLocaleString() : '-'}</td>
+                        <td class="income-cell editable" onclick="editMonthIncome(${year}, ${m.month}, '其他', ${m.other})">${m.other > 0 ? '¥' + m.other.toLocaleString() : '-'}</td>
                         <td class="income-cell">${m.totalIncome > 0 ? '¥' + m.totalIncome.toLocaleString() : '-'}</td>
                         <td class="expense-cell">${m.totalExpense > 0 ? '¥' + m.totalExpense.toLocaleString() : '-'}</td>
                         <td class="balance-cell ${m.balance >= 0 ? 'positive' : 'negative'}">
@@ -5568,9 +5574,6 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             
             // 渲染结余趋势图
             renderBalanceTrendChart(monthlyData);
-            
-            // 渲染收入明细
-            renderIncomeList();
         }
         
         function renderIncomeComposeChart(yearTotals) {
@@ -5881,6 +5884,67 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
         function closeIncomeEditModal() {
             const modal = document.getElementById('incomeEditModal');
             if (modal) modal.remove();
+        }
+        
+        function editMonthIncome(year, month, type, currentAmount) {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'incomeEditModal';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 350px;">
+                    <h3 style="margin-bottom: 20px;">📝 编辑 ${year}年${month}月${type}</h3>
+                    <div class="form-group">
+                        <label>金额（输入0或留空表示删除）</label>
+                        <input type="number" id="editCellAmount" value="${currentAmount || ''}" class="form-input" step="0.01" placeholder="输入金额">
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button onclick="saveMonthIncome(${year}, ${month}, '${type}')" class="btn btn-primary" style="flex: 1;">保存</button>
+                        <button onclick="closeIncomeEditModal()" class="btn btn-secondary" style="flex: 1;">取消</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            document.getElementById('editCellAmount').focus();
+            document.getElementById('editCellAmount').select();
+        }
+        
+        function saveMonthIncome(year, month, type) {
+            const amount = parseFloat(document.getElementById('editCellAmount').value) || 0;
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-15`;
+            
+            // 查找该月该类型的收入记录
+            const existingIndex = incomes.findIndex(i => {
+                const d = new Date(i.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month && i.type === type;
+            });
+            
+            if (amount > 0) {
+                if (existingIndex !== -1) {
+                    // 更新现有记录
+                    incomes[existingIndex].amount = amount;
+                } else {
+                    // 新增记录
+                    incomes.push({
+                        id: 'inc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                        date: dateStr,
+                        item: `${month}月${type}`,
+                        amount: amount,
+                        type: type
+                    });
+                }
+            } else {
+                // 删除记录
+                if (existingIndex !== -1) {
+                    incomes.splice(existingIndex, 1);
+                }
+            }
+            
+            // 保存到本地存储
+            localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
+            
+            closeIncomeEditModal();
+            renderIncomeTable();
+            showToast('已保存', 'success');
         }
         
         // ==================== 存量资产管理 ====================
