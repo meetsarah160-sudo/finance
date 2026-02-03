@@ -1632,15 +1632,108 @@
             color: var(--success);
         }
         
-        .income-detail-right .income-delete {
+        .income-detail-right .income-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 4px;
             font-size: 12px;
+        }
+        
+        .income-detail-right .income-edit {
+            color: var(--primary);
+            cursor: pointer;
+        }
+        
+        .income-detail-right .income-edit:hover {
+            color: var(--primary-dark);
+            text-decoration: underline;
+        }
+        
+        .income-detail-right .income-delete {
             color: var(--gray-400);
             cursor: pointer;
-            margin-top: 4px;
         }
         
         .income-detail-right .income-delete:hover {
             color: var(--danger);
+        }
+        
+        /* 编辑弹窗 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+        
+        .btn-secondary {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--gray-300);
         }
         
         /* 储蓄目标 */
@@ -2828,13 +2921,17 @@
                 
                 // 尝试加载收入（表可能不存在）
                 try {
-                    const { data: incomeData } = await db
+                    const { data: incomeData, error: incomeError } = await db
                         .from('incomes')
                         .select('*')
                         .eq('user_id', currentUser)
                         .order('date', { ascending: false });
                     
-                    if (incomeData && incomeData.length > 0) {
+                    if (incomeError || !incomeData) {
+                        // 云端失败，使用本地数据
+                        console.log('收入表不存在或加载失败，使用本地数据');
+                        incomes = JSON.parse(localStorage.getItem('finance_incomes_' + currentUser) || '[]');
+                    } else if (incomeData.length > 0) {
                         incomes = incomeData.map(i => ({
                             id: i.id,
                             date: i.date,
@@ -2842,6 +2939,13 @@
                             amount: parseFloat(i.amount),
                             type: i.type
                         }));
+                    } else {
+                        // 云端返回空数组，检查本地是否有数据
+                        const localIncomes = JSON.parse(localStorage.getItem('finance_incomes_' + currentUser) || '[]');
+                        if (localIncomes.length > 0) {
+                            console.log('云端无数据，使用本地收入数据');
+                            incomes = localIncomes;
+                        }
                     }
                 } catch (e) {
                     console.log('收入表不存在，使用本地数据');
@@ -5329,19 +5433,7 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             
             // 按月汇总数据
             const monthlyData = [];
-            let cumulativeBalance = 0;
-            
-            // 获取上一年的累计结余（如果有的话）
-            const prevYearIncomes = safeIncomes.filter(i => new Date(i.date).getFullYear() === year - 1);
-            const prevYearExpenses = safeExpenses.filter(e => new Date(e.date).getFullYear() === year - 1);
-            const prevYearIncome = prevYearIncomes.reduce((sum, i) => sum + (i.amount || 0), 0);
-            const prevYearExpense = prevYearExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-            cumulativeBalance = prevYearIncome - prevYearExpense;
-            
-            // 如果是查看今年之前的年份，重置累计
-            if (year < new Date().getFullYear() - 1) {
-                cumulativeBalance = 0;
-            }
+            let cumulativeBalance = 0; // 每年从0开始累计
             
             for (let month = 1; month <= 12; month++) {
                 const monthIncomes = safeIncomes.filter(i => {
@@ -5704,7 +5796,10 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
                         </div>
                         <div class="income-detail-right">
                             <div class="income-amount">+¥${(income.amount || 0).toLocaleString()}</div>
-                            <div class="income-delete" onclick="deleteIncome('${income.id}')">删除</div>
+                            <div class="income-actions">
+                                <span class="income-edit" onclick="editIncome('${income.id}')">编辑</span>
+                                <span class="income-delete" onclick="deleteIncome('${income.id}')">删除</span>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -5716,8 +5811,76 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             
             incomes = incomes.filter(i => i.id !== id);
             await deleteIncomeFromCloud(id);
+            localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
             renderIncomeTable();
             showToast('已删除', 'success');
+        }
+        
+        function editIncome(id) {
+            const income = incomes.find(i => i.id === id);
+            if (!income) return;
+            
+            // 创建编辑弹窗
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'incomeEditModal';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 400px;">
+                    <h3 style="margin-bottom: 20px;">📝 编辑收入记录</h3>
+                    <div class="form-group">
+                        <label>日期</label>
+                        <input type="date" id="editIncomeDate" value="${income.date}" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label>类型</label>
+                        <select id="editIncomeType" class="form-input">
+                            <option value="工资" ${income.type === '工资' ? 'selected' : ''}>工资</option>
+                            <option value="奖金" ${income.type === '奖金' || income.type === '业绩奖金' ? 'selected' : ''}>奖金</option>
+                            <option value="副业" ${income.type === '副业' || income.type === '副业收入' ? 'selected' : ''}>副业</option>
+                            <option value="其他" ${income.type === '其他' ? 'selected' : ''}>其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <input type="text" id="editIncomeItem" value="${income.item || ''}" class="form-input" placeholder="如：1月工资">
+                    </div>
+                    <div class="form-group">
+                        <label>金额</label>
+                        <input type="number" id="editIncomeAmount" value="${income.amount}" class="form-input" step="0.01">
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button onclick="saveIncomeEdit('${id}')" class="btn btn-primary" style="flex: 1;">保存</button>
+                        <button onclick="closeIncomeEditModal()" class="btn btn-secondary" style="flex: 1;">取消</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        async function saveIncomeEdit(id) {
+            const date = document.getElementById('editIncomeDate').value;
+            const type = document.getElementById('editIncomeType').value;
+            const item = document.getElementById('editIncomeItem').value;
+            const amount = parseFloat(document.getElementById('editIncomeAmount').value);
+            
+            if (!date || isNaN(amount)) {
+                showToast('请填写完整信息', 'error');
+                return;
+            }
+            
+            const index = incomes.findIndex(i => i.id === id);
+            if (index !== -1) {
+                incomes[index] = { ...incomes[index], date, type, item, amount };
+                localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
+                renderIncomeTable();
+                closeIncomeEditModal();
+                showToast('已保存', 'success');
+            }
+        }
+        
+        function closeIncomeEditModal() {
+            const modal = document.getElementById('incomeEditModal');
+            if (modal) modal.remove();
         }
         
         // ==================== 存量资产管理 ====================
