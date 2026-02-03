@@ -529,6 +529,23 @@
             overflow-y: auto;
         }
         
+        /* 打字机光标动画 */
+        .ai-stream-content {
+            line-height: 1.8;
+        }
+        
+        .typing-cursor {
+            display: inline-block;
+            color: var(--primary);
+            animation: blink 0.8s infinite;
+            font-weight: bold;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
         /* Toast */
         .toast {
             position: fixed;
@@ -1008,6 +1025,154 @@
             border-radius: 12px;
             padding: 15px;
             margin-bottom: 20px;
+        }
+        
+        .assets-trend canvas {
+            width: 100% !important;
+            height: 220px !important;
+        }
+        
+        /* 增长指标卡片 */
+        .assets-growth-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .growth-card {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .growth-card .label {
+            font-size: 12px;
+            color: var(--gray-600);
+            margin-bottom: 5px;
+        }
+        
+        .growth-card .value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
+        .growth-card .change {
+            font-size: 13px;
+            margin-top: 5px;
+        }
+        
+        .growth-card .change.positive { color: var(--success); }
+        .growth-card .change.negative { color: var(--danger); }
+        
+        /* 资产里程碑 */
+        .assets-milestones {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .milestone-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .milestone-item:last-child {
+            border-bottom: none;
+        }
+        
+        .milestone-icon {
+            font-size: 20px;
+            margin-right: 12px;
+        }
+        
+        .milestone-info {
+            flex: 1;
+        }
+        
+        .milestone-info .target {
+            font-weight: 600;
+            font-size: 15px;
+        }
+        
+        .milestone-info .date {
+            font-size: 12px;
+            color: var(--gray-600);
+        }
+        
+        .milestone-progress {
+            width: 60px;
+            text-align: right;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        
+        .milestone-progress.completed { color: var(--success); }
+        .milestone-progress.pending { color: var(--gray-500); }
+        
+        /* 年度对比 */
+        .assets-yearly {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .yearly-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--gray-100);
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .yearly-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .yearly-item .year {
+            font-weight: 600;
+            font-size: 15px;
+        }
+        
+        .yearly-item .growth {
+            text-align: right;
+        }
+        
+        .yearly-item .growth .amount {
+            font-weight: 700;
+            font-size: 16px;
+        }
+        
+        .yearly-item .growth .percent {
+            font-size: 12px;
+            color: var(--gray-600);
+        }
+        
+        .yearly-item .growth.positive .amount { color: var(--success); }
+        .yearly-item .growth.negative .amount { color: var(--danger); }
+        
+        /* 分类资产趋势 */
+        .assets-category-trend {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .assets-category-trend canvas {
+            width: 100% !important;
+            height: 200px !important;
         }
         
         /* 更新资产弹窗 */
@@ -1586,9 +1751,38 @@
                     </div>
                 </div>
                 
-                <!-- 资产配置图 -->
+                <!-- 增长指标卡片 -->
+                <div class="assets-growth-cards" id="assetsGrowthCards">
+                    <!-- 动态生成 -->
+                </div>
+                
+                <!-- 资产里程碑 -->
+                <div class="assets-milestones">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">🎯 资产里程碑</h3>
+                    <div id="assetsMilestones"></div>
+                </div>
+                
+                <!-- 资产趋势折线图 -->
+                <div class="assets-trend">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">📈 资产增长趋势</h3>
+                    <canvas id="assetsTrendChart"></canvas>
+                </div>
+                
+                <!-- 年度对比 -->
+                <div class="assets-yearly">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">📅 年度增长对比</h3>
+                    <div id="assetsYearlyCompare"></div>
+                </div>
+                
+                <!-- 分类资产趋势 -->
+                <div class="assets-category-trend">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">📊 分类资产变化</h3>
+                    <canvas id="assetsCategoryChart"></canvas>
+                </div>
+                
+                <!-- 资产配置饼图 -->
                 <div class="assets-chart-container">
-                    <h3 style="font-size: 16px; margin-bottom: 15px;">📊 资产配置</h3>
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">🥧 资产配置</h3>
                     <canvas id="assetsChart" width="300" height="200"></canvas>
                     <div id="assetsLegend" class="assets-legend"></div>
                 </div>
@@ -1600,12 +1794,6 @@
                         <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">✏️ 更新资产</button>
                     </div>
                     <div id="assetsList"></div>
-                </div>
-                
-                <!-- 资产趋势 -->
-                <div class="assets-trend">
-                    <h3 style="font-size: 16px; margin-bottom: 15px;">📈 资产趋势（近6个月）</h3>
-                    <canvas id="assetsTrendChart" width="300" height="180"></canvas>
                 </div>
             </div>
             
@@ -3152,19 +3340,20 @@
             
             // 显示结果区域
             resultDiv.style.display = 'block';
-            resultDiv.textContent = '🤖 专业理财师正在分析您的财务数据...\n\n请稍候...';
+            resultDiv.innerHTML = `
+                <h4 style="margin-bottom: 15px; color: var(--primary);">🤖 AI理财分析报告</h4>
+                <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
+                    📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser}
+                </div>
+                <div id="aiStreamContent" class="ai-stream-content">
+                    <span class="typing-cursor">▊</span>
+                </div>
+            `;
             
             try {
-                const report = await callAIAnalysis();
-                resultDiv.innerHTML = `
-                    <h4 style="margin-bottom: 15px; color: var(--primary);">🤖 AI理财分析报告</h4>
-                    <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
-                        📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser}
-                    </div>
-                    ${report.replace(/\n/g, '<br>')}
-                `;
+                await callAIAnalysisStream('aiStreamContent');
             } catch (error) {
-                resultDiv.textContent = '❌ 分析失败，请稍后重试\n\n错误信息：' + error.message;
+                document.getElementById('aiStreamContent').innerHTML = '❌ 分析失败，请稍后重试<br><br>错误信息：' + error.message;
             }
             
             if (btn) { btn.disabled = false; btn.textContent = '🤖 生成理财分析报告'; }
@@ -3176,26 +3365,100 @@
             const resultDiv = document.getElementById('aiReport');
             
             if (btn) { btn.disabled = true; btn.textContent = '🤖 分析中...'; }
-            resultDiv.textContent = '🤖 专业理财师正在分析您的财务数据...\n\n请稍候，正在生成：\n• 本月诊断报告\n• 下月财务计划\n• 年度财务规划';
+            resultDiv.innerHTML = `
+                <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
+                    📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser}
+                </div>
+                <div id="aiStreamContent2" class="ai-stream-content">
+                    <span class="typing-cursor">▊</span>
+                </div>
+            `;
             
             try {
-                const report = await callAIAnalysis();
-                resultDiv.innerHTML = `
-                    <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
-                        📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser}
-                    </div>
-                    ${report.replace(/\n/g, '<br>')}
-                `;
+                await callAIAnalysisStream('aiStreamContent2');
             } catch (error) {
                 console.error('AI分析失败:', error);
-                resultDiv.textContent = '❌ 分析失败，请稍后重试\n\n错误信息：' + error.message;
+                document.getElementById('aiStreamContent2').innerHTML = '❌ 分析失败，请稍后重试<br><br>错误信息：' + error.message;
             }
             
             if (btn) { btn.disabled = false; btn.textContent = '🤖 生成理财分析报告'; }
         }
         
-        // 核心AI调用逻辑 - 升级版
-        async function callAIAnalysis() {
+        // 核心AI调用逻辑 - 流式输出版
+        async function callAIAnalysisStream(targetDivId) {
+            const prompt = buildAIPrompt();
+            const targetDiv = document.getElementById(targetDivId);
+            
+            const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ZHIPU_API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: 'glm-4-flash',
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: 0.7,
+                    max_tokens: 4000,
+                    stream: true  // 启用流式输出
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`API请求失败: ${response.status}`);
+            }
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullContent = '';
+            
+            // 移除光标
+            targetDiv.innerHTML = '';
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n').filter(line => line.trim());
+                
+                for (const line of lines) {
+                    if (line.startsWith('data:')) {
+                        const jsonStr = line.slice(5).trim();
+                        if (jsonStr === '[DONE]') continue;
+                        
+                        try {
+                            const json = JSON.parse(jsonStr);
+                            const content = json.choices?.[0]?.delta?.content || '';
+                            if (content) {
+                                fullContent += content;
+                                // 实时更新显示，带打字机光标
+                                targetDiv.innerHTML = formatAIContent(fullContent) + '<span class="typing-cursor">▊</span>';
+                                // 自动滚动到底部
+                                targetDiv.scrollTop = targetDiv.scrollHeight;
+                            }
+                        } catch (e) {
+                            // 忽略解析错误
+                        }
+                    }
+                }
+            }
+            
+            // 完成后移除光标
+            targetDiv.innerHTML = formatAIContent(fullContent);
+        }
+        
+        // 格式化AI内容（换行、加粗等）
+        function formatAIContent(text) {
+            return text
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/═+/g, '<hr style="border: none; border-top: 2px solid var(--primary); margin: 15px 0;">')
+                .replace(/🏥|💡|📅|🎯|💰|✅|🚨|📊|🏆|📈/g, match => `<span style="font-size: 1.2em;">${match}</span>`);
+        }
+        
+        // 构建AI Prompt（含资产数据）
+        function buildAIPrompt() {
             const now = new Date();
             const year = now.getFullYear();
             const month = now.getMonth() + 1;
@@ -3361,6 +3624,76 @@
                     .join('\n')
                 : '暂无数据';
             
+            // ==================== 10. 存量资产数据 ====================
+            const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
+            
+            // 各类资产明细
+            const assetDetails = assets
+                .filter(a => a.value > 0)
+                .map(a => `${a.name}: ¥${a.value.toLocaleString()}`)
+                .join('、') || '暂无资产数据';
+            
+            // 资产历史数据分析
+            const sortedAssetHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
+            
+            // 本月资产增长
+            let monthAssetGrowth = 0, monthAssetGrowthPct = 0;
+            let yearAssetGrowth = 0, yearAssetGrowthPct = 0;
+            let totalAssetGrowth = 0, totalAssetGrowthPct = 0;
+            
+            if (sortedAssetHistory.length > 0) {
+                // 上月数据
+                const lastMonthKey = month === 1 ? `${year-1}-12` : `${year}-${String(month-1).padStart(2,'0')}`;
+                const lastMonthAsset = sortedAssetHistory.find(h => h.month === lastMonthKey);
+                if (lastMonthAsset) {
+                    monthAssetGrowth = totalAssets - lastMonthAsset.total;
+                    monthAssetGrowthPct = lastMonthAsset.total > 0 ? (monthAssetGrowth / lastMonthAsset.total * 100) : 0;
+                }
+                
+                // 年初数据
+                const yearStartKey = `${year}-01`;
+                const lastYearEndKey = `${year-1}-12`;
+                const yearStartAsset = sortedAssetHistory.find(h => h.month === yearStartKey) || sortedAssetHistory.find(h => h.month === lastYearEndKey);
+                if (yearStartAsset) {
+                    yearAssetGrowth = totalAssets - yearStartAsset.total;
+                    yearAssetGrowthPct = yearStartAsset.total > 0 ? (yearAssetGrowth / yearStartAsset.total * 100) : 0;
+                }
+                
+                // 累计增长（从最早记录）
+                const firstAsset = sortedAssetHistory[0];
+                if (firstAsset) {
+                    totalAssetGrowth = totalAssets - firstAsset.total;
+                    totalAssetGrowthPct = firstAsset.total > 0 ? (totalAssetGrowth / firstAsset.total * 100) : 0;
+                }
+            }
+            
+            // 资产历史趋势（最近6个月）
+            const assetTrendText = sortedAssetHistory.slice(-6).map(h => {
+                const [y, m] = h.month.split('-');
+                return `${y}.${m}: ¥${(h.total/10000).toFixed(1)}万`;
+            }).join(' → ') || '暂无历史数据';
+            
+            // 计算达到100万还需多少
+            const targetMillion = 1000000;
+            const gapToMillion = targetMillion - totalAssets;
+            const monthsToMillion = monthAssetGrowth > 0 ? Math.ceil(gapToMillion / monthAssetGrowth) : '未知';
+            
+            // 资产配置比例
+            const assetAllocation = {};
+            ASSET_TYPES.forEach(type => {
+                assetAllocation[type.name] = 0;
+            });
+            assets.forEach(a => {
+                const type = ASSET_TYPES.find(t => t.id === a.typeId);
+                if (type) {
+                    assetAllocation[type.name] += (a.value || 0);
+                }
+            });
+            const allocationText = Object.entries(assetAllocation)
+                .filter(([_, v]) => v > 0)
+                .map(([name, value]) => `${name}: ¥${value.toLocaleString()} (${(value/totalAssets*100).toFixed(1)}%)`)
+                .join('\n') || '暂无配置数据';
+            
             // ==================== 构建超级Prompt ====================
             const prompt = `你是一位CFP持证的专业理财师，服务过500+客户。请根据以下详细数据，为用户生成一份**超级实用**的财务分析报告。
 
@@ -3446,68 +3779,83 @@ ${categoryRanking}
 ${top10}
 
 ═══════════════════════════════════════
+💎 存量资产分析
+═══════════════════════════════════════
+【当前总资产】¥${totalAssets.toLocaleString()}
+
+【资产构成】
+${assetDetails}
+
+【资产配置】
+${allocationText}
+
+【资产增长情况】
+├─ 本月增长：¥${monthAssetGrowth.toLocaleString()} (${monthAssetGrowthPct >= 0 ? '+' : ''}${monthAssetGrowthPct.toFixed(1)}%)
+├─ 今年增长：¥${yearAssetGrowth.toLocaleString()} (${yearAssetGrowthPct >= 0 ? '+' : ''}${yearAssetGrowthPct.toFixed(1)}%)
+└─ 累计增长：¥${totalAssetGrowth.toLocaleString()} (${totalAssetGrowthPct >= 0 ? '+' : ''}${totalAssetGrowthPct.toFixed(1)}%)
+
+【资产趋势】${assetTrendText}
+
+【距离100万目标】
+${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gapToMillion.toLocaleString()}，按当前增速约需${monthsToMillion}个月`}
+
+═══════════════════════════════════════
 
 请按以下格式输出报告（每个部分都要有具体数字！）：
 
 🏥 财务健康诊断
-健康评分：XX分（满分100）
+综合评分：XX分（满分100）
+收支健康度：XX分
+资产增长度：XX分
 核心问题：
 1. [最严重的问题+具体数据]
 2. [第二个问题+具体数据]
 消费习惯洞察：[根据数据发现的行为模式]
 
+💎 资产状况分析
+当前净值：¥${totalAssets.toLocaleString()}
+资产配置评价：[评价当前配置是否合理，如"基金占比XX%偏高/偏低"]
+增长趋势：[分析资产增长速度]
+风险提示：[如流动资金过低等]
+
+🎯 百万目标规划
+当前进度：${(totalAssets/targetMillion*100).toFixed(1)}%
+差距：¥${gapToMillion > 0 ? gapToMillion.toLocaleString() : 0}
+达成策略：
+1. [具体建议+预期效果]
+2. [具体建议+预期效果]
+预计达成时间：[根据增速预估]
+
 💡 本周行动指南（未来7天）
-预算上限：¥XXX
-重点控制：[具体类目] - 目标省¥XXX
+消费预算：¥XXX
+储蓄目标：¥XXX
 具体建议：
-1. [可立即执行的动作+预期省多少]
-2. [可立即执行的动作+预期省多少]
-3. [可立即执行的动作+预期省多少]
+1. [可立即执行的动作+预期效果]
+2. [可立即执行的动作+预期效果]
+3. [可立即执行的动作+预期效果]
 
 📅 本月收尾策略（剩余${remainingDays}天）
 剩余预算：¥${Math.max(0, remainingBudget).toFixed(0)}
 日均上限：¥${Math.max(0, dailyAllowance).toFixed(0)}
-必须控制的类目：[1-2个最该控制的]
-可以放松的类目：[控制良好的]
-月末目标：[具体的结余目标]
+必须控制的类目：[1-2个]
+月末资产目标：¥XXX
 
-🎯 下月预算建议
-建议总预算：¥XXX
-调整建议：
-- [某类目]：建议¥XXX→¥XXX（原因）
-- [某类目]：建议¥XXX→¥XXX（原因）
+🎯 下月规划
+预算建议：¥XXX
+储蓄目标：¥XXX
+资产配置调整：[如有]
 
-💰 创业者现金流提醒
-应急储备建议：¥XXX（X个月支出）
-本月储蓄目标：¥XXX
-风险提示：[如有]
+💰 创业者财务安全
+应急储备现状：¥${assetAllocation['流动资金'] || 0}（${monthlyAvgExpense > 0 ? ((assetAllocation['流动资金'] || 0)/monthlyAvgExpense).toFixed(1) : 0}个月支出）
+建议储备：¥XXX（至少X个月）
+现金流风险：[评估]
 
 ✅ 三句话总结
-1. [最重要的发现]
+1. [资产状况总评]
 2. [最关键的行动]
 3. [鼓励的话]`;
 
-            const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${ZHIPU_API_KEY}`
-                },
-                body: JSON.stringify({
-                    model: 'glm-4-flash',
-                    messages: [{ role: 'user', content: prompt }],
-                    temperature: 0.7,
-                    max_tokens: 4000
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.choices && data.choices[0]) {
-                return data.choices[0].message.content;
-            } else {
-                throw new Error('AI返回数据异常');
-            }
+            return prompt;
         }
         
         // ==================== 图表功能 ====================
@@ -4490,6 +4838,15 @@ ${top10}
                 }
             });
             
+            // 渲染增长指标卡片
+            renderGrowthCards(totalAssets);
+            
+            // 渲染里程碑
+            renderMilestones(totalAssets);
+            
+            // 渲染年度对比
+            renderYearlyCompare();
+            
             // 渲染饼图
             renderAssetsChart(typeValues, totalAssets);
             
@@ -4535,8 +4892,215 @@ ${top10}
             document.getElementById('assetsList').innerHTML = detailHtml || 
                 '<div style="text-align: center; padding: 20px; color: var(--gray-600);">暂无资产数据，请点击上方按钮更新</div>';
             
-            // 渲染趋势图
+            // 渲染趋势折线图
             renderAssetsTrendChart();
+            
+            // 渲染分类趋势图
+            renderCategoryTrendChart();
+        }
+        
+        // 渲染增长指标卡片
+        function renderGrowthCards(totalAssets) {
+            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
+            
+            if (sortedHistory.length === 0) {
+                document.getElementById('assetsGrowthCards').innerHTML = `
+                    <div class="growth-card">
+                        <div class="label">本月增长</div>
+                        <div class="value">--</div>
+                        <div class="change">暂无数据</div>
+                    </div>
+                    <div class="growth-card">
+                        <div class="label">今年增长</div>
+                        <div class="value">--</div>
+                        <div class="change">暂无数据</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const now = new Date();
+            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const lastMonthKey = now.getMonth() === 0 
+                ? `${now.getFullYear() - 1}-12` 
+                : `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`;
+            const yearStartKey = `${now.getFullYear()}-01`;
+            const lastYearEndKey = `${now.getFullYear() - 1}-12`;
+            const firstRecordKey = sortedHistory[0]?.month;
+            
+            // 获取各时间点的资产
+            const currentTotal = totalAssets;
+            const lastMonthRecord = sortedHistory.find(h => h.month === lastMonthKey);
+            const yearStartRecord = sortedHistory.find(h => h.month === yearStartKey) || sortedHistory.find(h => h.month === lastYearEndKey);
+            const firstRecord = sortedHistory[0];
+            
+            // 计算增长
+            const monthGrowth = lastMonthRecord ? currentTotal - lastMonthRecord.total : 0;
+            const monthGrowthPct = lastMonthRecord && lastMonthRecord.total > 0 
+                ? (monthGrowth / lastMonthRecord.total * 100) : 0;
+            
+            const yearGrowth = yearStartRecord ? currentTotal - yearStartRecord.total : 0;
+            const yearGrowthPct = yearStartRecord && yearStartRecord.total > 0 
+                ? (yearGrowth / yearStartRecord.total * 100) : 0;
+            
+            const totalGrowth = firstRecord ? currentTotal - firstRecord.total : 0;
+            const totalGrowthPct = firstRecord && firstRecord.total > 0 
+                ? (totalGrowth / firstRecord.total * 100) : 0;
+            
+            document.getElementById('assetsGrowthCards').innerHTML = `
+                <div class="growth-card">
+                    <div class="label">📅 本月增长</div>
+                    <div class="value" style="color: ${monthGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${monthGrowth >= 0 ? '+' : ''}¥${monthGrowth.toLocaleString()}
+                    </div>
+                    <div class="change ${monthGrowth >= 0 ? 'positive' : 'negative'}">
+                        ${monthGrowth >= 0 ? '↑' : '↓'} ${Math.abs(monthGrowthPct).toFixed(1)}%
+                    </div>
+                </div>
+                <div class="growth-card">
+                    <div class="label">📆 今年增长</div>
+                    <div class="value" style="color: ${yearGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${yearGrowth >= 0 ? '+' : ''}¥${yearGrowth.toLocaleString()}
+                    </div>
+                    <div class="change ${yearGrowth >= 0 ? 'positive' : 'negative'}">
+                        ${yearGrowth >= 0 ? '↑' : '↓'} ${Math.abs(yearGrowthPct).toFixed(1)}%
+                    </div>
+                </div>
+                <div class="growth-card">
+                    <div class="label">🚀 累计增长</div>
+                    <div class="value" style="color: ${totalGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${totalGrowth >= 0 ? '+' : ''}¥${totalGrowth.toLocaleString()}
+                    </div>
+                    <div class="change ${totalGrowth >= 0 ? 'positive' : 'negative'}">
+                        vs ${firstRecord ? firstRecord.month.replace('-', '.') : '--'}
+                    </div>
+                </div>
+                <div class="growth-card">
+                    <div class="label">📊 累计增幅</div>
+                    <div class="value" style="color: ${totalGrowthPct >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${totalGrowthPct >= 0 ? '+' : ''}${totalGrowthPct.toFixed(1)}%
+                    </div>
+                    <div class="change">${sortedHistory.length}个月记录</div>
+                </div>
+            `;
+        }
+        
+        // 渲染资产里程碑
+        function renderMilestones(totalAssets) {
+            const milestones = [
+                { target: 100000, label: '10万', icon: '🎯' },
+                { target: 200000, label: '20万', icon: '🎯' },
+                { target: 300000, label: '30万', icon: '🎯' },
+                { target: 500000, label: '50万', icon: '⭐' },
+                { target: 800000, label: '80万', icon: '⭐' },
+                { target: 1000000, label: '100万', icon: '🏆' },
+                { target: 1500000, label: '150万', icon: '🏆' },
+                { target: 2000000, label: '200万', icon: '👑' }
+            ];
+            
+            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
+            
+            // 找到每个里程碑的达成时间
+            const milestonesHtml = milestones.map(m => {
+                const achieved = totalAssets >= m.target;
+                let achievedDate = null;
+                
+                if (achieved) {
+                    // 找到首次达成的月份
+                    for (const h of sortedHistory) {
+                        if (h.total >= m.target) {
+                            achievedDate = h.month.replace('-', '年') + '月';
+                            break;
+                        }
+                    }
+                }
+                
+                // 预测达成时间
+                let predictDate = null;
+                if (!achieved && sortedHistory.length >= 2) {
+                    const recent = sortedHistory.slice(-3);
+                    if (recent.length >= 2) {
+                        const avgGrowth = (recent[recent.length - 1].total - recent[0].total) / recent.length;
+                        if (avgGrowth > 0) {
+                            const monthsNeeded = Math.ceil((m.target - totalAssets) / avgGrowth);
+                            const predictMonth = new Date();
+                            predictMonth.setMonth(predictMonth.getMonth() + monthsNeeded);
+                            predictDate = `预计${predictMonth.getFullYear()}年${predictMonth.getMonth() + 1}月`;
+                        }
+                    }
+                }
+                
+                const progress = Math.min((totalAssets / m.target * 100), 100).toFixed(0);
+                
+                return `
+                    <div class="milestone-item">
+                        <div class="milestone-icon">${achieved ? '✅' : m.icon}</div>
+                        <div class="milestone-info">
+                            <div class="target">${m.label}</div>
+                            <div class="date">${achieved ? achievedDate + ' 达成' : (predictDate || '努力中...')}</div>
+                        </div>
+                        <div class="milestone-progress ${achieved ? 'completed' : 'pending'}">
+                            ${achieved ? '已达成' : progress + '%'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('assetsMilestones').innerHTML = milestonesHtml;
+        }
+        
+        // 渲染年度对比
+        function renderYearlyCompare() {
+            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
+            
+            if (sortedHistory.length === 0) {
+                document.getElementById('assetsYearlyCompare').innerHTML = 
+                    '<div style="text-align: center; padding: 20px; color: var(--gray-600);">暂无数据</div>';
+                return;
+            }
+            
+            // 按年分组
+            const yearlyData = {};
+            sortedHistory.forEach(h => {
+                const year = h.month.split('-')[0];
+                if (!yearlyData[year]) {
+                    yearlyData[year] = { start: null, end: null };
+                }
+                if (!yearlyData[year].start || h.month < yearlyData[year].startMonth) {
+                    yearlyData[year].start = h.total;
+                    yearlyData[year].startMonth = h.month;
+                }
+                if (!yearlyData[year].end || h.month > yearlyData[year].endMonth) {
+                    yearlyData[year].end = h.total;
+                    yearlyData[year].endMonth = h.month;
+                }
+            });
+            
+            // 计算每年增长
+            const years = Object.keys(yearlyData).sort();
+            let prevYearEnd = null;
+            
+            const yearlyHtml = years.map(year => {
+                const data = yearlyData[year];
+                const startValue = prevYearEnd || data.start;
+                const growth = data.end - startValue;
+                const growthPct = startValue > 0 ? (growth / startValue * 100) : 0;
+                
+                prevYearEnd = data.end;
+                
+                return `
+                    <div class="yearly-item">
+                        <div class="year">${year}年</div>
+                        <div class="growth ${growth >= 0 ? 'positive' : 'negative'}">
+                            <div class="amount">${growth >= 0 ? '+' : ''}¥${growth.toLocaleString()}</div>
+                            <div class="percent">${growth >= 0 ? '↑' : '↓'} ${Math.abs(growthPct).toFixed(1)}%</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('assetsYearlyCompare').innerHTML = yearlyHtml || 
+                '<div style="text-align: center; padding: 20px; color: var(--gray-600);">暂无数据</div>';
         }
         
         function renderAssetsChart(typeValues, total) {
@@ -4589,31 +5153,19 @@ ${top10}
             ctx.fillText(`¥${total.toLocaleString()}`, centerX, centerY);
         }
         
+        // 渲染资产趋势折线图
         function renderAssetsTrendChart() {
             const canvas = document.getElementById('assetsTrendChart');
             const ctx = canvas.getContext('2d');
             
+            // 设置canvas尺寸
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth - 30;
+            canvas.height = 220;
+            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // 获取最近6个月的数据
-            const months = [];
-            const now = new Date();
-            for (let i = 5; i >= 0; i--) {
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                months.push({
-                    key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-                    label: `${d.getMonth() + 1}月`
-                });
-            }
-            
-            // 获取历史数据
-            const data = months.map(m => {
-                const record = assetHistory.find(h => h.month === m.key);
-                return record ? record.total : 0;
-            });
-            
-            // 如果没有历史数据，显示提示
-            if (data.every(d => d === 0)) {
+            if (assetHistory.length === 0) {
                 ctx.fillStyle = '#a0aec0';
                 ctx.font = '14px sans-serif';
                 ctx.textAlign = 'center';
@@ -4621,38 +5173,212 @@ ${top10}
                 return;
             }
             
-            const maxVal = Math.max(...data, 1);
-            const padding = 40;
-            const chartWidth = canvas.width - padding * 2;
-            const chartHeight = canvas.height - padding * 2;
-            const barWidth = chartWidth / months.length - 10;
+            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
+            const displayData = sortedHistory.slice(-12);
             
-            // 绘制柱状图
-            data.forEach((val, i) => {
-                const barHeight = (val / maxVal) * chartHeight;
-                const x = padding + i * (chartWidth / months.length) + 5;
-                const y = canvas.height - padding - barHeight;
+            const data = displayData.map(h => h.total);
+            const labels = displayData.map(h => {
+                const [y, m] = h.month.split('-');
+                return `${y.slice(2)}/${m}`;
+            });
+            
+            const maxVal = Math.max(...data) * 1.1;
+            const minVal = Math.min(...data) * 0.9;
+            const range = maxVal - minVal || 1;
+            
+            const padding = { top: 30, right: 20, bottom: 35, left: 50 };
+            const chartWidth = canvas.width - padding.left - padding.right;
+            const chartHeight = canvas.height - padding.top - padding.bottom;
+            
+            // 绘制网格线和Y轴标签
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#718096';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= 4; i++) {
+                const y = padding.top + (chartHeight / 4) * i;
+                const value = maxVal - (range / 4) * i + minVal * (i / 4);
                 
-                // 渐变色
-                const gradient = ctx.createLinearGradient(x, y, x, canvas.height - padding);
-                gradient.addColorStop(0, '#667eea');
-                gradient.addColorStop(1, '#764ba2');
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(canvas.width - padding.right, y);
+                ctx.stroke();
                 
-                ctx.fillStyle = gradient;
-                ctx.fillRect(x, y, barWidth, barHeight);
+                const label = value >= 10000 ? `${(value / 10000).toFixed(0)}w` : `${(value / 1000).toFixed(0)}k`;
+                ctx.fillText(label, padding.left - 5, y + 3);
+            }
+            
+            // 计算点的位置
+            const points = data.map((val, i) => ({
+                x: padding.left + (chartWidth / (data.length - 1 || 1)) * i,
+                y: padding.top + chartHeight - ((val - minVal) / range) * chartHeight
+            }));
+            
+            // 绘制渐变填充区域
+            const gradient = ctx.createLinearGradient(0, padding.top, 0, canvas.height - padding.bottom);
+            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
+            gradient.addColorStop(1, 'rgba(102, 126, 234, 0.05)');
+            
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, canvas.height - padding.bottom);
+            points.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.lineTo(points[points.length - 1].x, canvas.height - padding.bottom);
+            ctx.closePath();
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // 绘制折线
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            points.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+            
+            // 绘制数据点和标签
+            points.forEach((p, i) => {
+                // 数据点
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = '#667eea';
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                ctx.fillStyle = 'white';
+                ctx.fill();
                 
-                // 月份标签
+                // X轴标签
                 ctx.fillStyle = '#718096';
-                ctx.font = '12px sans-serif';
+                ctx.font = '10px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(months[i].label, x + barWidth / 2, canvas.height - 10);
+                ctx.fillText(labels[i], p.x, canvas.height - 10);
                 
-                // 数值标签
-                if (val > 0) {
+                // 数值标签（只显示首尾和最高点）
+                if (i === 0 || i === points.length - 1 || data[i] === Math.max(...data)) {
                     ctx.fillStyle = '#1a202c';
-                    ctx.font = '10px sans-serif';
-                    ctx.fillText(`${(val / 10000).toFixed(1)}w`, x + barWidth / 2, y - 5);
+                    ctx.font = 'bold 10px sans-serif';
+                    const valLabel = data[i] >= 10000 ? `${(data[i] / 10000).toFixed(1)}w` : `${(data[i] / 1000).toFixed(0)}k`;
+                    ctx.fillText(valLabel, p.x, p.y - 10);
                 }
+            });
+        }
+        
+        // 渲染分类资产趋势图
+        function renderCategoryTrendChart() {
+            const canvas = document.getElementById('assetsCategoryChart');
+            const ctx = canvas.getContext('2d');
+            
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth - 30;
+            canvas.height = 200;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 获取有详细数据的历史记录
+            const sortedHistory = [...assetHistory]
+                .filter(h => h.details)
+                .sort((a, b) => a.month.localeCompare(b.month))
+                .slice(-12);
+            
+            if (sortedHistory.length < 2) {
+                ctx.fillStyle = '#a0aec0';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('需要至少2个月的详细数据', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+            
+            const padding = { top: 20, right: 20, bottom: 35, left: 50 };
+            const chartWidth = canvas.width - padding.left - padding.right;
+            const chartHeight = canvas.height - padding.top - padding.bottom;
+            
+            // 获取所有资产ID和颜色
+            const assetConfigs = [];
+            ASSET_TYPES.forEach(type => {
+                type.items.forEach(item => {
+                    assetConfigs.push({
+                        id: item.id,
+                        name: item.name,
+                        color: type.color
+                    });
+                });
+            });
+            
+            // 提取每个资产的趋势数据
+            const assetTrends = assetConfigs.map(config => ({
+                ...config,
+                data: sortedHistory.map(h => h.details[config.id] || 0)
+            })).filter(t => t.data.some(v => v > 0)); // 只显示有数据的
+            
+            if (assetTrends.length === 0) {
+                ctx.fillStyle = '#a0aec0';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('暂无分类数据', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+            
+            // 计算最大值
+            const allValues = assetTrends.flatMap(t => t.data);
+            const maxVal = Math.max(...allValues) * 1.1;
+            
+            const labels = sortedHistory.map(h => {
+                const [y, m] = h.month.split('-');
+                return `${m}月`;
+            });
+            
+            // 绘制网格
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding.top + (chartHeight / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(canvas.width - padding.right, y);
+                ctx.stroke();
+            }
+            
+            // 绘制每条线
+            assetTrends.forEach((trend, trendIndex) => {
+                const points = trend.data.map((val, i) => ({
+                    x: padding.left + (chartWidth / (trend.data.length - 1 || 1)) * i,
+                    y: padding.top + chartHeight - (val / maxVal) * chartHeight
+                }));
+                
+                // 绘制线
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                points.forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.strokeStyle = trend.color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // 绘制最后一个点的标签
+                const lastPoint = points[points.length - 1];
+                const lastValue = trend.data[trend.data.length - 1];
+                ctx.fillStyle = trend.color;
+                ctx.beginPath();
+                ctx.arc(lastPoint.x, lastPoint.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 标签
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'left';
+                const valLabel = lastValue >= 10000 ? `${(lastValue / 10000).toFixed(1)}w` : `${lastValue.toLocaleString()}`;
+                ctx.fillText(`${trend.name}: ${valLabel}`, lastPoint.x + 8, lastPoint.y + 3);
+            });
+            
+            // X轴标签
+            ctx.fillStyle = '#718096';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            labels.forEach((label, i) => {
+                const x = padding.left + (chartWidth / (labels.length - 1 || 1)) * i;
+                ctx.fillText(label, x, canvas.height - 10);
             });
         }
         
@@ -4660,6 +5386,20 @@ ${top10}
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
             modal.id = 'updateAssetsModal';
+            
+            // 生成月份选项（从2024年1月到当前月份）
+            let monthOptions = '';
+            const now = new Date();
+            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            
+            for (let y = 2024; y <= now.getFullYear(); y++) {
+                const maxMonth = (y === now.getFullYear()) ? now.getMonth() + 1 : 12;
+                for (let m = 1; m <= maxMonth; m++) {
+                    const monthKey = `${y}-${String(m).padStart(2, '0')}`;
+                    const selected = monthKey === currentMonthKey ? 'selected' : '';
+                    monthOptions += `<option value="${monthKey}" ${selected}>${y}年${m}月</option>`;
+                }
+            }
             
             let formHtml = '';
             ASSET_TYPES.forEach(type => {
@@ -4679,7 +5419,19 @@ ${top10}
             modal.innerHTML = `
                 <div class="modal" style="max-width: 450px;">
                     <h3 style="margin-bottom: 20px;">💰 更新存量资产</h3>
-                    <div style="max-height: 400px; overflow-y: auto;">
+                    
+                    <!-- 月份选择器 -->
+                    <div class="asset-form-group" style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 10px;">
+                        <label style="color: var(--primary);">📅 选择月份</label>
+                        <select id="assetMonth" onchange="loadMonthAssetData(this.value)" style="width: 100%; padding: 12px; border: 2px solid var(--primary); border-radius: 8px; font-size: 16px; font-weight: 600;">
+                            ${monthOptions}
+                        </select>
+                        <div style="font-size: 12px; color: var(--gray-600); margin-top: 8px;">
+                            💡 可选择2024年1月至今的任意月份录入数据
+                        </div>
+                    </div>
+                    
+                    <div style="max-height: 350px; overflow-y: auto;">
                         ${formHtml}
                     </div>
                     <div style="display: flex; gap: 10px; margin-top: 20px;">
@@ -4692,51 +5444,86 @@ ${top10}
             document.body.appendChild(modal);
         }
         
+        // 切换月份时加载该月份的历史数据
+        function loadMonthAssetData(monthKey) {
+            const historyRecord = assetHistory.find(h => h.month === monthKey);
+            
+            ASSET_TYPES.forEach(type => {
+                type.items.forEach(item => {
+                    const input = document.getElementById(`asset_${item.id}`);
+                    if (input) {
+                        if (historyRecord && historyRecord.details && historyRecord.details[item.id] !== undefined) {
+                            input.value = historyRecord.details[item.id];
+                        } else {
+                            input.value = 0;
+                        }
+                    }
+                });
+            });
+        }
+        
         function closeUpdateAssetsModal() {
             document.getElementById('updateAssetsModal')?.remove();
         }
         
         function saveUpdatedAssets() {
-            const now = new Date();
-            const updateTime = now.toISOString();
+            const selectedMonth = document.getElementById('assetMonth').value;
+            const [year, month] = selectedMonth.split('-').map(Number);
+            const updateTime = new Date(year, month - 1, 15).toISOString();
             
-            // 更新每个资产的值
+            // 收集该月各资产数据
+            let total = 0;
+            const details = {};
+            
             ASSET_TYPES.forEach(type => {
                 type.items.forEach(item => {
                     const input = document.getElementById(`asset_${item.id}`);
                     if (input) {
-                        const asset = assets.find(a => a.id === item.id);
-                        if (asset) {
-                            asset.value = parseFloat(input.value) || 0;
-                            asset.updateTime = updateTime;
+                        const value = parseFloat(input.value) || 0;
+                        total += value;
+                        details[item.id] = value;
+                        
+                        // 如果是当前月，同时更新资产明细
+                        const now = new Date();
+                        const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+                        if (isCurrentMonth) {
+                            const asset = assets.find(a => a.id === item.id);
+                            if (asset) {
+                                asset.value = value;
+                                asset.updateTime = new Date().toISOString();
+                            }
                         }
                     }
                 });
             });
             
-            // 记录历史
-            const total = assets.reduce((sum, a) => sum + (a.value || 0), 0);
-            const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-            
+            // 记录到历史（包含详细数据）
+            const monthKey = selectedMonth;
             const existingIndex = assetHistory.findIndex(h => h.month === monthKey);
+            const record = { 
+                month: monthKey, 
+                total: total, 
+                date: updateTime,
+                details: details  // 保存每个资产的详细金额
+            };
+            
             if (existingIndex >= 0) {
-                assetHistory[existingIndex] = { month: monthKey, total: total, date: updateTime };
+                assetHistory[existingIndex] = record;
             } else {
-                assetHistory.push({ month: monthKey, total: total, date: updateTime });
+                assetHistory.push(record);
             }
             
-            // 只保留最近12个月
+            // 按月份排序
             assetHistory.sort((a, b) => a.month.localeCompare(b.month));
-            if (assetHistory.length > 12) {
-                assetHistory = assetHistory.slice(-12);
-            }
             
             // 保存
             saveAssets();
             
             closeUpdateAssetsModal();
             renderAssets();
-            showToast('资产已更新', 'success');
+            
+            const monthLabel = `${year}年${month}月`;
+            showToast(`${monthLabel} 资产已保存 (¥${total.toLocaleString()})`, 'success');
         }
         
         // ==================== 月度报告 ====================
