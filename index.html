@@ -899,285 +899,421 @@
         .overview-item .value.positive { color: #9ae6b4; }
         .overview-item .value.negative { color: #feb2b2; }
         
-        /* 存量资产样式 */
-        .assets-overview {
+        /* 存量资产样式 - 精美重设计 */
+        
+        /* Hero 总览卡片 */
+        .assets-hero {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 16px;
-            padding: 25px;
+            border-radius: 24px;
+            padding: 28px;
             margin-bottom: 20px;
-            text-align: center;
             color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(102, 126, 234, 0.4);
         }
         
-        .assets-total-label {
-            font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 5px;
+        .assets-hero-bg {
+            position: absolute;
+            top: -100px;
+            right: -100px;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+            pointer-events: none;
         }
         
-        .assets-total-value {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 8px;
+        .assets-hero-content {
+            position: relative;
+            z-index: 1;
         }
         
-        .assets-update-time {
+        .assets-hero-label {
+            font-size: 13px;
+            opacity: 0.85;
+            margin-bottom: 6px;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+        
+        .assets-hero-value {
+            font-size: 38px;
+            font-weight: 800;
+            margin-bottom: 6px;
+            letter-spacing: -1px;
+        }
+        
+        .assets-hero-sub {
             font-size: 12px;
-            opacity: 0.8;
+            opacity: 0.75;
         }
         
-        .assets-chart-container {
-            background: white;
-            border: 2px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 15px;
+        /* 目标环形进度 */
+        .assets-hero-target {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .target-ring {
+            width: 90px;
+            height: 90px;
+            position: relative;
+        }
+        
+        .target-ring svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        
+        .target-ring circle {
+            transition: stroke-dashoffset 1s ease;
+        }
+        
+        .target-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .target-percent {
+            display: block;
+            font-size: 18px;
+            font-weight: 800;
+            line-height: 1;
+        }
+        
+        .target-label {
+            display: block;
+            font-size: 9px;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+        
+        /* 统计卡片网格 */
+        .assets-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
             margin-bottom: 20px;
         }
         
+        @media (max-width: 600px) {
+            .assets-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        .stat-card {
+            background: var(--gray-100);
+            border-radius: 16px;
+            padding: 16px 12px;
+            text-align: center;
+        }
+        
+        .stat-card .stat-label {
+            font-size: 11px;
+            color: var(--gray-500);
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-card .stat-value {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--gray-800);
+            margin-bottom: 2px;
+        }
+        
+        .stat-card .stat-change {
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .stat-card .stat-change.up { color: var(--success); }
+        .stat-card .stat-change.down { color: var(--danger); }
+        
+        /* 双列图表网格 */
+        .assets-charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .assets-charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* 卡片标题带flex布局 */
+        .card-header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .card-header-flex h3 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--gray-800);
+        }
+        
+        /* 里程碑轨道 */
+        .milestones-track {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .milestone-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 16px;
+            background: white;
+            border-radius: 14px;
+            transition: all 0.2s;
+        }
+        
+        .milestone-row:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        
+        .milestone-row.achieved {
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+        }
+        
+        .milestone-badge {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            background: var(--gray-100);
+            flex-shrink: 0;
+        }
+        
+        .milestone-row.achieved .milestone-badge {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
+        }
+        
+        .milestone-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .milestone-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 2px;
+        }
+        
+        .milestone-desc {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        
+        .milestone-row.achieved .milestone-desc {
+            color: var(--success);
+        }
+        
+        .milestone-bar {
+            width: 80px;
+            height: 8px;
+            background: var(--gray-200);
+            border-radius: 4px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        
+        .milestone-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transition: width 0.8s ease;
+        }
+        
+        .milestone-row.achieved .milestone-bar-fill {
+            background: linear-gradient(90deg, #48bb78, #38a169);
+        }
+        
+        .milestone-pct {
+            font-size: 14px;
+            font-weight: 700;
+            min-width: 48px;
+            text-align: right;
+            color: var(--primary);
+        }
+        
+        .milestone-row.achieved .milestone-pct {
+            color: var(--success);
+        }
+        
+        /* 年度对比项 */
+        .yearly-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 18px;
+            background: white;
+            border-radius: 14px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+        
+        .yearly-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .yearly-row:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        
+        .yearly-row .year-label {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        
+        .yearly-row .year-data {
+            text-align: right;
+        }
+        
+        .yearly-row .year-amount {
+            font-size: 18px;
+            font-weight: 800;
+        }
+        
+        .yearly-row .year-amount.positive { color: var(--success); }
+        .yearly-row .year-amount.negative { color: var(--danger); }
+        
+        .yearly-row .year-pct {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-top: 2px;
+        }
+        
+        /* 资产图例 */
         .assets-legend {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 15px;
-            margin-top: 15px;
+            gap: 10px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--gray-200);
         }
         
         .assets-legend-item {
             display: flex;
             align-items: center;
             gap: 6px;
-            font-size: 13px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--gray-700);
+            background: white;
+            padding: 6px 12px;
+            border-radius: 20px;
         }
         
         .assets-legend-color {
-            width: 14px;
-            height: 14px;
-            border-radius: 4px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
         }
         
-        .assets-detail {
-            background: white;
-            border: 2px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .asset-item {
+        /* 资产明细列表 */
+        .assets-list {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px;
-            background: var(--gray-100);
-            border-radius: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .asset-item:last-child {
-            margin-bottom: 0;
-        }
-        
-        .asset-item .asset-info {
-            display: flex;
-            align-items: center;
+            flex-direction: column;
             gap: 10px;
         }
         
-        .asset-item .asset-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-        
-        .asset-item .asset-icon.liquid { background: linear-gradient(135deg, #48bb78, #38a169); }
-        .asset-item .asset-icon.invest { background: linear-gradient(135deg, #4299e1, #3182ce); }
-        .asset-item .asset-icon.protect { background: linear-gradient(135deg, #ed8936, #dd6b20); }
-        .asset-item .asset-icon.other { background: linear-gradient(135deg, #9f7aea, #805ad5); }
-        
-        .asset-item .asset-name {
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        .asset-item .asset-category {
-            font-size: 12px;
-            color: var(--gray-600);
-        }
-        
-        .asset-item .asset-value {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--primary);
-        }
-        
-        .asset-item .asset-percent {
-            font-size: 12px;
-            color: var(--gray-600);
-        }
-        
-        .assets-trend {
-            background: white;
-            border: 2px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .assets-trend canvas {
-            width: 100% !important;
-            height: 220px !important;
-        }
-        
-        /* 增长指标卡片 */
-        .assets-growth-cards {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-        
-        .growth-card {
-            background: white;
-            border: 2px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 15px;
-            text-align: center;
-        }
-        
-        .growth-card .label {
-            font-size: 12px;
-            color: var(--gray-600);
-            margin-bottom: 5px;
-        }
-        
-        .growth-card .value {
-            font-size: 20px;
-            font-weight: 700;
-        }
-        
-        .growth-card .change {
-            font-size: 13px;
-            margin-top: 5px;
-        }
-        
-        .growth-card .change.positive { color: var(--success); }
-        .growth-card .change.negative { color: var(--danger); }
-        
-        /* 资产里程碑 */
-        .assets-milestones {
-            background: white;
-            border: 2px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .milestone-item {
-            display: flex;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid var(--gray-200);
-        }
-        
-        .milestone-item:last-child {
-            border-bottom: none;
-        }
-        
-        .milestone-icon {
-            font-size: 20px;
-            margin-right: 12px;
-        }
-        
-        .milestone-info {
-            flex: 1;
-        }
-        
-        .milestone-info .target {
-            font-weight: 600;
-            font-size: 15px;
-        }
-        
-        .milestone-info .date {
-            font-size: 12px;
-            color: var(--gray-600);
-        }
-        
-        .milestone-progress {
-            width: 60px;
-            text-align: right;
-            font-weight: 600;
-            font-size: 13px;
-        }
-        
-        .milestone-progress.completed { color: var(--success); }
-        .milestone-progress.pending { color: var(--gray-500); }
-        
-        /* 年度对比 */
-        .assets-yearly {
-            background: white;
-            border: 2px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .yearly-item {
+        .asset-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px;
-            background: var(--gray-100);
-            border-radius: 10px;
-            margin-bottom: 10px;
+            padding: 14px 16px;
+            background: white;
+            border-radius: 14px;
+            transition: all 0.2s;
         }
         
-        .yearly-item:last-child {
-            margin-bottom: 0;
+        .asset-row:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         }
         
-        .yearly-item .year {
-            font-weight: 600;
+        .asset-row-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        
+        .asset-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .asset-icon.liquid { background: linear-gradient(135deg, #48bb78, #38a169); }
+        .asset-icon.invest { background: linear-gradient(135deg, #4299e1, #3182ce); }
+        .asset-icon.protect { background: linear-gradient(135deg, #ed8936, #dd6b20); }
+        .asset-icon.other { background: linear-gradient(135deg, #9f7aea, #805ad5); }
+        
+        .asset-info .asset-name {
             font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 2px;
         }
         
-        .yearly-item .growth {
+        .asset-info .asset-type {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        
+        .asset-row-right {
             text-align: right;
         }
         
-        .yearly-item .growth .amount {
-            font-weight: 700;
-            font-size: 16px;
+        .asset-row-right .asset-value {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--primary);
         }
         
-        .yearly-item .growth .percent {
+        .asset-row-right .asset-pct {
             font-size: 12px;
-            color: var(--gray-600);
+            color: var(--gray-500);
+            margin-top: 2px;
         }
         
-        .yearly-item .growth.positive .amount { color: var(--success); }
-        .yearly-item .growth.negative .amount { color: var(--danger); }
-        
-        /* 分类资产趋势 */
-        .assets-category-trend {
-            background: white;
-            border: 2px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .assets-category-trend canvas {
-            width: 100% !important;
-            height: 200px !important;
-        }
-        
-        /* 更新资产弹窗 */
+        /* 更新资产弹窗样式 */
         .asset-form-group {
-            margin-bottom: 15px;
+            margin-bottom: 16px;
         }
         
         .asset-form-group label {
@@ -1185,31 +1321,40 @@
             font-weight: 600;
             margin-bottom: 8px;
             font-size: 14px;
+            color: var(--gray-700);
         }
         
         .asset-form-group input {
             width: 100%;
-            padding: 12px;
-            border: 2px solid var(--gray-300);
-            border-radius: 8px;
+            padding: 14px 16px;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
             font-size: 16px;
+            transition: all 0.2s;
+            background: var(--gray-50);
         }
         
         .asset-form-group input:focus {
             outline: none;
             border-color: var(--primary);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
         }
         
-        .asset-category-header {
-            background: var(--gray-200);
-            padding: 10px 15px;
-            border-radius: 8px;
-            font-weight: 600;
-            margin-bottom: 10px;
-            margin-top: 15px;
+        .asset-form-section {
+            background: var(--gray-100);
+            padding: 14px 16px;
+            border-radius: 12px;
+            font-weight: 700;
+            margin: 20px 0 14px 0;
+            font-size: 14px;
+            color: var(--gray-700);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
-        .asset-category-header:first-child {
+        .asset-form-section:first-child {
             margin-top: 0;
         }
         
@@ -1742,58 +1887,80 @@
             <div id="page-assets" class="page">
                 <h2 class="page-title">💰 存量资产</h2>
                 
-                <!-- 资产总览 -->
-                <div class="assets-overview">
-                    <div class="assets-total">
-                        <div class="assets-total-label">总资产</div>
-                        <div class="assets-total-value" id="totalAssetsValue">¥0</div>
-                        <div class="assets-update-time" id="assetsUpdateTime">暂无数据</div>
+                <!-- 资产总览卡片 -->
+                <div class="assets-hero">
+                    <div class="assets-hero-bg"></div>
+                    <div class="assets-hero-content">
+                        <div class="assets-hero-label">总资产净值</div>
+                        <div class="assets-hero-value" id="totalAssetsValue">¥0</div>
+                        <div class="assets-hero-sub" id="assetsUpdateTime">暂无数据</div>
+                    </div>
+                    <div class="assets-hero-target">
+                        <div class="target-ring" id="targetRing">
+                            <svg viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="8"/>
+                                <circle id="targetProgress" cx="50" cy="50" r="45" fill="none" stroke="#fff" stroke-width="8" 
+                                    stroke-dasharray="283" stroke-dashoffset="283" stroke-linecap="round"
+                                    transform="rotate(-90 50 50)"/>
+                            </svg>
+                            <div class="target-text">
+                                <span class="target-percent" id="targetPercent">0%</span>
+                                <span class="target-label">百万目标</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- 增长指标卡片 -->
-                <div class="assets-growth-cards" id="assetsGrowthCards">
-                    <!-- 动态生成 -->
+                <div class="assets-stats" id="assetsGrowthCards"></div>
+                
+                <!-- 双列图表区域 -->
+                <div class="assets-charts-grid">
+                    <!-- 资产趋势折线图 -->
+                    <div class="chart-card">
+                        <h3>📈 资产增长趋势</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="assetsTrendChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- 资产配置饼图 -->
+                    <div class="chart-card">
+                        <h3>🥧 资产配置</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="assetsChart" width="280" height="200"></canvas>
+                        </div>
+                        <div id="assetsLegend" class="assets-legend"></div>
+                    </div>
                 </div>
                 
-                <!-- 资产里程碑 -->
-                <div class="assets-milestones">
-                    <h3 style="font-size: 16px; margin-bottom: 15px;">🎯 资产里程碑</h3>
-                    <div id="assetsMilestones"></div>
-                </div>
-                
-                <!-- 资产趋势折线图 -->
-                <div class="assets-trend">
-                    <h3 style="font-size: 16px; margin-bottom: 15px;">📈 资产增长趋势</h3>
-                    <canvas id="assetsTrendChart"></canvas>
+                <!-- 里程碑进度 -->
+                <div class="chart-card full-width">
+                    <h3>🎯 百万目标里程碑</h3>
+                    <div class="milestones-track" id="assetsMilestones"></div>
                 </div>
                 
                 <!-- 年度对比 -->
-                <div class="assets-yearly">
-                    <h3 style="font-size: 16px; margin-bottom: 15px;">📅 年度增长对比</h3>
+                <div class="chart-card full-width">
+                    <h3>📅 年度增长对比</h3>
                     <div id="assetsYearlyCompare"></div>
                 </div>
                 
-                <!-- 分类资产趋势 -->
-                <div class="assets-category-trend">
-                    <h3 style="font-size: 16px; margin-bottom: 15px;">📊 分类资产变化</h3>
-                    <canvas id="assetsCategoryChart"></canvas>
-                </div>
-                
-                <!-- 资产配置饼图 -->
-                <div class="assets-chart-container">
-                    <h3 style="font-size: 16px; margin-bottom: 15px;">🥧 资产配置</h3>
-                    <canvas id="assetsChart" width="300" height="200"></canvas>
-                    <div id="assetsLegend" class="assets-legend"></div>
+                <!-- 分类趋势 -->
+                <div class="chart-card full-width">
+                    <h3>📊 分类资产变化</h3>
+                    <div class="chart-wrapper-wide">
+                        <canvas id="assetsCategoryChart"></canvas>
+                    </div>
                 </div>
                 
                 <!-- 资产明细 -->
-                <div class="assets-detail">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h3 style="font-size: 16px; margin: 0;">📋 资产明细</h3>
-                        <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">✏️ 更新资产</button>
+                <div class="chart-card full-width">
+                    <div class="card-header-flex">
+                        <h3>📋 资产明细</h3>
+                        <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">✏️ 更新</button>
                     </div>
-                    <div id="assetsList"></div>
+                    <div id="assetsList" class="assets-list"></div>
                 </div>
             </div>
             
@@ -4819,8 +4986,23 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             // 更新总资产显示
             document.getElementById('totalAssetsValue').textContent = `¥${totalAssets.toLocaleString()}`;
             document.getElementById('assetsUpdateTime').textContent = latestUpdate 
-                ? `最后更新：${latestUpdate.toLocaleDateString()}` 
-                : '暂无数据，请更新资产';
+                ? `更新于 ${latestUpdate.toLocaleDateString()}` 
+                : '点击更新按钮录入数据';
+            
+            // 更新百万目标环形进度
+            const targetMillion = 1000000;
+            const progress = Math.min((totalAssets / targetMillion) * 100, 100);
+            const circumference = 2 * Math.PI * 45; // r=45
+            const offset = circumference - (progress / 100) * circumference;
+            
+            const progressCircle = document.getElementById('targetProgress');
+            const percentText = document.getElementById('targetPercent');
+            if (progressCircle) {
+                progressCircle.style.strokeDashoffset = offset;
+            }
+            if (percentText) {
+                percentText.textContent = `${progress.toFixed(0)}%`;
+            }
             
             // 按类型分组计算
             const typeValues = {};
@@ -4858,12 +5040,12 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
                     return `
                         <div class="assets-legend-item">
                             <div class="assets-legend-color" style="background: ${data.color};"></div>
-                            <span>${data.name}: ¥${data.value.toLocaleString()} (${percent}%)</span>
+                            <span>${data.name} ${percent}%</span>
                         </div>
                     `;
-                }).join('') || '<div style="color: var(--gray-600);">暂无资产数据</div>';
+                }).join('') || '<div style="color: var(--gray-500); font-size: 13px;">暂无数据</div>';
             
-            // 渲染资产明细
+            // 渲染资产明细（新结构）
             let detailHtml = '';
             ASSET_TYPES.forEach(type => {
                 const typeAssets = assets.filter(a => a.typeId === type.id);
@@ -4871,17 +5053,17 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
                     typeAssets.forEach(asset => {
                         const percent = totalAssets > 0 ? (asset.value / totalAssets * 100).toFixed(1) : 0;
                         detailHtml += `
-                            <div class="asset-item">
-                                <div class="asset-info">
+                            <div class="asset-row">
+                                <div class="asset-row-left">
                                     <div class="asset-icon ${type.id}">${asset.icon}</div>
-                                    <div>
+                                    <div class="asset-info">
                                         <div class="asset-name">${asset.name}</div>
-                                        <div class="asset-category">${type.name}</div>
+                                        <div class="asset-type">${type.name}</div>
                                     </div>
                                 </div>
-                                <div style="text-align: right;">
+                                <div class="asset-row-right">
                                     <div class="asset-value">¥${(asset.value || 0).toLocaleString()}</div>
-                                    <div class="asset-percent">${percent}%</div>
+                                    <div class="asset-pct">${percent}%</div>
                                 </div>
                             </div>
                         `;
@@ -4890,7 +5072,7 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             });
             
             document.getElementById('assetsList').innerHTML = detailHtml || 
-                '<div style="text-align: center; padding: 20px; color: var(--gray-600);">暂无资产数据，请点击上方按钮更新</div>';
+                '<div style="text-align: center; padding: 30px; color: var(--gray-500);">暂无资产数据<br><small>点击上方更新按钮录入</small></div>';
             
             // 渲染趋势折线图
             renderAssetsTrendChart();
@@ -4905,15 +5087,25 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             
             if (sortedHistory.length === 0) {
                 document.getElementById('assetsGrowthCards').innerHTML = `
-                    <div class="growth-card">
-                        <div class="label">本月增长</div>
-                        <div class="value">--</div>
-                        <div class="change">暂无数据</div>
+                    <div class="stat-card">
+                        <div class="stat-label">本月</div>
+                        <div class="stat-value">--</div>
+                        <div class="stat-change">暂无数据</div>
                     </div>
-                    <div class="growth-card">
-                        <div class="label">今年增长</div>
-                        <div class="value">--</div>
-                        <div class="change">暂无数据</div>
+                    <div class="stat-card">
+                        <div class="stat-label">今年</div>
+                        <div class="stat-value">--</div>
+                        <div class="stat-change">暂无数据</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">累计</div>
+                        <div class="stat-value">--</div>
+                        <div class="stat-change">暂无数据</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">增幅</div>
+                        <div class="stat-value">--</div>
+                        <div class="stat-change">暂无数据</div>
                     </div>
                 `;
                 return;
@@ -4948,39 +5140,37 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
                 ? (totalGrowth / firstRecord.total * 100) : 0;
             
             document.getElementById('assetsGrowthCards').innerHTML = `
-                <div class="growth-card">
-                    <div class="label">📅 本月增长</div>
-                    <div class="value" style="color: ${monthGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                        ${monthGrowth >= 0 ? '+' : ''}¥${monthGrowth.toLocaleString()}
+                <div class="stat-card">
+                    <div class="stat-label">本月增长</div>
+                    <div class="stat-value" style="color: ${monthGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${monthGrowth >= 0 ? '+' : ''}${(monthGrowth/10000).toFixed(1)}w
                     </div>
-                    <div class="change ${monthGrowth >= 0 ? 'positive' : 'negative'}">
+                    <div class="stat-change ${monthGrowth >= 0 ? 'up' : 'down'}">
                         ${monthGrowth >= 0 ? '↑' : '↓'} ${Math.abs(monthGrowthPct).toFixed(1)}%
                     </div>
                 </div>
-                <div class="growth-card">
-                    <div class="label">📆 今年增长</div>
-                    <div class="value" style="color: ${yearGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                        ${yearGrowth >= 0 ? '+' : ''}¥${yearGrowth.toLocaleString()}
+                <div class="stat-card">
+                    <div class="stat-label">今年增长</div>
+                    <div class="stat-value" style="color: ${yearGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${yearGrowth >= 0 ? '+' : ''}${(yearGrowth/10000).toFixed(1)}w
                     </div>
-                    <div class="change ${yearGrowth >= 0 ? 'positive' : 'negative'}">
+                    <div class="stat-change ${yearGrowth >= 0 ? 'up' : 'down'}">
                         ${yearGrowth >= 0 ? '↑' : '↓'} ${Math.abs(yearGrowthPct).toFixed(1)}%
                     </div>
                 </div>
-                <div class="growth-card">
-                    <div class="label">🚀 累计增长</div>
-                    <div class="value" style="color: ${totalGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                        ${totalGrowth >= 0 ? '+' : ''}¥${totalGrowth.toLocaleString()}
+                <div class="stat-card">
+                    <div class="stat-label">累计增长</div>
+                    <div class="stat-value" style="color: ${totalGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${totalGrowth >= 0 ? '+' : ''}${(totalGrowth/10000).toFixed(1)}w
                     </div>
-                    <div class="change ${totalGrowth >= 0 ? 'positive' : 'negative'}">
-                        vs ${firstRecord ? firstRecord.month.replace('-', '.') : '--'}
-                    </div>
+                    <div class="stat-change">vs ${firstRecord ? firstRecord.month.slice(2).replace('-', '/') : '--'}</div>
                 </div>
-                <div class="growth-card">
-                    <div class="label">📊 累计增幅</div>
-                    <div class="value" style="color: ${totalGrowthPct >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                        ${totalGrowthPct >= 0 ? '+' : ''}${totalGrowthPct.toFixed(1)}%
+                <div class="stat-card">
+                    <div class="stat-label">总增幅</div>
+                    <div class="stat-value" style="color: ${totalGrowthPct >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${totalGrowthPct >= 0 ? '+' : ''}${totalGrowthPct.toFixed(0)}%
                     </div>
-                    <div class="change">${sortedHistory.length}个月记录</div>
+                    <div class="stat-change">${sortedHistory.length}月记录</div>
                 </div>
             `;
         }
@@ -4989,12 +5179,11 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
         function renderMilestones(totalAssets) {
             const milestones = [
                 { target: 100000, label: '10万', icon: '🎯' },
-                { target: 200000, label: '20万', icon: '🎯' },
                 { target: 300000, label: '30万', icon: '🎯' },
                 { target: 500000, label: '50万', icon: '⭐' },
                 { target: 800000, label: '80万', icon: '⭐' },
                 { target: 1000000, label: '100万', icon: '🏆' },
-                { target: 1500000, label: '150万', icon: '🏆' },
+                { target: 1500000, label: '150万', icon: '💎' },
                 { target: 2000000, label: '200万', icon: '👑' }
             ];
             
@@ -5009,7 +5198,8 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
                     // 找到首次达成的月份
                     for (const h of sortedHistory) {
                         if (h.total >= m.target) {
-                            achievedDate = h.month.replace('-', '年') + '月';
+                            const [y, mon] = h.month.split('-');
+                            achievedDate = `${y}.${mon} 达成`;
                             break;
                         }
                     }
@@ -5025,23 +5215,24 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
                             const monthsNeeded = Math.ceil((m.target - totalAssets) / avgGrowth);
                             const predictMonth = new Date();
                             predictMonth.setMonth(predictMonth.getMonth() + monthsNeeded);
-                            predictDate = `预计${predictMonth.getFullYear()}年${predictMonth.getMonth() + 1}月`;
+                            predictDate = `预计 ${predictMonth.getFullYear()}.${String(predictMonth.getMonth() + 1).padStart(2, '0')}`;
                         }
                     }
                 }
                 
-                const progress = Math.min((totalAssets / m.target * 100), 100).toFixed(0);
+                const progress = Math.min((totalAssets / m.target * 100), 100);
                 
                 return `
-                    <div class="milestone-item">
-                        <div class="milestone-icon">${achieved ? '✅' : m.icon}</div>
-                        <div class="milestone-info">
-                            <div class="target">${m.label}</div>
-                            <div class="date">${achieved ? achievedDate + ' 达成' : (predictDate || '努力中...')}</div>
+                    <div class="milestone-row ${achieved ? 'achieved' : ''}">
+                        <div class="milestone-badge">${achieved ? '✓' : m.icon}</div>
+                        <div class="milestone-content">
+                            <div class="milestone-title">${m.label}</div>
+                            <div class="milestone-desc">${achieved ? achievedDate : (predictDate || '努力中...')}</div>
                         </div>
-                        <div class="milestone-progress ${achieved ? 'completed' : 'pending'}">
-                            ${achieved ? '已达成' : progress + '%'}
+                        <div class="milestone-bar">
+                            <div class="milestone-bar-fill" style="width: ${progress}%"></div>
                         </div>
+                        <div class="milestone-pct">${achieved ? '100%' : progress.toFixed(0) + '%'}</div>
                     </div>
                 `;
             }).join('');
@@ -5055,7 +5246,7 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             
             if (sortedHistory.length === 0) {
                 document.getElementById('assetsYearlyCompare').innerHTML = 
-                    '<div style="text-align: center; padding: 20px; color: var(--gray-600);">暂无数据</div>';
+                    '<div style="text-align: center; padding: 30px; color: var(--gray-500);">暂无数据</div>';
                 return;
             }
             
@@ -5089,18 +5280,20 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
                 prevYearEnd = data.end;
                 
                 return `
-                    <div class="yearly-item">
-                        <div class="year">${year}年</div>
-                        <div class="growth ${growth >= 0 ? 'positive' : 'negative'}">
-                            <div class="amount">${growth >= 0 ? '+' : ''}¥${growth.toLocaleString()}</div>
-                            <div class="percent">${growth >= 0 ? '↑' : '↓'} ${Math.abs(growthPct).toFixed(1)}%</div>
+                    <div class="yearly-row">
+                        <div class="year-label">${year}年</div>
+                        <div class="year-data">
+                            <div class="year-amount ${growth >= 0 ? 'positive' : 'negative'}">
+                                ${growth >= 0 ? '+' : ''}${(growth/10000).toFixed(1)}万
+                            </div>
+                            <div class="year-pct">${growth >= 0 ? '↑' : '↓'} ${Math.abs(growthPct).toFixed(1)}%</div>
                         </div>
                     </div>
                 `;
             }).join('');
             
             document.getElementById('assetsYearlyCompare').innerHTML = yearlyHtml || 
-                '<div style="text-align: center; padding: 20px; color: var(--gray-600);">暂无数据</div>';
+                '<div style="text-align: center; padding: 30px; color: var(--gray-500);">暂无数据</div>';
         }
         
         function renderAssetsChart(typeValues, total) {
