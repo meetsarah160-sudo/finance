@@ -882,6 +882,172 @@
         .overview-item .value.positive { color: #9ae6b4; }
         .overview-item .value.negative { color: #feb2b2; }
         
+        /* 存量资产样式 */
+        .assets-overview {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: white;
+        }
+        
+        .assets-total-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .assets-total-value {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .assets-update-time {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        .assets-chart-container {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .assets-legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .assets-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+        
+        .assets-legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+        }
+        
+        .assets-detail {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .asset-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--gray-100);
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .asset-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .asset-item .asset-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .asset-item .asset-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        .asset-item .asset-icon.liquid { background: linear-gradient(135deg, #48bb78, #38a169); }
+        .asset-item .asset-icon.invest { background: linear-gradient(135deg, #4299e1, #3182ce); }
+        .asset-item .asset-icon.protect { background: linear-gradient(135deg, #ed8936, #dd6b20); }
+        .asset-item .asset-icon.other { background: linear-gradient(135deg, #9f7aea, #805ad5); }
+        
+        .asset-item .asset-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .asset-item .asset-category {
+            font-size: 12px;
+            color: var(--gray-600);
+        }
+        
+        .asset-item .asset-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .asset-item .asset-percent {
+            font-size: 12px;
+            color: var(--gray-600);
+        }
+        
+        .assets-trend {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        /* 更新资产弹窗 */
+        .asset-form-group {
+            margin-bottom: 15px;
+        }
+        
+        .asset-form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .asset-form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--gray-300);
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .asset-form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .asset-category-header {
+            background: var(--gray-200);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            margin-top: 15px;
+        }
+        
+        .asset-category-header:first-child {
+            margin-top: 0;
+        }
+        
         /* 储蓄目标 */
         .goal-card {
             background: white;
@@ -1265,6 +1431,7 @@
             <button class="tab" onclick="switchPage('budget', event)">📊 预算</button>
             <button class="tab" onclick="switchPage('calendar', event)">📅 日历</button>
             <button class="tab" onclick="switchPage('charts', event)">📈 图表</button>
+            <button class="tab" onclick="switchPage('assets', event)">💰 资产</button>
             <button class="tab" onclick="switchPage('report', event)">📋 报告</button>
             <button class="tab" onclick="switchPage('goals', event)">🎯 目标</button>
             <button class="tab" onclick="switchPage('settings', event)">⚙️ 设置</button>
@@ -1403,6 +1570,42 @@
                 <div class="calendar-detail" id="calendarDetail">
                     <h4>📋 选择日期查看明细</h4>
                     <div id="dayDetail">点击日历中的日期查看当天消费明细</div>
+                </div>
+            </div>
+            
+            <!-- 存量资产页面 -->
+            <div id="page-assets" class="page">
+                <h2 class="page-title">💰 存量资产</h2>
+                
+                <!-- 资产总览 -->
+                <div class="assets-overview">
+                    <div class="assets-total">
+                        <div class="assets-total-label">总资产</div>
+                        <div class="assets-total-value" id="totalAssetsValue">¥0</div>
+                        <div class="assets-update-time" id="assetsUpdateTime">暂无数据</div>
+                    </div>
+                </div>
+                
+                <!-- 资产配置图 -->
+                <div class="assets-chart-container">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">📊 资产配置</h3>
+                    <canvas id="assetsChart" width="300" height="200"></canvas>
+                    <div id="assetsLegend" class="assets-legend"></div>
+                </div>
+                
+                <!-- 资产明细 -->
+                <div class="assets-detail">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="font-size: 16px; margin: 0;">📋 资产明细</h3>
+                        <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">✏️ 更新资产</button>
+                    </div>
+                    <div id="assetsList"></div>
+                </div>
+                
+                <!-- 资产趋势 -->
+                <div class="assets-trend">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">📈 资产趋势（近6个月）</h3>
+                    <canvas id="assetsTrendChart" width="300" height="180"></canvas>
                 </div>
             </div>
             
@@ -1615,12 +1818,30 @@
         let expenses = [];
         let incomes = [];
         let goals = [];
+        let assets = [];
+        let assetHistory = []; // 资产历史记录
         let selectedCategory = null;
         let expandedCategories = new Set();
         let currentRecordType = 'expense';
         let calendarYear = new Date().getFullYear();
         let calendarMonth = new Date().getMonth() + 1;
         let selectedCalendarDate = null;
+        
+        // 资产类型配置
+        const ASSET_TYPES = [
+            { id: 'liquid', name: '流动资金', icon: '💵', color: '#48bb78', items: [
+                { id: 'bank', name: '银行活期', icon: '🏦' }
+            ]},
+            { id: 'invest', name: '投资资产', icon: '📈', color: '#4299e1', items: [
+                { id: 'fund', name: '基金', icon: '📊' }
+            ]},
+            { id: 'protect', name: '保障资产', icon: '🛡️', color: '#ed8936', items: [
+                { id: 'insurance', name: '保险现金价值', icon: '📋' }
+            ]},
+            { id: 'other', name: '其他资产', icon: '📦', color: '#9f7aea', items: [
+                { id: 'lent', name: '借出的钱', icon: '🤝' }
+            ]}
+        ];
         
         // ==================== 工具函数 ====================
         function showToast(msg, type = 'success') {
@@ -2149,6 +2370,7 @@
             renderHistory();
             renderSettings();
             initReportMonthSelector();
+            initAssets(); // 初始化资产数据
         }
         
         function switchPage(page, event) {
@@ -2177,6 +2399,9 @@
             if (page === 'report') {
                 initReportMonthSelector();
                 renderReport();
+            }
+            if (page === 'assets') {
+                renderAssets();
             }
         }
         
@@ -2549,7 +2774,13 @@
                     const d = new Date(e.date);
                     return d.getFullYear() === year && d.getMonth() + 1 === month;
                 })
-                .sort((a, b) => new Date(b.date) - new Date(a.date));
+                .sort((a, b) => {
+                    // 先按日期降序（最近的日期在前）
+                    const dateCompare = new Date(b.date) - new Date(a.date);
+                    if (dateCompare !== 0) return dateCompare;
+                    // 同一天内按记账顺序降序（最新记的在前）
+                    return b.id - a.id;
+                });
             
             const total = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
             
@@ -2580,11 +2811,19 @@
                 return;
             }
             
-            const results = expenses.filter(e => 
-                e.item.toLowerCase().includes(keyword) ||
-                e.categoryName.toLowerCase().includes(keyword) ||
-                e.date.includes(keyword)
-            );
+            const results = expenses
+                .filter(e => 
+                    e.item.toLowerCase().includes(keyword) ||
+                    e.categoryName.toLowerCase().includes(keyword) ||
+                    e.date.includes(keyword)
+                )
+                .sort((a, b) => {
+                    // 先按日期降序
+                    const dateCompare = new Date(b.date) - new Date(a.date);
+                    if (dateCompare !== 0) return dateCompare;
+                    // 同一天内按记账顺序降序
+                    return b.id - a.id;
+                });
             
             const total = results.reduce((sum, e) => sum + e.amount, 0);
             document.getElementById('historyTotal').textContent = `搜索结果: ${results.length} 笔，¥${total.toFixed(2)}`;
@@ -4178,6 +4417,326 @@ ${top10}
             await deleteGoalFromCloud(goal.id);
             renderGoals();
             showToast('已删除', 'success');
+        }
+        
+        // ==================== 存量资产管理 ====================
+        let assetsChart = null;
+        let assetsTrendChart = null;
+        
+        function initAssets() {
+            // 从本地存储加载资产数据
+            const savedAssets = localStorage.getItem('finance_assets_' + currentUser);
+            const savedHistory = localStorage.getItem('finance_assets_history_' + currentUser);
+            
+            if (savedAssets) {
+                assets = JSON.parse(savedAssets);
+            } else {
+                // 初始化默认资产结构
+                assets = [];
+                ASSET_TYPES.forEach(type => {
+                    type.items.forEach(item => {
+                        assets.push({
+                            id: item.id,
+                            typeId: type.id,
+                            typeName: type.name,
+                            name: item.name,
+                            icon: item.icon,
+                            value: 0,
+                            updateTime: null
+                        });
+                    });
+                });
+            }
+            
+            if (savedHistory) {
+                assetHistory = JSON.parse(savedHistory);
+            } else {
+                assetHistory = [];
+            }
+        }
+        
+        function saveAssets() {
+            localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
+            localStorage.setItem('finance_assets_history_' + currentUser, JSON.stringify(assetHistory));
+        }
+        
+        function renderAssets() {
+            // 计算总资产
+            const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
+            
+            // 获取最新更新时间
+            const updateTimes = assets.filter(a => a.updateTime).map(a => new Date(a.updateTime));
+            const latestUpdate = updateTimes.length > 0 ? new Date(Math.max(...updateTimes)) : null;
+            
+            // 更新总资产显示
+            document.getElementById('totalAssetsValue').textContent = `¥${totalAssets.toLocaleString()}`;
+            document.getElementById('assetsUpdateTime').textContent = latestUpdate 
+                ? `最后更新：${latestUpdate.toLocaleDateString()}` 
+                : '暂无数据，请更新资产';
+            
+            // 按类型分组计算
+            const typeValues = {};
+            ASSET_TYPES.forEach(type => {
+                typeValues[type.id] = {
+                    name: type.name,
+                    color: type.color,
+                    value: 0
+                };
+            });
+            
+            assets.forEach(a => {
+                if (typeValues[a.typeId]) {
+                    typeValues[a.typeId].value += (a.value || 0);
+                }
+            });
+            
+            // 渲染饼图
+            renderAssetsChart(typeValues, totalAssets);
+            
+            // 渲染图例
+            document.getElementById('assetsLegend').innerHTML = Object.entries(typeValues)
+                .filter(([_, data]) => data.value > 0)
+                .map(([_, data]) => {
+                    const percent = totalAssets > 0 ? (data.value / totalAssets * 100).toFixed(1) : 0;
+                    return `
+                        <div class="assets-legend-item">
+                            <div class="assets-legend-color" style="background: ${data.color};"></div>
+                            <span>${data.name}: ¥${data.value.toLocaleString()} (${percent}%)</span>
+                        </div>
+                    `;
+                }).join('') || '<div style="color: var(--gray-600);">暂无资产数据</div>';
+            
+            // 渲染资产明细
+            let detailHtml = '';
+            ASSET_TYPES.forEach(type => {
+                const typeAssets = assets.filter(a => a.typeId === type.id);
+                if (typeAssets.length > 0) {
+                    typeAssets.forEach(asset => {
+                        const percent = totalAssets > 0 ? (asset.value / totalAssets * 100).toFixed(1) : 0;
+                        detailHtml += `
+                            <div class="asset-item">
+                                <div class="asset-info">
+                                    <div class="asset-icon ${type.id}">${asset.icon}</div>
+                                    <div>
+                                        <div class="asset-name">${asset.name}</div>
+                                        <div class="asset-category">${type.name}</div>
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div class="asset-value">¥${(asset.value || 0).toLocaleString()}</div>
+                                    <div class="asset-percent">${percent}%</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            });
+            
+            document.getElementById('assetsList').innerHTML = detailHtml || 
+                '<div style="text-align: center; padding: 20px; color: var(--gray-600);">暂无资产数据，请点击上方按钮更新</div>';
+            
+            // 渲染趋势图
+            renderAssetsTrendChart();
+        }
+        
+        function renderAssetsChart(typeValues, total) {
+            const canvas = document.getElementById('assetsChart');
+            const ctx = canvas.getContext('2d');
+            
+            // 清除画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (total <= 0) {
+                ctx.fillStyle = '#e2e8f0';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('暂无数据', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(centerX, centerY) - 20;
+            
+            let startAngle = -Math.PI / 2;
+            
+            Object.entries(typeValues).forEach(([_, data]) => {
+                if (data.value > 0) {
+                    const sliceAngle = (data.value / total) * 2 * Math.PI;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, centerY);
+                    ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+                    ctx.closePath();
+                    ctx.fillStyle = data.color;
+                    ctx.fill();
+                    
+                    startAngle += sliceAngle;
+                }
+            });
+            
+            // 中心圆（甜甜圈效果）
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            
+            // 中心文字
+            ctx.fillStyle = '#1a202c';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`¥${total.toLocaleString()}`, centerX, centerY);
+        }
+        
+        function renderAssetsTrendChart() {
+            const canvas = document.getElementById('assetsTrendChart');
+            const ctx = canvas.getContext('2d');
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 获取最近6个月的数据
+            const months = [];
+            const now = new Date();
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push({
+                    key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+                    label: `${d.getMonth() + 1}月`
+                });
+            }
+            
+            // 获取历史数据
+            const data = months.map(m => {
+                const record = assetHistory.find(h => h.month === m.key);
+                return record ? record.total : 0;
+            });
+            
+            // 如果没有历史数据，显示提示
+            if (data.every(d => d === 0)) {
+                ctx.fillStyle = '#a0aec0';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('更新资产后将自动记录趋势', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+            
+            const maxVal = Math.max(...data, 1);
+            const padding = 40;
+            const chartWidth = canvas.width - padding * 2;
+            const chartHeight = canvas.height - padding * 2;
+            const barWidth = chartWidth / months.length - 10;
+            
+            // 绘制柱状图
+            data.forEach((val, i) => {
+                const barHeight = (val / maxVal) * chartHeight;
+                const x = padding + i * (chartWidth / months.length) + 5;
+                const y = canvas.height - padding - barHeight;
+                
+                // 渐变色
+                const gradient = ctx.createLinearGradient(x, y, x, canvas.height - padding);
+                gradient.addColorStop(0, '#667eea');
+                gradient.addColorStop(1, '#764ba2');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, y, barWidth, barHeight);
+                
+                // 月份标签
+                ctx.fillStyle = '#718096';
+                ctx.font = '12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(months[i].label, x + barWidth / 2, canvas.height - 10);
+                
+                // 数值标签
+                if (val > 0) {
+                    ctx.fillStyle = '#1a202c';
+                    ctx.font = '10px sans-serif';
+                    ctx.fillText(`${(val / 10000).toFixed(1)}w`, x + barWidth / 2, y - 5);
+                }
+            });
+        }
+        
+        function showUpdateAssets() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'updateAssetsModal';
+            
+            let formHtml = '';
+            ASSET_TYPES.forEach(type => {
+                formHtml += `<div class="asset-category-header">${type.icon} ${type.name}</div>`;
+                type.items.forEach(item => {
+                    const asset = assets.find(a => a.id === item.id);
+                    formHtml += `
+                        <div class="asset-form-group">
+                            <label>${item.icon} ${item.name}</label>
+                            <input type="number" id="asset_${item.id}" value="${asset ? asset.value : 0}" 
+                                   placeholder="输入金额" step="0.01" min="0">
+                        </div>
+                    `;
+                });
+            });
+            
+            modal.innerHTML = `
+                <div class="modal" style="max-width: 450px;">
+                    <h3 style="margin-bottom: 20px;">💰 更新存量资产</h3>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        ${formHtml}
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button class="btn btn-outline" style="flex: 1;" onclick="closeUpdateAssetsModal()">取消</button>
+                        <button class="btn btn-primary" style="flex: 1;" onclick="saveUpdatedAssets()">💾 保存</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        function closeUpdateAssetsModal() {
+            document.getElementById('updateAssetsModal')?.remove();
+        }
+        
+        function saveUpdatedAssets() {
+            const now = new Date();
+            const updateTime = now.toISOString();
+            
+            // 更新每个资产的值
+            ASSET_TYPES.forEach(type => {
+                type.items.forEach(item => {
+                    const input = document.getElementById(`asset_${item.id}`);
+                    if (input) {
+                        const asset = assets.find(a => a.id === item.id);
+                        if (asset) {
+                            asset.value = parseFloat(input.value) || 0;
+                            asset.updateTime = updateTime;
+                        }
+                    }
+                });
+            });
+            
+            // 记录历史
+            const total = assets.reduce((sum, a) => sum + (a.value || 0), 0);
+            const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            
+            const existingIndex = assetHistory.findIndex(h => h.month === monthKey);
+            if (existingIndex >= 0) {
+                assetHistory[existingIndex] = { month: monthKey, total: total, date: updateTime };
+            } else {
+                assetHistory.push({ month: monthKey, total: total, date: updateTime });
+            }
+            
+            // 只保留最近12个月
+            assetHistory.sort((a, b) => a.month.localeCompare(b.month));
+            if (assetHistory.length > 12) {
+                assetHistory = assetHistory.slice(-12);
+            }
+            
+            // 保存
+            saveAssets();
+            
+            closeUpdateAssetsModal();
+            renderAssets();
+            showToast('资产已更新', 'success');
         }
         
         // ==================== 月度报告 ====================
