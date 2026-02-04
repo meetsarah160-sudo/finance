@@ -995,6 +995,36 @@
             51%, 100% { opacity: 0; }
         }
         
+        /* ==================== AI报告财务体检仪表盘样式 ==================== */
+        .vital-signs-header {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px dashed var(--gray-300);
+        }
+        @media (max-width: 600px) {
+            .vital-signs-header { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .sign-card {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 15px 10px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .sign-card.danger { border-color: var(--red-500); background: #fff5f5; }
+        .sign-card.warning { border-color: var(--yellow-500); background: #fffaf0; }
+        .sign-card.good { border-color: var(--green-500); background: #f0fff4; }
+
+        .sign-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+        .sign-value { font-size: 22px; font-weight: 800; color: var(--gray-800); display: block; margin-bottom: 4px; }
+        .sign-label { font-size: 12px; color: var(--gray-600); font-weight: 600; }
+        .sign-desc { font-size: 10px; color: var(--gray-500); margin-top: 4px; }
+        
         /* Toast */
         .toast {
             position: fixed;
@@ -5436,9 +5466,56 @@
         
         // 核心AI调用逻辑 - 智谱GLM-4流式输出
         async function callAIAnalysisStream(targetDivId, selectedMonth = null) {
-            const prompt = buildAIPrompt(selectedMonth);
             const targetDiv = document.getElementById(targetDivId);
+            targetDiv.innerHTML = ''; // 清空区域
+
+            // 1. 🔥 获取体征数据
+            const signs = calculateVitalSigns(selectedMonth);
+
+            // 2. 🔥 生成仪表盘 HTML (直接插入到报告顶部)
+            const dashboardHTML = `
+                <div class="vital-signs-header">
+                    <div class="sign-card ${signs.runwayStatus}">
+                        <span class="sign-icon">🛡️</span>
+                        <span class="sign-value">${signs.runwayText}个月</span>
+                        <span class="sign-label">生存跑道</span>
+                        <div class="sign-desc">${signs.runwayDesc}</div>
+                    </div>
+                    
+                    <div class="sign-card ${signs.rigidStatus}">
+                        <span class="sign-icon">🔒</span>
+                        <span class="sign-value">${signs.rigidRatio}%</span>
+                        <span class="sign-label">刚性负担</span>
+                        <div class="sign-desc">${signs.rigidDesc}</div>
+                    </div>
+                    
+                    <div class="sign-card ${signs.cashStatus}">
+                        <span class="sign-icon">💸</span>
+                        <span class="sign-value">${signs.cashRatio}%</span>
+                        <span class="sign-label">现金占比</span>
+                        <div class="sign-desc">${signs.cashDesc}</div>
+                    </div>
+                    
+                    <div class="sign-card">
+                        <span class="sign-icon">🎯</span>
+                        <span class="sign-value">${signs.progressPercent}%</span>
+                        <span class="sign-label">百万进度</span>
+                        <div class="sign-desc">还差 ¥${(signs.gap/10000).toFixed(1)}万 | ${signs.monthsToGoal}月达成</div>
+                    </div>
+                </div>
+                
+                <div id="ai-text-output" style="line-height:1.8; color:#2d3748;">
+                    <span class="typing-cursor">▊</span>
+                </div>
+            `;
             
+            targetDiv.innerHTML = dashboardHTML;
+            const textOutputDiv = document.getElementById('ai-text-output');
+
+            // 3. 构建 Prompt (把计算好的结论喂给 AI)
+            const prompt = buildAIPrompt(selectedMonth, signs);
+
+            // 4. 调用 API
             try {
                 const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
                     method: 'POST',
@@ -5463,8 +5540,7 @@
                 const decoder = new TextDecoder();
                 let fullContent = '';
                 
-                // 清空并准备显示
-                targetDiv.innerHTML = '';
+                textOutputDiv.innerHTML = ''; // 清除光标准备开始
                 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -5483,9 +5559,7 @@
                                 const content = json.choices?.[0]?.delta?.content || '';
                                 if (content) {
                                     fullContent += content;
-                                    // 实时更新显示，带打字机光标
-                                    targetDiv.innerHTML = formatAIContent(fullContent) + '<span class="typing-cursor">▊</span>';
-                                    // 自动滚动到底部
+                                    textOutputDiv.innerHTML = formatAIContent(fullContent) + '<span class="typing-cursor">▊</span>';
                                     targetDiv.scrollTop = targetDiv.scrollHeight;
                                 }
                             } catch (e) {
@@ -5496,11 +5570,11 @@
                 }
                 
                 // 完成后移除光标
-                targetDiv.innerHTML = formatAIContent(fullContent);
+                textOutputDiv.innerHTML = formatAIContent(fullContent);
                 
             } catch (error) {
                 console.error('AI分析错误:', error);
-                targetDiv.innerHTML = `
+                textOutputDiv.innerHTML = `
                     <div style="padding: 20px; background: #fee2e2; border-radius: 12px; border: 1px solid #ef4444;">
                         <h3 style="color: #b91c1c; margin-bottom: 10px;">❌ AI分析失败</h3>
                         <p style="color: #991b1b; margin-bottom: 10px;">${error.message}</p>
@@ -5521,8 +5595,136 @@
                 .replace(/🏥|💡|📅|🎯|💰|✅|🚨|📊|🏆|📈|⚠️|🔴|🟡|🟢|✈️|🩺|🚀/g, match => `<span style="font-size: 1.2em;">${match}</span>`);
         }
         
+        // ====== 核心指标计算引擎（供AI报告仪表盘和Prompt共用）======
+        function calculateVitalSigns(selectedMonth = null) {
+            // 日期处理
+            let year, month;
+            if (selectedMonth) {
+                const [y, m] = selectedMonth.split('-').map(Number);
+                year = y;
+                month = m;
+            } else {
+                const now = new Date();
+                year = now.getFullYear();
+                month = now.getMonth() + 1;
+            }
+            
+            // 1. 资产数据
+            const totalAssetsVal = assets.reduce((sum, a) => sum + (a.value || 0), 0);
+            let liquidAssets = 0, investAssets = 0, protectAssets = 0;
+            
+            assets.forEach(a => {
+                const type = ASSET_TYPES.find(t => t.id === a.typeId);
+                if (type) {
+                    if (type.id === 'liquid' || type.name === '流动资金') liquidAssets += a.value || 0;
+                    else if (type.id === 'invest' || type.name === '投资资产') investAssets += a.value || 0;
+                    else if (type.id === 'protect' || type.name === '保障资产') protectAssets += a.value || 0;
+                }
+            });
+            
+            // 2. 收支数据
+            let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
+            let rigidBudget = 0;
+            
+            categories.forEach(cat => {
+                const spent = expenses.filter(e => {
+                    const d = new Date(e.date);
+                    return d.getFullYear() === year && d.getMonth() + 1 === month && e.categoryId === cat.id;
+                }).reduce((sum, e) => sum + (e.amount || 0), 0);
+                
+                const monthly = getMonthly(cat);
+                
+                if (cat.type === '刚性') {
+                    rigidSpent += spent;
+                    rigidBudget += monthly;
+                } else if (cat.type === '日常') {
+                    dailySpent += spent;
+                } else {
+                    flexibleSpent += spent;
+                }
+            });
+            
+            const totalExpense = rigidSpent + dailySpent + flexibleSpent;
+            const monthlyBurn = totalExpense > 0 ? totalExpense : (rigidBudget > 0 ? rigidBudget : 5000);
+            
+            // 收入
+            const monthIncomes = incomes.filter(i => {
+                const d = new Date(i.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            });
+            const totalIncome = monthIncomes.reduce((sum, i) => sum + (i.amount || 0), 0);
+            const balance = totalIncome - totalExpense;
+            const savingRate = totalIncome > 0 ? (balance / totalIncome * 100) : 0;
+            
+            // ====== 四大体征计算 ======
+            
+            // A. 生存跑道 (Runway)
+            const runway = monthlyBurn > 0 ? (liquidAssets / monthlyBurn) : Infinity;
+            const runwayText = runway === Infinity ? '∞' : runway.toFixed(1);
+            let runwayStatus = 'good';
+            let runwayDesc = '✅ 安全区间';
+            if (runway < 6) {
+                runwayStatus = 'danger';
+                runwayDesc = '🚨 极度危险';
+            } else if (runway > 36) {
+                runwayStatus = 'warning';
+                runwayDesc = '⚠️ 资金闲置';
+            }
+
+            // B. 刚性负担 (Rigid Ratio)
+            const monthlyRigid = rigidSpent > 0 ? rigidSpent : rigidBudget;
+            const rigidRatio = totalIncome > 0 ? (monthlyRigid / totalIncome * 100) : 0;
+            let rigidStatus = 'good';
+            let rigidDesc = '✅ 结构灵活';
+            if (rigidRatio > 50) {
+                rigidStatus = 'danger';
+                rigidDesc = '🚨 负担过重';
+            } else if (monthlyRigid === 0) {
+                rigidStatus = 'warning';
+                rigidDesc = '⚠️ 数据可能漏记';
+            }
+
+            // C. 现金占比 (Cash Ratio) - 资金效率
+            const cashRatio = totalAssetsVal > 0 ? (liquidAssets / totalAssetsVal * 100) : 0;
+            let cashStatus = 'good';
+            let cashDesc = '✅ 配置合理';
+            if (cashRatio > 60) {
+                cashStatus = 'warning';
+                cashDesc = '⚠️ 效率低下(通胀损耗)';
+            } else if (cashRatio < 10 && totalAssetsVal > 0) {
+                cashStatus = 'danger';
+                cashDesc = '🚨 流动性不足';
+            }
+
+            // D. 百万目标 (Goal)
+            const gap = 1000000 - totalAssetsVal;
+            const progressPercent = (totalAssetsVal / 1000000 * 100);
+            
+            // 目标达成预测
+            let monthsToGoal = Infinity;
+            if (balance > 0 && gap > 0) {
+                monthsToGoal = Math.ceil(gap / balance);
+            }
+            
+            return {
+                // 生存跑道
+                runway, runwayText, runwayStatus, runwayDesc,
+                // 刚性负担
+                rigidRatio: rigidRatio.toFixed(0), rigidStatus, rigidDesc,
+                // 现金占比
+                cashRatio: cashRatio.toFixed(0), cashStatus, cashDesc,
+                // 目标进度
+                gap, totalAssetsVal, progressPercent: progressPercent.toFixed(1),
+                monthsToGoal: monthsToGoal === Infinity ? '∞' : monthsToGoal,
+                // 其他数据
+                liquidAssets, investAssets, protectAssets,
+                monthlyBurn, totalIncome, totalExpense, balance, savingRate,
+                rigidSpent, dailySpent, flexibleSpent
+            };
+        }
+        
         // ==================== CFP专业理财师 - 5大维度分析版 ====================
-        function buildAIPrompt(selectedMonth = null) {
+        function buildAIPrompt(selectedMonth = null, preCalcSigns = null) {
             // ========== 1. 日期处理 ==========
             let year, month, day, daysInMonth, remainingDays;
             
