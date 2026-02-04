@@ -3251,12 +3251,9 @@
         const SUPABASE_URL = 'https://prenbykygxskibdufhol.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZW5ieWt5Z3hza2liZHVmaG9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMDg0NDIsImV4cCI6MjA4NDU4NDQ0Mn0.45cg3ICRfd6N0aUFzbwFm5OMz44sghYaqtay255DAfg';
         
-        // Claude API 配置
-        // 注意：请替换为你自己的Claude API Key
-        const CLAUDE_API_KEY = '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';
-        // 使用代理服务（如果直接调用有CORS问题）
-        // 可选代理：https://api.anthropic.com 或你自己的代理服务器
-        const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+        // Claude API 配置（通过Supabase Edge Function代理）
+        // API Key已安全存储在服务端，无需在前端暴露
+        const CLAUDE_PROXY_URL = 'https://prenbykygxskibdufhol.supabase.co/functions/v1/claude-proxy';
         
         const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
@@ -5438,35 +5435,19 @@
             select.innerHTML = options.join('');
         }
         
-        // 核心AI调用逻辑 - 流式输出版
+        // 核心AI调用逻辑 - 通过Supabase Edge Function代理
         async function callAIAnalysisStream(targetDivId, selectedMonth = null) {
             const prompt = buildAIPrompt(selectedMonth);
             const targetDiv = document.getElementById(targetDivId);
             
-            // 检查API Key是否已配置
-            if (CLAUDE_API_KEY === 'YOUR_CLAUDE_API_KEY_HERE') {
-                targetDiv.innerHTML = `
-                    <div style="padding: 20px; background: #fef3c7; border-radius: 12px; border: 1px solid #f59e0b;">
-                        <h3 style="color: #b45309; margin-bottom: 10px;">⚠️ 请配置Claude API Key</h3>
-                        <p style="color: #92400e; margin-bottom: 15px;">请在代码中找到 <code>CLAUDE_API_KEY</code> 并替换为你的API Key。</p>
-                        <p style="color: #92400e; font-size: 12px;">获取API Key: <a href="https://console.anthropic.com/" target="_blank" style="color: #b45309;">console.anthropic.com</a></p>
-                    </div>
-                `;
-                return;
-            }
-            
             try {
-                const response = await fetch(CLAUDE_API_URL, {
+                const response = await fetch(CLAUDE_PROXY_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-api-key': CLAUDE_API_KEY,
-                        'anthropic-version': '2023-06-01',
-                        'anthropic-dangerous-direct-browser-access': 'true'
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
                     },
                     body: JSON.stringify({
-                        model: 'claude-sonnet-4-20250514',
-                        max_tokens: 4096,
                         messages: [{ role: 'user', content: prompt }],
                         stream: true
                     })
@@ -5526,9 +5507,9 @@
                         <p style="color: #991b1b; margin-bottom: 10px;">${error.message}</p>
                         <p style="color: #991b1b; font-size: 12px;">
                             可能原因：<br>
-                            1. API Key无效或已过期<br>
+                            1. Edge Function未部署<br>
                             2. 网络连接问题<br>
-                            3. CORS限制（需要配置代理）
+                            3. Claude API Key无效
                         </p>
                     </div>
                 `;
