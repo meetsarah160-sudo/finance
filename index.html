@@ -3249,8 +3249,14 @@
     <script>
         // ==================== 配置 ====================
         const SUPABASE_URL = 'https://prenbykygxskibdufhol.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZW5ieWt5Z3hza2liZHVmaG9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMDg0NDIsImV4cCI6MjA4NDU4NDQ0Mn0.45cg3ICRfd6N0aUFzbwFm5OMz44sghYaqtay255DAfg';
-        const ZHIPU_API_KEY = 'd3d055a805ab47bfbf92dd9ecb49cac3.591QZN3JSFqk6aoL';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZW5ieWt5Z3hza2liZHVmaG9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMDg0NDIsImV4cCI6MjA4NDU4NDQ0Mn0.45cg3ICRfd6N0aUFzbwFm5OMz05sghYaqtay255DAfg';
+        
+        // Claude API 配置
+        // 注意：请替换为你自己的Claude API Key
+        const CLAUDE_API_KEY = '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';
+        // 使用代理服务（如果直接调用有CORS问题）
+        // 可选代理：https://api.anthropic.com 或你自己的代理服务器
+        const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
         
         const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
@@ -5437,63 +5443,96 @@
             const prompt = buildAIPrompt(selectedMonth);
             const targetDiv = document.getElementById(targetDivId);
             
-            const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${ZHIPU_API_KEY}`
-                },
-                body: JSON.stringify({
-                    model: 'glm-4-flash',
-                    messages: [{ role: 'user', content: prompt }],
-                    temperature: 0.7,
-                    max_tokens: 4000,
-                    stream: true  // 启用流式输出
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`API请求失败: ${response.status}`);
+            // 检查API Key是否已配置
+            if (CLAUDE_API_KEY === 'YOUR_CLAUDE_API_KEY_HERE') {
+                targetDiv.innerHTML = `
+                    <div style="padding: 20px; background: #fef3c7; border-radius: 12px; border: 1px solid #f59e0b;">
+                        <h3 style="color: #b45309; margin-bottom: 10px;">⚠️ 请配置Claude API Key</h3>
+                        <p style="color: #92400e; margin-bottom: 15px;">请在代码中找到 <code>CLAUDE_API_KEY</code> 并替换为你的API Key。</p>
+                        <p style="color: #92400e; font-size: 12px;">获取API Key: <a href="https://console.anthropic.com/" target="_blank" style="color: #b45309;">console.anthropic.com</a></p>
+                    </div>
+                `;
+                return;
             }
             
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let fullContent = '';
-            
-            // 移除光标
-            targetDiv.innerHTML = '';
-            
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            try {
+                const response = await fetch(CLAUDE_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': CLAUDE_API_KEY,
+                        'anthropic-version': '2023-06-01',
+                        'anthropic-dangerous-direct-browser-access': 'true'
+                    },
+                    body: JSON.stringify({
+                        model: 'claude-sonnet-4-20250514',
+                        max_tokens: 4096,
+                        messages: [{ role: 'user', content: prompt }],
+                        stream: true
+                    })
+                });
                 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n').filter(line => line.trim());
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API请求失败: ${response.status} - ${errorText}`);
+                }
                 
-                for (const line of lines) {
-                    if (line.startsWith('data:')) {
-                        const jsonStr = line.slice(5).trim();
-                        if (jsonStr === '[DONE]') continue;
-                        
-                        try {
-                            const json = JSON.parse(jsonStr);
-                            const content = json.choices?.[0]?.delta?.content || '';
-                            if (content) {
-                                fullContent += content;
-                                // 实时更新显示，带打字机光标
-                                targetDiv.innerHTML = formatAIContent(fullContent) + '<span class="typing-cursor">▊</span>';
-                                // 自动滚动到底部
-                                targetDiv.scrollTop = targetDiv.scrollHeight;
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullContent = '';
+                
+                // 清空并准备显示
+                targetDiv.innerHTML = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n').filter(line => line.trim());
+                    
+                    for (const line of lines) {
+                        // Claude API 流式格式：event: xxx 和 data: xxx
+                        if (line.startsWith('data:')) {
+                            const jsonStr = line.slice(5).trim();
+                            if (!jsonStr || jsonStr === '[DONE]') continue;
+                            
+                            try {
+                                const json = JSON.parse(jsonStr);
+                                
+                                // Claude流式响应格式
+                                if (json.type === 'content_block_delta' && json.delta?.text) {
+                                    fullContent += json.delta.text;
+                                    // 实时更新显示，带打字机光标
+                                    targetDiv.innerHTML = formatAIContent(fullContent) + '<span class="typing-cursor">▊</span>';
+                                    // 自动滚动到底部
+                                    targetDiv.scrollTop = targetDiv.scrollHeight;
+                                }
+                            } catch (e) {
+                                // 忽略解析错误
                             }
-                        } catch (e) {
-                            // 忽略解析错误
                         }
                     }
                 }
+                
+                // 完成后移除光标
+                targetDiv.innerHTML = formatAIContent(fullContent);
+                
+            } catch (error) {
+                console.error('AI分析错误:', error);
+                targetDiv.innerHTML = `
+                    <div style="padding: 20px; background: #fee2e2; border-radius: 12px; border: 1px solid #ef4444;">
+                        <h3 style="color: #b91c1c; margin-bottom: 10px;">❌ AI分析失败</h3>
+                        <p style="color: #991b1b; margin-bottom: 10px;">${error.message}</p>
+                        <p style="color: #991b1b; font-size: 12px;">
+                            可能原因：<br>
+                            1. API Key无效或已过期<br>
+                            2. 网络连接问题<br>
+                            3. CORS限制（需要配置代理）
+                        </p>
+                    </div>
+                `;
             }
-            
-            // 完成后移除光标
-            targetDiv.innerHTML = formatAIContent(fullContent);
         }
         
         // 格式化AI内容（换行、加粗等）
@@ -5506,23 +5545,20 @@
         }
         
         // 构建AI Prompt（CFP专业理财师版本）
+        // ==================== CFO私人财务官版本 ====================
+        // ==================== CFO私人财务官 - 强制指令版 ====================
         function buildAIPrompt(selectedMonth = null) {
-            // 如果传入了选择的月份，使用它；否则使用当前月份
-            let year, month, day, daysInMonth, remainingDays, timeProgress;
+            // ========== 1. 日期处理 ==========
+            let year, month, day, daysInMonth, remainingDays;
             
             if (selectedMonth) {
                 const [y, m] = selectedMonth.split('-').map(Number);
                 year = y;
                 month = m;
                 const now = new Date();
-                if (y === now.getFullYear() && m === now.getMonth() + 1) {
-                    day = now.getDate();
-                } else {
-                    day = new Date(y, m, 0).getDate();
-                }
+                day = (y === now.getFullYear() && m === now.getMonth() + 1) ? now.getDate() : new Date(y, m, 0).getDate();
                 daysInMonth = new Date(y, m, 0).getDate();
                 remainingDays = Math.max(0, daysInMonth - day);
-                timeProgress = (day / daysInMonth * 100).toFixed(1);
             } else {
                 const now = new Date();
                 year = now.getFullYear();
@@ -5530,336 +5566,203 @@
                 day = now.getDate();
                 daysInMonth = new Date(year, month, 0).getDate();
                 remainingDays = daysInMonth - day;
-                timeProgress = (day / daysInMonth * 100).toFixed(1);
             }
             
-            // ==================== 1. 本月支出数据 ====================
+            // ========== 2. 收支数据计算 ==========
             let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
-            let dailyBudget = 0, flexibleBudget = 0, rigidBudget = 0;
             
-            const categoryAnalysis = [];
             categories.forEach(cat => {
                 const spent = expenses.filter(e => {
                     const d = new Date(e.date);
                     return d.getFullYear() === year && d.getMonth() + 1 === month && e.categoryId === cat.id;
                 }).reduce((sum, e) => sum + (e.amount || 0), 0);
                 
-                const monthly = getMonthly(cat);
-                const rate = monthly > 0 ? (spent / monthly * 100) : 0;
-                const status = rate >= 100 ? '🔴超支' : rate >= 80 ? '🟡警戒' : '🟢正常';
-                
-                if (cat.type === '刚性') {
-                    rigidSpent += spent;
-                    rigidBudget += monthly;
-                } else if (cat.type === '日常') {
-                    dailySpent += spent;
-                    dailyBudget += monthly;
-                } else {
-                    flexibleSpent += spent;
-                    flexibleBudget += monthly;
-                }
-                
-                categoryAnalysis.push({
-                    name: cat.name,
-                    type: cat.type,
-                    spent: spent,
-                    budget: monthly,
-                    rate: rate,
-                    status: status,
-                    overspent: spent - monthly
-                });
+                if (cat.type === '刚性') rigidSpent += spent;
+                else if (cat.type === '日常') dailySpent += spent;
+                else flexibleSpent += spent;
             });
             
-            const totalBudget = dailyBudget + flexibleBudget;
-            const budgetSpent = dailySpent + flexibleSpent;
-            const remainingBudget = totalBudget - budgetSpent;
-            const dailyAllowance = remainingDays > 0 ? (remainingBudget / remainingDays) : 0;
+            const totalExpense = rigidSpent + dailySpent + flexibleSpent;
+            const monthlyBurn = totalExpense > 0 ? totalExpense : 1;
             
-            // ==================== 2. 本月收入数据 ====================
-            const safeIncomes = incomes || [];
-            const monthIncomeList = safeIncomes.filter(i => {
+            // 收入
+            const monthIncomes = incomes.filter(i => {
                 const d = new Date(i.date);
                 return d.getFullYear() === year && d.getMonth() + 1 === month;
             });
-            const totalIncome = monthIncomeList.reduce((sum, i) => sum + (i.amount || 0), 0);
-            const incomeByType = {};
-            monthIncomeList.forEach(i => {
-                incomeByType[i.type || '其他'] = (incomeByType[i.type || '其他'] || 0) + (i.amount || 0);
-            });
-            const incomeDetails = Object.entries(incomeByType).map(([type, amount]) => `${type}: ¥${amount}`).join('、') || '暂无收入记录';
-            
-            const totalExpense = rigidSpent + dailySpent + flexibleSpent;
+            const totalIncome = monthIncomes.reduce((sum, i) => sum + (i.amount || 0), 0);
             const balance = totalIncome - totalExpense;
-            const savingRate = totalIncome > 0 ? ((balance / totalIncome) * 100) : 0;
+            const savingRate = totalIncome > 0 ? (balance / totalIncome * 100) : 0;
             
-            // ==================== 3. 上月对比 ====================
-            const lastMonth = month === 1 ? 12 : month - 1;
-            const lastYear = month === 1 ? year - 1 : year;
-            
-            const lastMonthExpenses = (expenses || []).filter(e => {
-                const d = new Date(e.date);
-                return d.getFullYear() === lastYear && d.getMonth() + 1 === lastMonth;
-            });
-            const lastMonthTotal = lastMonthExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-            const lastMonthFlexible = lastMonthExpenses.filter(e => {
-                const cat = categories.find(c => c.id === e.categoryId);
-                return cat && cat.type === '弹性';
-            }).reduce((sum, e) => sum + (e.amount || 0), 0);
-            
-            // ==================== 4. 年度累计 ====================
-            const yearExpenses = expenses.filter(e => new Date(e.date).getFullYear() === year);
-            const yearTotal = yearExpenses.reduce((sum, e) => sum + e.amount, 0);
-            const yearIncomes = incomes.filter(i => new Date(i.date).getFullYear() === year);
-            const yearIncomeTotal = yearIncomes.reduce((sum, i) => sum + i.amount, 0);
-            const monthlyAvgExpense = month > 0 ? (yearTotal / month) : totalExpense;
-            
-            // ==================== 5. 消费明细 ====================
-            const monthExpenseList = expenses.filter(e => {
-                const d = new Date(e.date);
-                return d.getFullYear() === year && d.getMonth() + 1 === month;
-            });
-            
-            const bigExpenses = monthExpenseList.filter(e => e.amount >= 500).sort((a, b) => b.amount - a.amount);
-            const bigExpenseText = bigExpenses.slice(0, 5).map(e => 
-                `${e.date.slice(5)} ${e.item} ¥${e.amount} (${e.categoryName})`
-            ).join('、') || '无';
-            
-            // 问题类目
-            const problemCategories = categoryAnalysis.filter(c => c.rate >= 80).sort((a, b) => b.rate - a.rate);
-            const problemText = problemCategories.length > 0
-                ? problemCategories.map(c => `${c.status} ${c.name}：¥${c.spent.toFixed(0)}/¥${c.budget}，${c.rate.toFixed(0)}%`).join('\n')
-                : '✅ 全部正常';
-            
-            // ==================== 6. 存量资产数据 ====================
+            // ========== 3. 资产数据 ==========
             const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
             
-            // 按类型统计资产
-            const assetByType = {};
-            ASSET_TYPES.forEach(type => { assetByType[type.id] = 0; assetByType[type.name] = 0; });
+            let liquidAssets = 0;
             assets.forEach(a => {
                 const type = ASSET_TYPES.find(t => t.id === a.typeId);
-                if (type) {
-                    assetByType[type.id] += (a.value || 0);
-                    assetByType[type.name] += (a.value || 0);
+                if (type && (type.id === 'liquid' || type.name === '流动资金')) {
+                    liquidAssets += a.value || 0;
                 }
             });
             
-            // 流动资产（现金、活期等）
-            const liquidAssets = assetByType['liquid'] || assetByType['流动资金'] || 0;
-            // 投资资产
-            const investAssets = assetByType['invest'] || assetByType['投资资产'] || 0;
-            // 固定资产
-            const fixedAssets = assetByType['fixed'] || assetByType['固定资产'] || 0;
-            
-            // 资产历史
-            const sortedAssetHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
-            let monthAssetGrowth = 0;
-            if (sortedAssetHistory.length > 0) {
-                const lastMonthKey = month === 1 ? `${year-1}-12` : `${year}-${String(month-1).padStart(2,'0')}`;
-                const lastMonthAsset = sortedAssetHistory.find(h => h.month === lastMonthKey);
-                if (lastMonthAsset) {
-                    monthAssetGrowth = totalAssets - lastMonthAsset.total;
-                }
-            }
-            
             // ============================================================
-            // 🔥🔥🔥 CFP专业财务指标计算 🔥🔥🔥
+            // 🔥 核心修正点：在代码里直接下"诊断结论"，不让AI乱猜
             // ============================================================
             
-            // 【指标1】生存跑道 (Financial Runway) - 创业者命门
-            // 公式：流动资产 / 月均刚性支出
-            const monthlyRigidBurn = rigidSpent > 0 ? rigidSpent : (rigidBudget > 0 ? rigidBudget : totalExpense * 0.4);
-            const runwayMonths = monthlyRigidBurn > 0 ? (liquidAssets / monthlyRigidBurn) : 0;
-            const runwayText = runwayMonths > 0 ? runwayMonths.toFixed(1) : "N/A";
-            const runwayStatus = runwayMonths >= 12 ? '🟢 安全' : runwayMonths >= 6 ? '🟡 警戒' : '🔴 危险';
-            const runwayAdvice = runwayMonths < 12 ? '创业者建议保持12个月以上' : '符合创业者安全标准';
+            // 【诊断1】生存跑道 - 资金效率诊断
+            const runwayMonths = (liquidAssets / monthlyBurn).toFixed(1);
+            let runwayDiagnosis = "";
+            let investAdvice = "";
             
-            // 【指标2】刚性负担率 (Rigid Ratio) - 财务弹性
-            // 公式：刚性支出 / 总收入
-            const rigidRatio = totalIncome > 0 ? ((rigidSpent / totalIncome) * 100) : 0;
-            const rigidRatioStatus = rigidRatio <= 30 ? '🟢 优秀' : rigidRatio <= 50 ? '🟡 偏高' : '🔴 危险';
-            const rigidRatioAdvice = rigidRatio > 50 ? '超过50%意味着财务弹性极差' : rigidRatio > 30 ? '建议控制在30%以内' : '财务弹性良好';
-            
-            // 【指标3】资金闲置率 (Cash Drag) - 资产效率
-            // 公式：流动资金 / 总资产
-            const cashDragRatio = totalAssets > 0 ? ((liquidAssets / totalAssets) * 100) : 0;
-            const cashDragStatus = cashDragRatio <= 20 ? '🟢 高效' : cashDragRatio <= 40 ? '🟡 一般' : '🔴 闲置';
-            const cashDragAdvice = cashDragRatio > 40 ? '现金过多正在贬值，建议配置理财' : cashDragRatio < 10 ? '流动性偏低，注意应急储备' : '资金配置合理';
-            
-            // 【指标4】生活方式膨胀 (Lifestyle Creep)
-            // 比较弹性支出增长率 vs 收入增长率
-            const flexibleGrowthRate = lastMonthFlexible > 0 ? ((flexibleSpent - lastMonthFlexible) / lastMonthFlexible * 100) : 0;
-            const incomeGrowthRate = 0; // 简化处理，可扩展
-            const lifestyleCreepStatus = flexibleGrowthRate > 20 ? '🔴 膨胀' : flexibleGrowthRate > 0 ? '🟡 上升' : '🟢 控制';
-            const lifestyleCreepAdvice = flexibleGrowthRate > 20 ? '享乐消费增速过快，警惕由俭入奢' : '消费习惯稳定';
-            
-            // 【指标5】目标达成速度 (Velocity to Goal)
-            const targetAmount = 1000000;
-            const gapAmount = targetAmount - totalAssets;
-            const progressPercent = (totalAssets / targetAmount * 100).toFixed(1);
-            
-            // 使用近3个月平均结余作为速度（更科学）
-            const recentMonths = 3;
-            let avgMonthlyBalance = balance; // 默认用本月
-            const recentBalances = [];
-            for (let i = 0; i < recentMonths; i++) {
-                const checkMonth = month - i;
-                const checkYear = checkMonth <= 0 ? year - 1 : year;
-                const actualMonth = checkMonth <= 0 ? checkMonth + 12 : checkMonth;
-                
-                const monthIncome = incomes.filter(inc => {
-                    const d = new Date(inc.date);
-                    return d.getFullYear() === checkYear && d.getMonth() + 1 === actualMonth;
-                }).reduce((sum, inc) => sum + inc.amount, 0);
-                
-                const monthExpense = expenses.filter(exp => {
-                    const d = new Date(exp.date);
-                    return d.getFullYear() === checkYear && d.getMonth() + 1 === actualMonth;
-                }).reduce((sum, exp) => sum + exp.amount, 0);
-                
-                if (monthIncome > 0 || monthExpense > 0) {
-                    recentBalances.push(monthIncome - monthExpense);
-                }
-            }
-            if (recentBalances.length > 0) {
-                avgMonthlyBalance = recentBalances.reduce((a, b) => a + b, 0) / recentBalances.length;
-            }
-            
-            let timeToGoalText = "无法预测";
-            let timeToGoalMonths = 0;
-            if (gapAmount <= 0) {
-                timeToGoalText = "🎉 已达成！";
-            } else if (avgMonthlyBalance <= 0) {
-                timeToGoalText = "遥遥无期（当前无正结余）";
+            if (runwayMonths > 36) {
+                const excessCash = liquidAssets - monthlyBurn * 18;
+                const opportunityCost = (excessCash * 0.04 / 12).toFixed(0);
+                runwayDiagnosis = `🔴 **资金严重闲置（极度低效）**：当前现金流可维持 ${runwayMonths} 个月！作为创业者，保留 12-18 个月即可。你有 ¥${(excessCash/10000).toFixed(1)}万 资金正在"睡大觉"，每月被通胀吞噬约 ¥${opportunityCost}。`;
+                investAdvice = `立即将 ¥${(excessCash/10000).toFixed(1)}万 从活期账户挪出，配置到 R2/R3 级资产（50%固收 + 50%权益ETF）`;
+            } else if (runwayMonths > 18) {
+                const excessCash = liquidAssets - monthlyBurn * 15;
+                runwayDiagnosis = `🟡 **资金略有冗余**：${runwayMonths} 个月生存期，略高于最佳区间(12-18月)。`;
+                investAdvice = `可将 ¥${(excessCash/10000).toFixed(1)}万 配置到稳健理财`;
+            } else if (runwayMonths >= 12) {
+                runwayDiagnosis = `🟢 **最佳安全区间**：${runwayMonths} 个月，符合创业者标准（12-18月）。`;
+                investAdvice = `保持现状，继续关注现金流`;
+            } else if (runwayMonths >= 6) {
+                runwayDiagnosis = `🟡 **安全边际偏低**：仅 ${runwayMonths} 个月，低于创业者建议的12个月红线。`;
+                investAdvice = `优先补充流动资金至 ¥${(monthlyBurn * 12 / 10000).toFixed(1)}万`;
             } else {
-                timeToGoalMonths = Math.ceil(gapAmount / avgMonthlyBalance);
-                const years = (timeToGoalMonths / 12).toFixed(1);
-                timeToGoalText = `约 ${timeToGoalMonths} 个月（${years} 年）`;
+                runwayDiagnosis = `🔴 **生存线告急**：仅够维持 ${runwayMonths} 个月！必须立刻削减非必要开支回血。`;
+                investAdvice = `紧急状态：暂停所有弹性支出，优先回血`;
             }
             
-            // 计算如何加速20%
-            const acceleratedMonths = Math.ceil(timeToGoalMonths * 0.8);
-            const requiredMonthlyBalance = gapAmount > 0 && acceleratedMonths > 0 ? Math.ceil(gapAmount / acceleratedMonths) : 0;
-            const additionalSavingNeeded = requiredMonthlyBalance - avgMonthlyBalance;
+            // 【诊断2】刚性支出数据核查
+            const rigidRatio = totalIncome > 0 ? ((rigidSpent / totalIncome) * 100).toFixed(0) : 0;
+            let rigidDiagnosis = "";
             
-            // 用户画像识别
-            const isHighSpender = flexibleSpent > 5000 || categoryAnalysis.some(c => c.name.includes('旅') && c.spent > 1000);
-            const userProfile = isHighSpender ? '高净值潜力/注重生活品质' : '创业者/收入波动型';
+            if (rigidSpent === 0 || rigidRatio < 5) {
+                rigidDiagnosis = `⚠️ **数据异常警报**：系统检测到刚性支出为 ¥${rigidSpent}（占比仅${rigidRatio}%）。这通常是因为漏记了房租/房贷/保险。请提示用户：去"设置→预算类目"检查类目属性，否则风险评估将失真！`;
+            } else if (rigidRatio > 50) {
+                rigidDiagnosis = `⚠️ **结构僵化危险**：固定开销占收入的 ${rigidRatio}%，超过50%红线！一旦收入波动，将面临断供风险。`;
+            } else if (rigidRatio > 30) {
+                rigidDiagnosis = `🟡 **结构偏紧**：固定开销占比 ${rigidRatio}%，财务弹性一般。`;
+            } else {
+                rigidDiagnosis = `✅ **结构健康**：固定开销占比 ${rigidRatio}%，财务弹性良好。`;
+            }
+            
+            // 【诊断3】生活方式策略 - 针对高端用户
+            let lifestyleAdvice = "";
+            const hasTravel = categories.some(c => c.name.includes('旅') || c.name.includes('游') || c.name.includes('机票') || c.name.includes('酒店'));
+            
+            if (hasTravel && flexibleSpent > 0) {
+                lifestyleAdvice = `✈️ **高端出行策略**：检测到旅行类支出。
+**严禁建议"少去旅行"** — 这是生活品质的核心组成。
+正确建议方向：
+1. 利用航司/酒店会员权益（贵宾厅、升舱、延迟退房）覆盖隐性成本
+2. 关注机酒积分回血，里程兑换优化
+3. 将现金预算转化为信用卡积分兑换`;
+            } else {
+                lifestyleAdvice = `💡 **消费品质建议**：弹性支出 ¥${flexibleSpent} 是生活品质的体现，重点不是"少花"而是"花得值"。`;
+            }
+            
+            // 【诊断4】百万目标预测
+            const gap = 1000000 - totalAssets;
+            let goalDiagnosis = "";
+            let goalAction = "";
+            
+            if (gap <= 0) {
+                goalDiagnosis = `🎉 **已达成百万目标！** 当前净值 ¥${totalAssets.toLocaleString()}`;
+                goalAction = `建议开启下一阶段（200万/500万）规划`;
+            } else {
+                const monthsToGoal = balance > 0 ? Math.ceil(gap / balance) : Infinity;
+                const yearsToGoal = monthsToGoal !== Infinity ? (monthsToGoal / 12).toFixed(1) : '∞';
+                
+                if (balance <= 0) {
+                    goalDiagnosis = `⚠️ 距离目标还差 ¥${gap.toLocaleString()}，但**本月无结余，进度停滞**！`;
+                    goalAction = `当务之急：创造正结余`;
+                } else if (monthsToGoal <= 24) {
+                    goalDiagnosis = `🔥 **冲刺阶段**：还差 ¥${gap.toLocaleString()}，预计 ${monthsToGoal} 个月（${yearsToGoal}年）达成！`;
+                    goalAction = `胜利在望，保持节奏`;
+                } else {
+                    goalDiagnosis = `📈 还差 ¥${gap.toLocaleString()}，预计 ${monthsToGoal} 个月（${yearsToGoal}年）达成。`;
+                    goalAction = `每月多存 ¥${Math.ceil(gap / 24 - balance)} 可缩短至2年内`;
+                }
+            }
+            
+            // 【诊断5】储蓄率评估
+            let savingDiagnosis = "";
+            if (savingRate >= 30) savingDiagnosis = `🟢 储蓄率 ${savingRate.toFixed(0)}%，优秀（超过30%黄金标准）`;
+            else if (savingRate >= 20) savingDiagnosis = `🟢 储蓄率 ${savingRate.toFixed(0)}%，良好`;
+            else if (savingRate >= 10) savingDiagnosis = `🟡 储蓄率 ${savingRate.toFixed(0)}%，偏低（建议≥20%）`;
+            else if (savingRate >= 0) savingDiagnosis = `🔴 储蓄率 ${savingRate.toFixed(0)}%，危险（几乎月光）`;
+            else savingDiagnosis = `🔴 储蓄率 ${savingRate.toFixed(0)}%，负储蓄（入不敷出）`;
+            
+            // 计算超额资金（用于资产配置建议）
+            const excessFund = Math.max(0, liquidAssets - monthlyBurn * 18);
             
             // ============================================================
-            // 🔥🔥🔥 构建CFP专业Prompt 🔥🔥🔥
+            // 📝 构建全新的 Prompt：强制指令模式
             // ============================================================
             
-            const prompt = `你是一位拥有15年经验的**私人财富管家（CFP持证）**，服务过500+高净值客户。
-你的服务对象是**${currentUser}**（用户画像：${userProfile}）。
+            const prompt = `你现在的身份是**私人CFO（首席财务官）**，正在向一位**高净值潜力创业者**做月度财务汇报。
+你的风格必须：**犀利、反直觉、资产导向**。严禁像"省钱管家"那样说话，要像给CEO汇报一样精炼。
 
-⚠️ 重要原则：
-1. 忽略琐碎流水账，聚焦"结构"和"风险"
-2. 所有建议必须带**具体数字**
-3. 语气专业、客观，像真正的理财师一样犀利
-4. 用户是创业者，重点关注现金流安全
+以下是经过系统预处理的**核心事实（Fact Sheet）**，你必须基于这些事实进行阐述，**不可反驳或修改系统结论**：
 
 ══════════════════════════════════════════════════════════
-🏥 财务生命体征 (Financial Vital Signs)
+📋 ${year}年${month}月 财务快照
 ══════════════════════════════════════════════════════════
-
-【生存安全线 Runway】${runwayStatus} ${runwayText} 个月
-   含义：若收入中断，流动资产可维持刚性生活的时间
-   诊断：${runwayAdvice}
-   计算：流动资产 ¥${liquidAssets.toLocaleString()} ÷ 月刚性支出 ¥${monthlyRigidBurn.toFixed(0)}
-
-【刚性负担率 Rigid Ratio】${rigidRatioStatus} ${rigidRatio.toFixed(1)}%
-   含义：固定支出占收入的比例，决定财务弹性
-   诊断：${rigidRatioAdvice}
-   计算：刚性支出 ¥${rigidSpent.toFixed(0)} ÷ 总收入 ¥${totalIncome.toFixed(0)}
-
-【资金效率 Cash Drag】${cashDragStatus} 现金占比 ${cashDragRatio.toFixed(1)}%
-   含义：${cashDragRatio > 40 ? '⚠️ 现金过多，资产在贬值（跑输通胀）' : cashDragRatio < 10 ? '⚠️ 流动性偏低，应急能力不足' : '✅ 资金配置合理'}
-   配置：流动 ¥${liquidAssets.toLocaleString()} | 投资 ¥${investAssets.toLocaleString()} | 固定 ¥${fixedAssets.toLocaleString()}
-
-【生活膨胀 Lifestyle Creep】${lifestyleCreepStatus} 弹性支出环比 ${flexibleGrowthRate >= 0 ? '+' : ''}${flexibleGrowthRate.toFixed(1)}%
-   含义：享乐型消费是否随收入增长而失控
-   诊断：${lifestyleCreepAdvice}
-   本月弹性：¥${flexibleSpent.toFixed(0)} | 上月：¥${lastMonthFlexible.toFixed(0)}
-
-【百万目标 Goal Velocity】进度 ${progressPercent}% | 预计达成：${timeToGoalText}
-   当前净值：¥${totalAssets.toLocaleString()}
-   距离目标：¥${gapAmount > 0 ? gapAmount.toLocaleString() : 0}
-   月均结余：¥${avgMonthlyBalance.toFixed(0)}（近${recentBalances.length}个月平均）
-   ${additionalSavingNeeded > 0 ? `加速20%需额外月存：¥${additionalSavingNeeded.toFixed(0)}` : ''}
+【资产净值】¥${totalAssets.toLocaleString()}
+【流动资金】¥${liquidAssets.toLocaleString()}
+【本月收支】收入 ¥${totalIncome.toLocaleString()} / 支出 ¥${totalExpense.toLocaleString()} / 结余 ¥${balance.toLocaleString()}
+【支出结构】刚性 ¥${rigidSpent} + 日常 ¥${dailySpent} + 弹性 ¥${flexibleSpent}
 
 ══════════════════════════════════════════════════════════
-📊 ${year}年${month}月收支结构
+🏥 系统诊断结论（必须采纳，不可反驳）
 ══════════════════════════════════════════════════════════
 
-【收入】¥${totalIncome.toLocaleString()}
-   ${incomeDetails}
+1️⃣ 【资金效率诊断】
+${runwayDiagnosis}
+*(关键指令：如果是资金闲置，必须严厉批评现金持有过多，建议配置 R2/R3 级资产，而不是存钱！)*
 
-【支出】¥${totalExpense.toLocaleString()}
-   ├─ 🔒 刚性（房租/保险）：¥${rigidSpent.toFixed(0)}（${totalExpense > 0 ? (rigidSpent/totalExpense*100).toFixed(1) : 0}%）
-   ├─ 📅 日常（生活必需）：¥${dailySpent.toFixed(0)}（${totalExpense > 0 ? (dailySpent/totalExpense*100).toFixed(1) : 0}%）
-   └─ 🌟 弹性（品质享乐）：¥${flexibleSpent.toFixed(0)}（${totalExpense > 0 ? (flexibleSpent/totalExpense*100).toFixed(1) : 0}%）
+2️⃣ 【数据完整性检查】
+${rigidDiagnosis}
 
-【结余】¥${balance.toFixed(0)} ${balance >= 0 ? '✅' : '❌ 赤字警告'}
-【储蓄率】${savingRate.toFixed(1)}% ${savingRate >= 30 ? '🟢优秀' : savingRate >= 20 ? '🟡及格' : savingRate >= 0 ? '🔴偏低' : '🔴负储蓄'}
+3️⃣ 【储蓄能力评估】
+${savingDiagnosis}
 
-══════════════════════════════════════════════════════════
-🔍 异常行为侦测
-══════════════════════════════════════════════════════════
+4️⃣ 【百万目标进度】
+${goalDiagnosis}
+➡️ ${goalAction}
 
-【预警类目】
-${problemText}
+5️⃣ 【生活方式策略】
+${lifestyleAdvice}
 
-【大额消费追踪】
-${bigExpenseText}
+---
 
-【剩余预算】¥${Math.max(0, remainingBudget).toFixed(0)}（日均 ¥${Math.max(0, dailyAllowance).toFixed(0)}）
+请按以下 Markdown 格式输出报告（语气：像CFO给CEO汇报，犀利精炼）：
 
-══════════════════════════════════════════════════════════
+### 🩺 CFO 深度问诊
+*不要罗列数字，直接基于上面的【资金效率诊断】和【数据完整性检查】输出2-3句核心观点。*
+- 如果资金闲置：直接计算出浪费了多少资金的机会成本（按年化4%计算）
+- 如果数据异常：直接提示用户去"设置→预算类目"检查
 
-请按以下结构输出 **CFP级专业报告**（语气要专业、犀利，多用数字说话）：
+### 📊 资产配置重构建议
+*基于创业者需要 12-18 个月安全垫的标准：*
+- 现状：持有 ${runwayMonths} 个月生存金
+- 建议：${investAdvice}
+- 投向建议：结合当前市场，给出具体的固收%/权益%配置比例
 
-### 🩺 深度诊断 (Deep Dive)
-*不要只报数字，要分析结构性问题*
+### ✈️ 品质生活 ROI 分析
+*点评本月弹性消费 ¥${flexibleSpent} 是否带来了相应的生活体验回报。*
+- 给出一条"不降低品质但能优化成本"的建议（利用会员权益/积分/信用卡权益）
 
-1. **现金流压力测试**
-   结合用户身份（${userProfile}），评价 ${runwayText} 个月的生存期是否安全？
-   给出具体的安全垫建议金额。
+### 🚀 下月战术板 (Action Items)
+用 checkbox 格式，给出3条可立即执行的动作：
+- [ ] 资金调拨：...
+- [ ] 预算控制：...
+- [ ] 习惯优化：...
 
-2. **刚性负担评估**
-   ${rigidRatio.toFixed(1)}% 的刚性负担率意味着什么？
-   如果收入波动30%，用户的生活会受到怎样的冲击？
-
-3. **资产配置诊断**
-   针对 ${cashDragRatio.toFixed(1)}% 的现金占比，给出具体调整方向：
-   - 应保留多少流动资金？
-   - 多余资金如何配置（固收/权益比例建议）？
-
-4. **生活品质 vs 财务自由**
-   弹性支出 ¥${flexibleSpent.toFixed(0)} 是否合理？
-   这些享乐消费让百万目标推迟了多少？
-
-### 🎯 目标加速器
-*当前距离百万还差 ¥${gapAmount > 0 ? gapAmount.toLocaleString() : 0}*
-
-给出 **2个具体可执行的建议**（开源或节流），帮助用户将达成时间从"${timeToGoalText}"缩短20%：
-1. [具体方案 + 预期月增存金额 + 效果]
-2. [具体方案 + 预期月增存金额 + 效果]
-
-### 🚨 风险红灯
-指出本月账单中隐藏的 **1个最大风险点**：
-（如：收入来源单一、刚性支出过高、某项消费失控、流动性危机等）
-
-### 📝 下月行动清单 (Action Plan)
-用 checkbox 格式，给出可立即执行的动作：
-- [ ] 资金操作：[具体金额和去向]
-- [ ] 预算控制：[具体类目和金额]
-- [ ] 习惯调整：[具体行为改变]
-
-### ✅ 三句话总结
-1. [财务健康总评 - 用一个比喻]
-2. [最关键的一个行动]
-3. [鼓励的话]`;
+### ✅ 一句话总结
+*用一个比喻总结本月财务状况，再给一句鼓励。*`;
 
             return prompt;
         }
