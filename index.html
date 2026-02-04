@@ -3249,7 +3249,7 @@
     <script>
         // ==================== 配置 ====================
         const SUPABASE_URL = 'https://prenbykygxskibdufhol.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZW5ieWt5Z3hza2liZHVmaG9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMDg0NDIsImV4cCI6MjA4NDU4NDQ0Mn0.45cg3ICRfd6N0aUFzbwFm5OMz05sghYaqtay255DAfg';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByZW5ieWt5Z3hza2liZHVmaG9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMDg0NDIsImV4cCI6MjA4NDU4NDQ0Mn0.45cg3ICRfd6N0aUFzbwFm5OMz44sghYaqtay255DAfg';
         
         // Claude API 配置
         // 注意：请替换为你自己的Claude API Key
@@ -5541,12 +5541,10 @@
                 .replace(/\n/g, '<br>')
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/═+/g, '<hr style="border: none; border-top: 2px solid var(--primary); margin: 15px 0;">')
-                .replace(/🏥|💡|📅|🎯|💰|✅|🚨|📊|🏆|📈/g, match => `<span style="font-size: 1.2em;">${match}</span>`);
+                .replace(/🏥|💡|📅|🎯|💰|✅|🚨|📊|🏆|📈|⚠️|🔴|🟡|🟢|✈️|🩺|🚀/g, match => `<span style="font-size: 1.2em;">${match}</span>`);
         }
         
-        // 构建AI Prompt（CFP专业理财师版本）
-        // ==================== CFO私人财务官版本 ====================
-        // ==================== CFO私人财务官 - 强制指令版 ====================
+        // ==================== CFP专业理财师 - 5大维度分析版 ====================
         function buildAIPrompt(selectedMonth = null) {
             // ========== 1. 日期处理 ==========
             let year, month, day, daysInMonth, remainingDays;
@@ -5568,8 +5566,9 @@
                 remainingDays = daysInMonth - day;
             }
             
-            // ========== 2. 收支数据计算 ==========
+            // ========== 2. 支出数据计算 ==========
             let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
+            const categorySpending = [];
             
             categories.forEach(cat => {
                 const spent = expenses.filter(e => {
@@ -5580,189 +5579,321 @@
                 if (cat.type === '刚性') rigidSpent += spent;
                 else if (cat.type === '日常') dailySpent += spent;
                 else flexibleSpent += spent;
+                
+                if (spent > 0) {
+                    categorySpending.push({ name: cat.name, type: cat.type, spent });
+                }
             });
             
             const totalExpense = rigidSpent + dailySpent + flexibleSpent;
-            const monthlyBurn = totalExpense > 0 ? totalExpense : 1;
             
-            // 收入
+            // ========== 3. 收入数据（含类型分析） ==========
             const monthIncomes = incomes.filter(i => {
                 const d = new Date(i.date);
                 return d.getFullYear() === year && d.getMonth() + 1 === month;
             });
             const totalIncome = monthIncomes.reduce((sum, i) => sum + (i.amount || 0), 0);
+            
+            // 收入类型分析（工资vs副业/其他）
+            const incomeByType = {};
+            monthIncomes.forEach(i => {
+                const type = i.type || '其他';
+                incomeByType[type] = (incomeByType[type] || 0) + (i.amount || 0);
+            });
+            const salaryIncome = incomeByType['工资'] || incomeByType['薪资'] || 0;
+            const otherIncome = totalIncome - salaryIncome;
+            const salaryRatio = totalIncome > 0 ? (salaryIncome / totalIncome * 100) : 0;
+            const incomeTypeText = Object.entries(incomeByType).map(([t, a]) => `${t}¥${a}`).join(' + ') || '无';
+            
+            // 收入稳定性判断
+            let incomeRiskNote = "";
+            if (salaryRatio < 50 && totalIncome > 0) {
+                incomeRiskNote = `⚠️ **收入波动风险**：工资占比仅${salaryRatio.toFixed(0)}%，副业/其他收入占比高，建议提高储备金比例至12个月以上。`;
+            }
+            
             const balance = totalIncome - totalExpense;
             const savingRate = totalIncome > 0 ? (balance / totalIncome * 100) : 0;
             
-            // ========== 3. 资产数据 ==========
+            // ========== 4. 近3个月平均结余（用于目标预测） ==========
+            const recentBalances = [];
+            for (let i = 0; i < 3; i++) {
+                const checkMonth = month - i;
+                const checkYear = checkMonth <= 0 ? year - 1 : year;
+                const actualMonth = checkMonth <= 0 ? checkMonth + 12 : checkMonth;
+                
+                const mIncome = incomes.filter(inc => {
+                    const d = new Date(inc.date);
+                    return d.getFullYear() === checkYear && d.getMonth() + 1 === actualMonth;
+                }).reduce((sum, inc) => sum + inc.amount, 0);
+                
+                const mExpense = expenses.filter(exp => {
+                    const d = new Date(exp.date);
+                    return d.getFullYear() === checkYear && d.getMonth() + 1 === actualMonth;
+                }).reduce((sum, exp) => sum + exp.amount, 0);
+                
+                if (mIncome > 0 || mExpense > 0) {
+                    recentBalances.push(mIncome - mExpense);
+                }
+            }
+            const avg3MonthBalance = recentBalances.length > 0 
+                ? recentBalances.reduce((a, b) => a + b, 0) / recentBalances.length 
+                : balance;
+            
+            // ========== 5. 资产数据（三色分类） ==========
             const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
             
-            let liquidAssets = 0;
+            let liquidAssets = 0;  // 流动资金（应急）
+            let investAssets = 0;  // 投资资产（生钱）
+            let protectAssets = 0; // 保障资产（兜底）
+            
             assets.forEach(a => {
                 const type = ASSET_TYPES.find(t => t.id === a.typeId);
-                if (type && (type.id === 'liquid' || type.name === '流动资金')) {
-                    liquidAssets += a.value || 0;
+                if (type) {
+                    if (type.id === 'liquid' || type.name === '流动资金') liquidAssets += a.value || 0;
+                    else if (type.id === 'invest' || type.name === '投资资产') investAssets += a.value || 0;
+                    else if (type.id === 'protect' || type.name === '保障资产') protectAssets += a.value || 0;
                 }
             });
             
+            // 三色资产占比
+            const liquidRatio = totalAssets > 0 ? (liquidAssets / totalAssets * 100) : 0;
+            const investRatio = totalAssets > 0 ? (investAssets / totalAssets * 100) : 0;
+            const protectRatio = totalAssets > 0 ? (protectAssets / totalAssets * 100) : 0;
+            
+            // ========== 6. 大额消费（只取TOP3，节省Token） ==========
+            const monthExpenses = expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            });
+            const top3Expenses = monthExpenses.sort((a, b) => b.amount - a.amount).slice(0, 3);
+            const top3Text = top3Expenses.map(e => `${e.item}¥${e.amount}(${e.categoryName})`).join('、') || '无';
+            
+            // 旅行/数码消费识别
+            const travelSpent = categorySpending.filter(c => 
+                c.name.includes('旅') || c.name.includes('游') || c.name.includes('机票') || c.name.includes('酒店')
+            ).reduce((sum, c) => sum + c.spent, 0);
+            const digitalSpent = categorySpending.filter(c => 
+                c.name.includes('数码') || c.name.includes('电子') || c.name.includes('3C')
+            ).reduce((sum, c) => sum + c.spent, 0);
+            
             // ============================================================
-            // 🔥 核心修正点：在代码里直接下"诊断结论"，不让AI乱猜
+            // 🔥 核心：5大专业理财师维度计算
             // ============================================================
             
-            // 【诊断1】生存跑道 - 资金效率诊断
-            const runwayMonths = (liquidAssets / monthlyBurn).toFixed(1);
-            let runwayDiagnosis = "";
-            let investAdvice = "";
+            // ===【维度1】现金流健康度 Cash Flow Health ===
+            // 刚性负债率
+            const rigidRatio = totalIncome > 0 ? (rigidSpent / totalIncome * 100) : 0;
+            // 自由现金流 = 收入 - 刚性 - 必要日常
+            const freeCashFlow = totalIncome - rigidSpent - dailySpent;
             
-            if (runwayMonths > 36) {
-                const excessCash = liquidAssets - monthlyBurn * 18;
-                const opportunityCost = (excessCash * 0.04 / 12).toFixed(0);
-                runwayDiagnosis = `🔴 **资金严重闲置（极度低效）**：当前现金流可维持 ${runwayMonths} 个月！作为创业者，保留 12-18 个月即可。你有 ¥${(excessCash/10000).toFixed(1)}万 资金正在"睡大觉"，每月被通胀吞噬约 ¥${opportunityCost}。`;
-                investAdvice = `立即将 ¥${(excessCash/10000).toFixed(1)}万 从活期账户挪出，配置到 R2/R3 级资产（50%固收 + 50%权益ETF）`;
-            } else if (runwayMonths > 18) {
-                const excessCash = liquidAssets - monthlyBurn * 15;
-                runwayDiagnosis = `🟡 **资金略有冗余**：${runwayMonths} 个月生存期，略高于最佳区间(12-18月)。`;
-                investAdvice = `可将 ¥${(excessCash/10000).toFixed(1)}万 配置到稳健理财`;
-            } else if (runwayMonths >= 12) {
-                runwayDiagnosis = `🟢 **最佳安全区间**：${runwayMonths} 个月，符合创业者标准（12-18月）。`;
-                investAdvice = `保持现状，继续关注现金流`;
-            } else if (runwayMonths >= 6) {
-                runwayDiagnosis = `🟡 **安全边际偏低**：仅 ${runwayMonths} 个月，低于创业者建议的12个月红线。`;
-                investAdvice = `优先补充流动资金至 ¥${(monthlyBurn * 12 / 10000).toFixed(1)}万`;
-            } else {
-                runwayDiagnosis = `🔴 **生存线告急**：仅够维持 ${runwayMonths} 个月！必须立刻削减非必要开支回血。`;
-                investAdvice = `紧急状态：暂停所有弹性支出，优先回血`;
-            }
-            
-            // 【诊断2】刚性支出数据核查
-            const rigidRatio = totalIncome > 0 ? ((rigidSpent / totalIncome) * 100).toFixed(0) : 0;
-            let rigidDiagnosis = "";
-            
+            let cashFlowDiagnosis = "";
             if (rigidSpent === 0 || rigidRatio < 5) {
-                rigidDiagnosis = `⚠️ **数据异常警报**：系统检测到刚性支出为 ¥${rigidSpent}（占比仅${rigidRatio}%）。这通常是因为漏记了房租/房贷/保险。请提示用户：去"设置→预算类目"检查类目属性，否则风险评估将失真！`;
+                cashFlowDiagnosis = `⚠️ **数据异常**：刚性支出 ¥${rigidSpent}（占比${rigidRatio.toFixed(0)}%），疑似漏记房租/房贷/保险。请检查"设置→预算类目"。`;
             } else if (rigidRatio > 50) {
-                rigidDiagnosis = `⚠️ **结构僵化危险**：固定开销占收入的 ${rigidRatio}%，超过50%红线！一旦收入波动，将面临断供风险。`;
+                cashFlowDiagnosis = `🔴 **现金流僵化**：刚性负债率 ${rigidRatio.toFixed(0)}%，超过50%红线！生活被固定开销锁死，抗风险能力极差。`;
             } else if (rigidRatio > 30) {
-                rigidDiagnosis = `🟡 **结构偏紧**：固定开销占比 ${rigidRatio}%，财务弹性一般。`;
+                cashFlowDiagnosis = `🟡 **现金流偏紧**：刚性负债率 ${rigidRatio.toFixed(0)}%，建议控制在30%以内。`;
             } else {
-                rigidDiagnosis = `✅ **结构健康**：固定开销占比 ${rigidRatio}%，财务弹性良好。`;
+                cashFlowDiagnosis = `🟢 **现金流健康**：刚性负债率 ${rigidRatio.toFixed(0)}%，自由现金流充裕。`;
             }
             
-            // 【诊断3】生活方式策略 - 针对高端用户
-            let lifestyleAdvice = "";
-            const hasTravel = categories.some(c => c.name.includes('旅') || c.name.includes('游') || c.name.includes('机票') || c.name.includes('酒店'));
+            // ===【维度2】财务安全边界 Runway & Safety ===
+            const monthlyRigid = rigidSpent > 0 ? rigidSpent : (totalExpense * 0.4);
+            const monthlyBurn = totalExpense > 0 ? totalExpense : 1;
+            // 生存月数（仅刚性支出）
+            const survivalMonthsRigid = monthlyRigid > 0 ? (liquidAssets / monthlyRigid) : Infinity;
+            // 生存月数（维持现有生活水平）
+            const survivalMonthsTotal = (liquidAssets / monthlyBurn);
             
-            if (hasTravel && flexibleSpent > 0) {
-                lifestyleAdvice = `✈️ **高端出行策略**：检测到旅行类支出。
-**严禁建议"少去旅行"** — 这是生活品质的核心组成。
-正确建议方向：
-1. 利用航司/酒店会员权益（贵宾厅、升舱、延迟退房）覆盖隐性成本
-2. 关注机酒积分回血，里程兑换优化
-3. 将现金预算转化为信用卡积分兑换`;
+            let runwayDiagnosis = "";
+            let runwayAction = "";
+            
+            if (survivalMonthsTotal > 36) {
+                const excessCash = liquidAssets - monthlyBurn * 18;
+                const opportunityCost = (excessCash * 0.04).toFixed(0); // 年化4%机会成本
+                runwayDiagnosis = `🔴 **资金严重闲置**：可维持 ${survivalMonthsTotal.toFixed(0)} 个月（仅生存需：${survivalMonthsRigid.toFixed(0)} 个月）。创业者保留12-18个月即可，你有 ¥${(excessCash/10000).toFixed(1)}万 在睡大觉，年损失约 ¥${opportunityCost}（按4%通胀计算）。`;
+                runwayAction = `立即将 ¥${(excessCash/10000).toFixed(1)}万 配置到R2/R3级资产`;
+            } else if (survivalMonthsTotal > 18) {
+                runwayDiagnosis = `🟡 **资金略有冗余**：可维持 ${survivalMonthsTotal.toFixed(0)} 个月，略高于最佳区间(12-18月)。`;
+                runwayAction = `可将部分资金配置稳健理财`;
+            } else if (survivalMonthsTotal >= 12) {
+                runwayDiagnosis = `🟢 **安全边界最佳**：可维持 ${survivalMonthsTotal.toFixed(0)} 个月（仅生存：${survivalMonthsRigid.toFixed(0)} 月），符合创业者标准。`;
+                runwayAction = `保持现状，持续关注现金流`;
+            } else if (survivalMonthsTotal >= 6) {
+                runwayDiagnosis = `🟡 **安全边际偏低**：仅 ${survivalMonthsTotal.toFixed(0)} 个月，低于创业者12个月红线。`;
+                runwayAction = `优先补充流动资金至 ¥${(monthlyBurn * 12 / 10000).toFixed(1)}万`;
             } else {
-                lifestyleAdvice = `💡 **消费品质建议**：弹性支出 ¥${flexibleSpent} 是生活品质的体现，重点不是"少花"而是"花得值"。`;
+                runwayDiagnosis = `🔴 **生存线告急**：仅够 ${survivalMonthsTotal.toFixed(1)} 个月！必须立刻削减弹性支出回血。`;
+                runwayAction = `紧急：暂停所有非必要支出`;
             }
             
-            // 【诊断4】百万目标预测
-            const gap = 1000000 - totalAssets;
+            // ===【维度3】消费结构与生活品质 Lifestyle ===
+            // 恩格尔系数变体：生存支出 vs 享受支出
+            const survivalSpent = rigidSpent + dailySpent;
+            const enjoymentRatio = totalExpense > 0 ? (flexibleSpent / totalExpense * 100) : 0;
+            
+            let lifestyleDiagnosis = "";
+            if (flexibleSpent > 0 && balance < 0) {
+                lifestyleDiagnosis = `🔴 **享乐主义陷阱**：弹性支出 ¥${flexibleSpent}（占比${enjoymentRatio.toFixed(0)}%）导致赤字，需立即削减。`;
+            } else if (enjoymentRatio > 40 && savingRate < 10) {
+                lifestyleDiagnosis = `🟡 **生活方式膨胀(Lifestyle Creep)**：弹性支出占比${enjoymentRatio.toFixed(0)}%偏高，挤占了储蓄空间。`;
+            } else if (enjoymentRatio > 30 && savingRate >= 20) {
+                lifestyleDiagnosis = `🟢 **高质量生活**：弹性支出占比${enjoymentRatio.toFixed(0)}%，且储蓄率${savingRate.toFixed(0)}%健康，属于"会花也会存"。`;
+            } else {
+                lifestyleDiagnosis = `🟢 **消费结构合理**：生存支出 ¥${survivalSpent} + 享受支出 ¥${flexibleSpent}，比例健康。`;
+            }
+            
+            // 飞猪F4/旅行用户特殊策略
+            let travelAdvice = "";
+            if (travelSpent > 0) {
+                const travelRatio = totalExpense > 0 ? (travelSpent / totalExpense * 100) : 0;
+                if (balance >= 0) {
+                    travelAdvice = `✈️ **F4会员策略**：旅行支出 ¥${travelSpent}（占比${travelRatio.toFixed(0)}%），结余仍为正，属于"高品质生活"。建议：利用会员权益（贵宾厅/升舱/里程兑换）优化成本，而非削减旅行。`;
+                } else {
+                    travelAdvice = `✈️ **旅行预算警示**：旅行支出 ¥${travelSpent} 导致赤字，建议下月控制在 ¥${Math.max(0, travelSpent + balance)} 以内。`;
+                }
+            }
+            
+            // ===【维度4】资产效率 Asset Efficiency ===
+            // 资产闲置率 = 银行活期/总资产
+            const cashIdleRate = totalAssets > 0 ? (liquidAssets / totalAssets * 100) : 0;
+            // 生息资产占比 = (投资+保障)/总资产
+            const earningAssetRate = totalAssets > 0 ? ((investAssets + protectAssets) / totalAssets * 100) : 0;
+            
+            let assetEfficiencyDiagnosis = "";
+            if (cashIdleRate > 60) {
+                assetEfficiencyDiagnosis = `🔴 **资产严重闲置**：${cashIdleRate.toFixed(0)}%资金趴在活期睡觉，正在被通胀吞噬！建议保留12个月支出（约¥${(monthlyBurn*12/10000).toFixed(1)}万）即可，其余配置理财。`;
+            } else if (cashIdleRate > 40) {
+                assetEfficiencyDiagnosis = `🟡 **资产效率偏低**：现金占比${cashIdleRate.toFixed(0)}%，生息资产仅${earningAssetRate.toFixed(0)}%。建议增加固收/权益配置。`;
+            } else if (cashIdleRate < 10 && totalAssets > 0) {
+                assetEfficiencyDiagnosis = `🟡 **流动性风险**：现金仅占${cashIdleRate.toFixed(0)}%，应急能力不足。`;
+            } else {
+                assetEfficiencyDiagnosis = `🟢 **资产配置合理**：流动${liquidRatio.toFixed(0)}% | 投资${investRatio.toFixed(0)}% | 保障${protectRatio.toFixed(0)}%。`;
+            }
+            
+            // 三色饼图评价
+            let assetStructureNote = "";
+            if (investRatio < 20 && totalAssets > 100000) {
+                assetStructureNote = `📊 **配置建议**：投资资产仅${investRatio.toFixed(0)}%，建议提高至30-50%以跑赢通胀。`;
+            } else if (protectRatio < 5 && totalAssets > 50000) {
+                assetStructureNote = `📊 **风险提示**：保障资产仅${protectRatio.toFixed(0)}%，建议配置适当保险。`;
+            }
+            
+            // ===【维度5】目标达成率 Goal Velocity ===
+            const targetAmount = 1000000;
+            const gap = targetAmount - totalAssets;
+            const progressPercent = totalAssets > 0 ? (totalAssets / targetAmount * 100) : 0;
+            
             let goalDiagnosis = "";
             let goalAction = "";
             
             if (gap <= 0) {
-                goalDiagnosis = `🎉 **已达成百万目标！** 当前净值 ¥${totalAssets.toLocaleString()}`;
-                goalAction = `建议开启下一阶段（200万/500万）规划`;
+                goalDiagnosis = `🎉 **已达成百万目标！** 当前净值 ¥${totalAssets.toLocaleString()}，建议设定新目标（200万/500万）。`;
+                goalAction = `开启下一阶段财务规划`;
             } else {
-                const monthsToGoal = balance > 0 ? Math.ceil(gap / balance) : Infinity;
+                // 使用近3个月平均结余预测
+                const monthsToGoal = avg3MonthBalance > 0 ? Math.ceil(gap / avg3MonthBalance) : Infinity;
                 const yearsToGoal = monthsToGoal !== Infinity ? (monthsToGoal / 12).toFixed(1) : '∞';
                 
-                if (balance <= 0) {
-                    goalDiagnosis = `⚠️ 距离目标还差 ¥${gap.toLocaleString()}，但**本月无结余，进度停滞**！`;
+                if (avg3MonthBalance <= 0) {
+                    goalDiagnosis = `⚠️ **目标停滞**：还差 ¥${gap.toLocaleString()}，近3个月平均结余为负，进度停滞！`;
                     goalAction = `当务之急：创造正结余`;
-                } else if (monthsToGoal <= 24) {
-                    goalDiagnosis = `🔥 **冲刺阶段**：还差 ¥${gap.toLocaleString()}，预计 ${monthsToGoal} 个月（${yearsToGoal}年）达成！`;
-                    goalAction = `胜利在望，保持节奏`;
+                } else if (monthsToGoal <= 12) {
+                    goalDiagnosis = `🔥 **冲刺阶段**：还差 ¥${gap.toLocaleString()}，按近3月均速预计 ${monthsToGoal} 个月（${yearsToGoal}年）达成！`;
+                    goalAction = `胜利在望，保持节奏，避免大额冲动消费`;
+                } else if (monthsToGoal <= 36) {
+                    const accelerateNeed = Math.ceil(gap / 24) - avg3MonthBalance;
+                    goalDiagnosis = `📈 **稳步推进**：还差 ¥${gap.toLocaleString()}，预计 ${monthsToGoal} 个月（${yearsToGoal}年）达成。`;
+                    goalAction = accelerateNeed > 0 ? `每月多存 ¥${accelerateNeed.toFixed(0)} 可缩短至2年内` : `保持当前速度`;
                 } else {
-                    goalDiagnosis = `📈 还差 ¥${gap.toLocaleString()}，预计 ${monthsToGoal} 个月（${yearsToGoal}年）达成。`;
-                    goalAction = `每月多存 ¥${Math.ceil(gap / 24 - balance)} 可缩短至2年内`;
+                    goalDiagnosis = `📈 **长期目标**：还差 ¥${gap.toLocaleString()}，需 ${yearsToGoal} 年。需要开源增收或优化支出。`;
+                    goalAction = `建议：寻找副业机会 或 削减弹性支出20%`;
                 }
             }
             
-            // 【诊断5】储蓄率评估
+            // 储蓄率评估
             let savingDiagnosis = "";
-            if (savingRate >= 30) savingDiagnosis = `🟢 储蓄率 ${savingRate.toFixed(0)}%，优秀（超过30%黄金标准）`;
+            if (savingRate >= 30) savingDiagnosis = `🟢 储蓄率 ${savingRate.toFixed(0)}%，优秀`;
             else if (savingRate >= 20) savingDiagnosis = `🟢 储蓄率 ${savingRate.toFixed(0)}%，良好`;
-            else if (savingRate >= 10) savingDiagnosis = `🟡 储蓄率 ${savingRate.toFixed(0)}%，偏低（建议≥20%）`;
-            else if (savingRate >= 0) savingDiagnosis = `🔴 储蓄率 ${savingRate.toFixed(0)}%，危险（几乎月光）`;
-            else savingDiagnosis = `🔴 储蓄率 ${savingRate.toFixed(0)}%，负储蓄（入不敷出）`;
-            
-            // 计算超额资金（用于资产配置建议）
-            const excessFund = Math.max(0, liquidAssets - monthlyBurn * 18);
+            else if (savingRate >= 10) savingDiagnosis = `🟡 储蓄率 ${savingRate.toFixed(0)}%，偏低`;
+            else if (savingRate >= 0) savingDiagnosis = `🔴 储蓄率 ${savingRate.toFixed(0)}%，月光`;
+            else savingDiagnosis = `🔴 储蓄率 ${savingRate.toFixed(0)}%，入不敷出`;
             
             // ============================================================
-            // 📝 构建全新的 Prompt：强制指令模式
+            // 📝 构建CFP专业理财师Prompt
             // ============================================================
             
-            const prompt = `你现在的身份是**私人CFO（首席财务官）**，正在向一位**高净值潜力创业者**做月度财务汇报。
-你的风格必须：**犀利、反直觉、资产导向**。严禁像"省钱管家"那样说话，要像给CEO汇报一样精炼。
+            const prompt = `你是一位拥有10年经验的**私人财富管家（CFP持证）**，服务对象是一位**追求生活品质的创业者**（飞猪F4会员，有差旅和品质消费需求）。
+请基于以下经过系统预处理的财务数据，进行**犀利、专业且有建设性**的分析。
 
-以下是经过系统预处理的**核心事实（Fact Sheet）**，你必须基于这些事实进行阐述，**不可反驳或修改系统结论**：
-
-══════════════════════════════════════════════════════════
-📋 ${year}年${month}月 财务快照
-══════════════════════════════════════════════════════════
-【资产净值】¥${totalAssets.toLocaleString()}
-【流动资金】¥${liquidAssets.toLocaleString()}
-【本月收支】收入 ¥${totalIncome.toLocaleString()} / 支出 ¥${totalExpense.toLocaleString()} / 结余 ¥${balance.toLocaleString()}
-【支出结构】刚性 ¥${rigidSpent} + 日常 ¥${dailySpent} + 弹性 ¥${flexibleSpent}
+⚠️ 核心原则：
+1. **不可反驳系统诊断结论**，只能基于结论进行阐述
+2. **数字说话**，每个建议必须带具体金额
+3. **不要当省钱管家**，而是资产配置顾问
+4. **针对创业者身份**，强调现金流安全
 
 ══════════════════════════════════════════════════════════
-🏥 系统诊断结论（必须采纳，不可反驳）
+📊 ${year}年${month}月 财务仪表盘
+══════════════════════════════════════════════════════════
+【资产净值】¥${totalAssets.toLocaleString()} | 进度 ${progressPercent.toFixed(1)}%
+【三色配置】流动 ${liquidRatio.toFixed(0)}% | 投资 ${investRatio.toFixed(0)}% | 保障 ${protectRatio.toFixed(0)}%
+【本月收支】收入 ¥${totalIncome.toLocaleString()}（${incomeTypeText}）
+           支出 ¥${totalExpense.toLocaleString()} = 刚性¥${rigidSpent} + 日常¥${dailySpent} + 弹性¥${flexibleSpent}
+           结余 ¥${balance.toLocaleString()} | ${savingDiagnosis}
+【TOP3消费】${top3Text}
+
+══════════════════════════════════════════════════════════
+🏥 5大维度系统诊断（必须采纳）
 ══════════════════════════════════════════════════════════
 
-1️⃣ 【资金效率诊断】
+1️⃣ 【现金流健康度】刚性负债率 ${rigidRatio.toFixed(0)}% | 自由现金流 ¥${freeCashFlow.toLocaleString()}
+${cashFlowDiagnosis}
+${incomeRiskNote}
+
+2️⃣ 【财务安全边界】生存期 ${survivalMonthsTotal.toFixed(0)} 个月（仅刚性：${survivalMonthsRigid.toFixed(0)} 月）
 ${runwayDiagnosis}
-*(关键指令：如果是资金闲置，必须严厉批评现金持有过多，建议配置 R2/R3 级资产，而不是存钱！)*
+➡️ ${runwayAction}
 
-2️⃣ 【数据完整性检查】
-${rigidDiagnosis}
+3️⃣ 【消费结构分析】生存支出 ¥${survivalSpent} | 享受支出 ¥${flexibleSpent}（占比${enjoymentRatio.toFixed(0)}%）
+${lifestyleDiagnosis}
+${travelAdvice}
 
-3️⃣ 【储蓄能力评估】
-${savingDiagnosis}
+4️⃣ 【资产效率诊断】闲置率 ${cashIdleRate.toFixed(0)}% | 生息资产 ${earningAssetRate.toFixed(0)}%
+${assetEfficiencyDiagnosis}
+${assetStructureNote}
 
-4️⃣ 【百万目标进度】
+5️⃣ 【百万目标进度】${progressPercent.toFixed(1)}% | 近3月均结余 ¥${avg3MonthBalance.toFixed(0)}
 ${goalDiagnosis}
 ➡️ ${goalAction}
 
-5️⃣ 【生活方式策略】
-${lifestyleAdvice}
-
 ---
 
-请按以下 Markdown 格式输出报告（语气：像CFO给CEO汇报，犀利精炼）：
+请按以下Markdown格式输出报告（像CFP给高净值客户汇报，专业精炼）：
 
-### 🩺 CFO 深度问诊
-*不要罗列数字，直接基于上面的【资金效率诊断】和【数据完整性检查】输出2-3句核心观点。*
-- 如果资金闲置：直接计算出浪费了多少资金的机会成本（按年化4%计算）
-- 如果数据异常：直接提示用户去"设置→预算类目"检查
+### 🩺 财务体检报告
+*用2-3句话直击本月核心问题，基于上面的5大维度诊断。*
 
-### 📊 资产配置重构建议
-*基于创业者需要 12-18 个月安全垫的标准：*
-- 现状：持有 ${runwayMonths} 个月生存金
-- 建议：${investAdvice}
-- 投向建议：结合当前市场，给出具体的固收%/权益%配置比例
+### ⚠️ 风险与预警
+1. **现金流压力测试**：评价 ${survivalMonthsTotal.toFixed(0)} 个月生存期是否安全
+2. **资产效率诊断**：评价 ${cashIdleRate.toFixed(0)}% 现金占比是否过高
+3. **消费结构分析**：是否存在"生活方式膨胀"
 
-### ✈️ 品质生活 ROI 分析
-*点评本月弹性消费 ¥${flexibleSpent} 是否带来了相应的生活体验回报。*
-- 给出一条"不降低品质但能优化成本"的建议（利用会员权益/积分/信用卡权益）
+### 💡 专项建议（针对F4会员/创业者身份）
+1. 本月旅行/弹性消费是否挤占储蓄额度
+2. 给出具体预算调整建议（带金额）
 
-### 🚀 下月战术板 (Action Items)
-用 checkbox 格式，给出3条可立即执行的动作：
+### 🚀 资产增值策略
+*基于距离百万目标差距 ¥${gap > 0 ? gap.toLocaleString() : 0}：*
+1. 开源或节流建议（缩短达成时间）
+2. 闲置资金配置方向（固收%/权益%）
+
+### 📅 下月行动清单
 - [ ] 资金调拨：...
 - [ ] 预算控制：...
-- [ ] 习惯优化：...
+- [ ] 资产配置：...
 
 ### ✅ 一句话总结
-*用一个比喻总结本月财务状况，再给一句鼓励。*`;
+*用一个比喻总结财务状况 + 鼓励。*`;
 
             return prompt;
         }
