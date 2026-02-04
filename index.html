@@ -3589,6 +3589,7 @@
                 document.getElementById('mainApp').classList.remove('hidden');
                 
                 localStorage.setItem('finance_user', nickname);
+                localStorage.setItem('finance_session', Date.now().toString()); // 保存会话标记
                 
             } catch (error) {
                 console.error('登录失败:', error);
@@ -3604,6 +3605,7 @@
             categories = [];
             expenses = [];
             localStorage.removeItem('finance_user');
+            localStorage.removeItem('finance_session'); // 清除会话标记
             document.getElementById('loginPage').classList.remove('hidden');
             document.getElementById('registerPage').classList.add('hidden');
             document.getElementById('mainApp').classList.add('hidden');
@@ -4218,44 +4220,13 @@
         
         // 🔥🔥🔥 CFP财务生命体征仪表盘 🔥🔥🔥
         function renderDashboardVitalSigns() {
+            // 🔥 直接调用calculateVitalSigns，确保数据与AI报告完全一致
+            const signs = calculateVitalSigns();
+            
+            // 上月弹性支出（用于计算生活膨胀）
             const now = new Date();
             const year = now.getFullYear();
             const month = now.getMonth() + 1;
-            
-            // ========== 计算基础数据 ==========
-            // 本月收入
-            const monthIncomes = incomes.filter(i => {
-                const d = new Date(i.date);
-                return d.getFullYear() === year && d.getMonth() + 1 === month;
-            });
-            const totalIncome = monthIncomes.reduce((sum, i) => sum + (i.amount || 0), 0);
-            
-            // 本月支出（按类型）
-            let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
-            let rigidBudget = 0;
-            
-            categories.forEach(cat => {
-                const spent = expenses.filter(e => {
-                    const d = new Date(e.date);
-                    return d.getFullYear() === year && d.getMonth() + 1 === month && e.categoryId === cat.id;
-                }).reduce((sum, e) => sum + (e.amount || 0), 0);
-                
-                const monthly = getMonthly(cat);
-                
-                if (cat.type === '刚性') {
-                    rigidSpent += spent;
-                    rigidBudget += monthly;
-                } else if (cat.type === '日常') {
-                    dailySpent += spent;
-                } else {
-                    flexibleSpent += spent;
-                }
-            });
-            
-            const totalExpense = rigidSpent + dailySpent + flexibleSpent;
-            const balance = totalIncome - totalExpense;
-            
-            // 上月弹性支出（用于计算生活膨胀）
             const lastMonth = month === 1 ? 12 : month - 1;
             const lastYear = month === 1 ? year - 1 : year;
             const lastMonthFlexible = expenses.filter(e => {
@@ -4264,68 +4235,38 @@
                 return d.getFullYear() === lastYear && d.getMonth() + 1 === lastMonth && cat && cat.type === '弹性';
             }).reduce((sum, e) => sum + (e.amount || 0), 0);
             
-            // 资产数据
-            const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
-            
-            // 按类型统计资产
-            let liquidAssets = 0, investAssets = 0;
-            assets.forEach(a => {
-                const type = ASSET_TYPES.find(t => t.id === a.typeId);
-                if (type) {
-                    if (type.id === 'liquid' || type.name === '流动资金') {
-                        liquidAssets += (a.value || 0);
-                    } else if (type.id === 'invest' || type.name === '投资资产') {
-                        investAssets += (a.value || 0);
-                    }
-                }
-            });
-            
-            // ========== 计算5大CFP指标 ==========
-            
-            // 【指标1】生存跑道 Runway
-            const monthlyRigidBurn = rigidSpent > 0 ? rigidSpent : (rigidBudget > 0 ? rigidBudget : totalExpense * 0.4);
-            const runwayMonths = monthlyRigidBurn > 0 ? (liquidAssets / monthlyRigidBurn) : 0;
-            const runwayStatus = runwayMonths >= 12 ? 'green' : runwayMonths >= 6 ? 'yellow' : 'red';
-            const runwayStatusText = runwayMonths >= 12 ? '安全' : runwayMonths >= 6 ? '警戒' : '危险';
-            
-            // 【指标2】刚性负担率 Rigid Ratio
-            const rigidRatio = totalIncome > 0 ? ((rigidSpent / totalIncome) * 100) : 0;
-            const rigidStatus = rigidRatio <= 30 ? 'green' : rigidRatio <= 50 ? 'yellow' : 'red';
-            const rigidStatusText = rigidRatio <= 30 ? '优秀' : rigidRatio <= 50 ? '偏高' : '危险';
-            
-            // 【指标3】资金效率 Cash Drag
-            const cashDragRatio = totalAssets > 0 ? ((liquidAssets / totalAssets) * 100) : 0;
-            const cashStatus = cashDragRatio <= 20 ? 'green' : cashDragRatio <= 40 ? 'yellow' : 'red';
-            const cashStatusText = cashDragRatio <= 20 ? '高效' : cashDragRatio <= 40 ? '一般' : '闲置';
-            
             // 【指标4】生活膨胀 Lifestyle Creep
-            const flexibleGrowthRate = lastMonthFlexible > 0 ? ((flexibleSpent - lastMonthFlexible) / lastMonthFlexible * 100) : 0;
+            const flexibleGrowthRate = lastMonthFlexible > 0 ? ((signs.flexibleSpent - lastMonthFlexible) / lastMonthFlexible * 100) : 0;
             const creepStatus = flexibleGrowthRate <= 0 ? 'green' : flexibleGrowthRate <= 20 ? 'yellow' : 'red';
             const creepStatusText = flexibleGrowthRate <= 0 ? '控制' : flexibleGrowthRate <= 20 ? '上升' : '膨胀';
             
-            // 【指标5】目标速度 Velocity
-            const targetAmount = 1000000;
-            const gapAmount = targetAmount - totalAssets;
-            let velocityMonths = 0;
-            let velocityText = 'N/A';
-            let velocityStatus = 'yellow';
-            let velocityStatusText = '计算中';
+            // 【指标5】目标速度
+            let velocityText = '∞';
+            let velocityStatus = 'red';
+            let velocityStatusText = '无结余';
             
-            if (gapAmount <= 0) {
+            if (signs.gap <= 0) {
                 velocityText = '已达成!';
                 velocityStatus = 'green';
                 velocityStatusText = '恭喜';
-            } else if (balance > 0) {
-                velocityMonths = Math.ceil(gapAmount / balance);
+            } else if (signs.balance > 0) {
+                const velocityMonths = Math.ceil(signs.gap / signs.balance);
                 const years = (velocityMonths / 12).toFixed(1);
                 velocityText = years + '年';
                 velocityStatus = velocityMonths <= 36 ? 'green' : velocityMonths <= 60 ? 'yellow' : 'red';
                 velocityStatusText = velocityMonths <= 36 ? '快速' : velocityMonths <= 60 ? '稳健' : '较慢';
-            } else {
-                velocityText = '∞';
-                velocityStatus = 'red';
-                velocityStatusText = '无结余';
             }
+            
+            // 状态映射（good/warning/danger -> green/yellow/red）
+            const statusMap = { 'good': 'green', 'warning': 'yellow', 'danger': 'red' };
+            const runwayStatus = statusMap[signs.runwayStatus] || 'green';
+            const rigidStatus = statusMap[signs.rigidStatus] || 'green';
+            const cashStatus = statusMap[signs.cashStatus] || 'green';
+            
+            // 状态文字
+            const runwayStatusText = signs.runway < 6 ? '危险' : signs.runway > 36 ? '闲置' : signs.runway < 12 ? '警戒' : '安全';
+            const rigidStatusText = signs.rigidRatio > 50 ? '危险' : signs.rigidRatio == 0 ? '异常' : signs.rigidRatio > 30 ? '偏高' : '优秀';
+            const cashStatusText = signs.cashRatio > 60 ? '闲置' : signs.cashRatio < 10 ? '不足' : '合理';
             
             // ========== 渲染仪表盘 ==========
             const container = document.getElementById('dashboardVitalSigns');
@@ -4333,7 +4274,7 @@
                 <!-- 生存跑道 -->
                 <div class="vital-sign-item status-${runwayStatus}">
                     <div class="vital-sign-icon">🛡️</div>
-                    <div class="vital-sign-value">${runwayMonths > 0 ? runwayMonths.toFixed(1) : 'N/A'}</div>
+                    <div class="vital-sign-value">${signs.runwayText}</div>
                     <div class="vital-sign-label">生存跑道(月)</div>
                     <div class="vital-sign-status">${runwayStatusText}</div>
                     <div class="vital-sign-hint">收入中断可撑几月</div>
@@ -4342,7 +4283,7 @@
                 <!-- 刚性负担率 -->
                 <div class="vital-sign-item status-${rigidStatus}">
                     <div class="vital-sign-icon">🔒</div>
-                    <div class="vital-sign-value">${rigidRatio.toFixed(0)}%</div>
+                    <div class="vital-sign-value">${signs.rigidRatio}%</div>
                     <div class="vital-sign-label">刚性负担率</div>
                     <div class="vital-sign-status">${rigidStatusText}</div>
                     <div class="vital-sign-hint">固定支出占收入比</div>
@@ -4351,10 +4292,10 @@
                 <!-- 资金效率 -->
                 <div class="vital-sign-item status-${cashStatus}">
                     <div class="vital-sign-icon">💵</div>
-                    <div class="vital-sign-value">${cashDragRatio.toFixed(0)}%</div>
+                    <div class="vital-sign-value">${signs.cashRatio}%</div>
                     <div class="vital-sign-label">现金占比</div>
                     <div class="vital-sign-status">${cashStatusText}</div>
-                    <div class="vital-sign-hint">${cashDragRatio > 40 ? '建议配置理财' : '资金配置合理'}</div>
+                    <div class="vital-sign-hint">${signs.cashRatio > 40 ? '建议配置理财' : '资金配置合理'}</div>
                 </div>
                 
                 <!-- 生活膨胀 -->
@@ -4372,7 +4313,7 @@
                     <div class="vital-sign-value">${velocityText}</div>
                     <div class="vital-sign-label">百万目标</div>
                     <div class="vital-sign-status">${velocityStatusText}</div>
-                    <div class="vital-sign-hint">${gapAmount > 0 ? '还差¥' + (gapAmount/10000).toFixed(0) + '万' : '已实现!'}</div>
+                    <div class="vital-sign-hint">${signs.gap > 0 ? '还差¥' + (signs.gap/10000).toFixed(0) + '万' : '已实现!'}</div>
                 </div>
             `;
         }
@@ -5999,80 +5940,90 @@
             else savingDiagnosis = `🔴 储蓄率 ${savingRate.toFixed(0)}%，入不敷出`;
             
             // ============================================================
-            // 📝 构建CFP专业理财师Prompt
+            // 📝 构建CFP专业理财师Prompt（5大维度分析框架）
             // ============================================================
             
-            const prompt = `你是一位拥有10年经验的**私人财富管家（CFP持证）**，服务对象是一位**追求生活品质的创业者**（飞猪F4会员，有差旅和品质消费需求）。
-请基于以下经过系统预处理的财务数据，进行**犀利、专业且有建设性**的分析。
+            // 高频消费类目
+            const sortedCategories = categorySpending.sort((a, b) => b.spent - a.spent).slice(0, 5);
+            const highFreqText = sortedCategories.map(c => `${c.name}¥${c.spent}`).join('、') || '无数据';
+            
+            // 资产配置文本
+            const assetAllocationText = `流动资金¥${(liquidAssets/10000).toFixed(1)}万(${liquidRatio.toFixed(0)}%) | 投资资产¥${(investAssets/10000).toFixed(1)}万(${investRatio.toFixed(0)}%) | 保障资产¥${(protectAssets/10000).toFixed(1)}万(${protectRatio.toFixed(0)}%)`;
+            
+            // 目标达成预测
+            const monthsToGoal = avg3MonthBalance > 0 && gap > 0 ? Math.ceil(gap / avg3MonthBalance) : Infinity;
+            const monthsToGoalText = monthsToGoal === Infinity ? '无法预测（结余≤0）' : `${monthsToGoal}个月（${(monthsToGoal/12).toFixed(1)}年）`;
+            
+            const prompt = `你是一位拥有10年经验的**私人财富管家（CFP持证）**，服务对象是一位**追求生活品质的创业者**。
+请基于以下财务数据，进行**犀利、专业且有建设性**的分析。
 
-⚠️ 核心原则：
-1. **不可反驳系统诊断结论**，只能基于结论进行阐述
-2. **数字说话**，每个建议必须带具体金额
-3. **不要当省钱管家**，而是资产配置顾问
-4. **针对创业者身份**，强调现金流安全
+══════ 核心财务指标（仪表盘） ══════
 
-══════════════════════════════════════════════════════════
-📊 ${year}年${month}月 财务仪表盘
-══════════════════════════════════════════════════════════
-【资产净值】¥${totalAssets.toLocaleString()} | 进度 ${progressPercent.toFixed(1)}%
-【三色配置】流动 ${liquidRatio.toFixed(0)}% | 投资 ${investRatio.toFixed(0)}% | 保障 ${protectRatio.toFixed(0)}%
-【本月收支】收入 ¥${totalIncome.toLocaleString()}（${incomeTypeText}）
-           支出 ¥${totalExpense.toLocaleString()} = 刚性¥${rigidSpent} + 日常¥${dailySpent} + 弹性¥${flexibleSpent}
-           结余 ¥${balance.toLocaleString()} | ${savingDiagnosis}
-【TOP3消费】${top3Text}
+【生存安全线】🚨 现金流可支撑：**${survivalMonthsTotal.toFixed(1)}个月**（仅生存需：${survivalMonthsRigid.toFixed(1)}个月）
+→ 创业者建议红线：至少12个月。${survivalMonthsTotal < 12 ? '⚠️ 低于红线！' : survivalMonthsTotal > 36 ? '⚠️ 资金过度闲置！' : '✅ 安全'}
 
-══════════════════════════════════════════════════════════
-🏥 5大维度系统诊断（必须采纳）
-══════════════════════════════════════════════════════════
+【刚性负担率】**${rigidRatio.toFixed(0)}%**（建议<30%）
+→ 刚性支出¥${rigidSpent} / 总收入¥${totalIncome} ${rigidRatio > 50 ? '🔴 危险：生活被固定开销锁死' : rigidRatio > 30 ? '🟡 偏高' : '🟢 健康'}
 
-1️⃣ 【现金流健康度】刚性负债率 ${rigidRatio.toFixed(0)}% | 自由现金流 ¥${freeCashFlow.toLocaleString()}
-${cashFlowDiagnosis}
-${incomeRiskNote}
+【资金闲置率】**${cashIdleRate.toFixed(0)}%**（现金类资产占总资产比例）
+→ 流动资金¥${(liquidAssets/10000).toFixed(1)}万 / 总资产¥${(totalAssets/10000).toFixed(1)}万 ${cashIdleRate > 60 ? '🔴 严重闲置，通胀损耗' : cashIdleRate > 40 ? '🟡 效率偏低' : '🟢 合理'}
 
-2️⃣ 【财务安全边界】生存期 ${survivalMonthsTotal.toFixed(0)} 个月（仅刚性：${survivalMonthsRigid.toFixed(0)} 月）
-${runwayDiagnosis}
-➡️ ${runwayAction}
+【百万目标】进度 **${progressPercent.toFixed(1)}%**，按当前速度预计 **${monthsToGoalText}** 后达成
+→ 还差¥${(gap/10000).toFixed(1)}万，近3月平均结余¥${avg3MonthBalance.toFixed(0)}
 
-3️⃣ 【消费结构分析】生存支出 ¥${survivalSpent} | 享受支出 ¥${flexibleSpent}（占比${enjoymentRatio.toFixed(0)}%）
-${lifestyleDiagnosis}
-${travelAdvice}
+══════ 本月收支详情（${year}年${month}月） ══════
 
-4️⃣ 【资产效率诊断】闲置率 ${cashIdleRate.toFixed(0)}% | 生息资产 ${earningAssetRate.toFixed(0)}%
-${assetEfficiencyDiagnosis}
-${assetStructureNote}
+收入：¥${totalIncome.toLocaleString()}（${incomeTypeText}）
+支出：¥${totalExpense.toLocaleString()}（刚性¥${rigidSpent} | 日常¥${dailySpent} | 弹性¥${flexibleSpent}）
+结余：¥${balance.toLocaleString()}（储蓄率 ${savingRate.toFixed(0)}%）${savingRate < 0 ? '🔴 赤字' : savingRate < 10 ? '🟡 月光' : savingRate < 20 ? '🟢 良好' : '🟢 优秀'}
 
-5️⃣ 【百万目标进度】${progressPercent.toFixed(1)}% | 近3月均结余 ¥${avg3MonthBalance.toFixed(0)}
-${goalDiagnosis}
-➡️ ${goalAction}
+【自由现金流】¥${freeCashFlow.toLocaleString()}（= 收入 - 刚性 - 日常，可用于投资/享受的弹药）
+
+══════ 资产结构 ══════
+
+总资产：¥${totalAssets.toLocaleString()}
+配置：${assetAllocationText}
+生息资产占比：${earningAssetRate.toFixed(0)}%（投资+保障）
+
+══════ 消费行为特征 ══════
+
+高频类目TOP5：${highFreqText}
+TOP3大额消费：${top3Text}
+${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpent/totalExpense*100).toFixed(0)}%）` : ''}
+
+══════ 系统预诊断（AI必须采纳） ══════
+
+1️⃣ 现金流健康度：${cashFlowDiagnosis}
+2️⃣ 财务安全边界：${runwayDiagnosis}
+3️⃣ 消费结构分析：${lifestyleDiagnosis}
+4️⃣ 资产效率诊断：${assetEfficiencyDiagnosis}
+5️⃣ 目标达成预测：${goalDiagnosis}
 
 ---
 
-请按以下Markdown格式输出报告（像CFP给高净值客户汇报，专业精炼）：
+请按以下格式输出报告：
 
 ### 🩺 财务体检报告
-*用2-3句话直击本月核心问题，基于上面的5大维度诊断。*
+*用一句话直击本月财务痛点，不要说废话。*
 
 ### ⚠️ 风险与预警
-1. **现金流压力测试**：评价 ${survivalMonthsTotal.toFixed(0)} 个月生存期是否安全
-2. **资产效率诊断**：评价 ${cashIdleRate.toFixed(0)}% 现金占比是否过高
-3. **消费结构分析**：是否存在"生活方式膨胀"
+1. **现金流压力测试**：结合创业者身份，评价${survivalMonthsTotal.toFixed(0)}个月的生存期是否安全。
+2. **资产效率诊断**：评价${cashIdleRate.toFixed(0)}%的现金占比是否过高？是否存在通胀贬值风险？
+3. **消费结构分析**：针对"刚性支出"和"弹性支出"的比例，判断是否存在"生活方式膨胀"。
 
-### 💡 专项建议（针对F4会员/创业者身份）
-1. 本月旅行/弹性消费是否挤占储蓄额度
-2. 给出具体预算调整建议（带金额）
+### 💡 专项建议
+1. 分析本月消费特征，指出问题。
+2. 给出具体的预算调整建议（必须带金额）。
 
 ### 🚀 资产增值策略
-*基于距离百万目标差距 ¥${gap > 0 ? gap.toLocaleString() : 0}：*
-1. 开源或节流建议（缩短达成时间）
-2. 闲置资金配置方向（固收%/权益%）
+*基于当前距离百万目标的差距（¥${(gap/10000).toFixed(1)}万）：*
+1. 给出1条具体的开源或节流建议，以缩短${monthsToGoalText}的等待期。
+2. 针对闲置资金（如有），给出资产配置调整方向。
 
 ### 📅 下月行动清单
-- [ ] 资金调拨：...
-- [ ] 预算控制：...
-- [ ] 资产配置：...
-
-### ✅ 一句话总结
-*用一个比喻总结财务状况 + 鼓励。*`;
+- [ ] 动作1：...
+- [ ] 动作2：...
+- [ ] 动作3：...`;
 
             return prompt;
         }
@@ -8889,9 +8840,31 @@ ${goalDiagnosis}
         }
         
         // ==================== 自动登录 ====================
-        window.onload = function() {
+        window.onload = async function() {
             const savedUser = localStorage.getItem('finance_user');
-            if (savedUser) {
+            const savedSession = localStorage.getItem('finance_session');
+            
+            if (savedUser && savedSession) {
+                // 有保存的会话，自动登录
+                currentUser = savedUser;
+                document.getElementById('displayUser').textContent = savedUser;
+                
+                try {
+                    await loadDataFromCloud();
+                    
+                    document.getElementById('loginPage').classList.add('hidden');
+                    document.getElementById('registerPage').classList.add('hidden');
+                    document.getElementById('mainApp').classList.remove('hidden');
+                    
+                    console.log('自动登录成功:', savedUser);
+                } catch (error) {
+                    console.error('自动登录失败:', error);
+                    // 自动登录失败，清除会话，让用户重新登录
+                    localStorage.removeItem('finance_session');
+                    document.getElementById('loginNickname').value = savedUser;
+                }
+            } else if (savedUser) {
+                // 只有用户名，填充输入框
                 document.getElementById('loginNickname').value = savedUser;
             }
         };
