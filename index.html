@@ -3455,15 +3455,62 @@
             setSyncStatus('syncing');
             
             try {
+                // 加载用户配置（包含类目、资产等所有数据）
                 const { data: configData } = await db
                     .from('user_configs')
-                    .select('categories')
+                    .select('*')  // 获取所有字段
                     .eq('user_id', currentUser)
                     .maybeSingle();
                 
-                if (configData && configData.categories && configData.categories.length > 0) {
-                    categories = configData.categories;
+                if (configData) {
+                    // 加载类目
+                    if (configData.categories && configData.categories.length > 0) {
+                        categories = configData.categories;
+                    } else {
+                        categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                    }
+                    
+                    // 🔥 加载云端资产数据（优先使用云端）
+                    if (configData.assets_data && configData.assets_data.length > 0) {
+                        assets = configData.assets_data;
+                        localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
+                        console.log('✅ 从云端加载资产数据:', assets.length, '条');
+                    } else {
+                        // 云端没有，使用本地
+                        assets = JSON.parse(localStorage.getItem('finance_assets_' + currentUser) || '[]');
+                    }
+                    
+                    // 🔥 加载云端资产历史
+                    if (configData.asset_history && configData.asset_history.length > 0) {
+                        assetHistory = configData.asset_history;
+                        localStorage.setItem('finance_asset_history_' + currentUser, JSON.stringify(assetHistory));
+                        console.log('✅ 从云端加载资产历史:', assetHistory.length, '条');
+                    } else {
+                        assetHistory = JSON.parse(localStorage.getItem('finance_asset_history_' + currentUser) || '[]');
+                    }
+                    
+                    // 🔥 加载云端资产类型配置
+                    if (configData.asset_types && configData.asset_types.length > 0) {
+                        ASSET_TYPES = configData.asset_types;
+                        localStorage.setItem('finance_asset_types_' + currentUser, JSON.stringify(ASSET_TYPES));
+                        console.log('✅ 从云端加载资产类型配置');
+                    } else {
+                        const savedAssetTypes = localStorage.getItem('finance_asset_types_' + currentUser);
+                        if (savedAssetTypes) {
+                            ASSET_TYPES = JSON.parse(savedAssetTypes);
+                        }
+                    }
+                    
+                    // 🔥 加载云端月度支出覆盖
+                    if (configData.expense_overrides && Object.keys(configData.expense_overrides).length > 0) {
+                        monthlyExpenseOverrides = configData.expense_overrides;
+                        localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
+                        console.log('✅ 从云端加载月度支出覆盖');
+                    } else {
+                        monthlyExpenseOverrides = JSON.parse(localStorage.getItem('finance_expense_overrides_' + currentUser) || '{}');
+                    }
                 } else {
+                    // 云端没有配置，使用默认值
                     categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
                     await saveCategoriesToCloud();
                 }
@@ -3570,15 +3617,48 @@
         
         async function saveCategoriesToCloud() {
             try {
+                // 保存所有数据到云端（利用user_configs表存储完整数据）
                 await db.from('user_configs').upsert({
                     user_id: currentUser,
-                    categories: categories
+                    categories: categories,
+                    // 扩展字段：存储所有本地数据
+                    assets_data: assets,
+                    asset_history: assetHistory,
+                    asset_types: ASSET_TYPES,
+                    expense_overrides: monthlyExpenseOverrides
                 }, { onConflict: 'user_id' });
                 
                 localStorage.setItem('finance_categories_' + currentUser, JSON.stringify(categories));
                 setSyncStatus('synced');
             } catch (error) {
                 console.error('保存类目:', error);
+            }
+        }
+        
+        // 专门保存资产数据到云端
+        async function saveAssetsToCloud() {
+            try {
+                await db.from('user_configs').upsert({
+                    user_id: currentUser,
+                    categories: categories,
+                    assets_data: assets,
+                    asset_history: assetHistory,
+                    asset_types: ASSET_TYPES,
+                    expense_overrides: monthlyExpenseOverrides
+                }, { onConflict: 'user_id' });
+                
+                // 同时保存到本地
+                localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
+                localStorage.setItem('finance_asset_history_' + currentUser, JSON.stringify(assetHistory));
+                localStorage.setItem('finance_asset_types_' + currentUser, JSON.stringify(ASSET_TYPES));
+                localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
+                
+                setSyncStatus('synced');
+            } catch (error) {
+                console.error('保存资产到云端失败:', error);
+                // 云端失败也保存到本地
+                localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
+                localStorage.setItem('finance_asset_history_' + currentUser, JSON.stringify(assetHistory));
             }
         }
         
@@ -3684,21 +3764,38 @@
         // ==================== 导入导出 ====================
         function exportData() {
             const data = {
-                version: 'v3',
+                version: 'v4',
                 user: currentUser,
+                exportTime: new Date().toISOString(),
+                // 完整数据备份
                 categories: categories,
                 expenses: expenses,
-                exportTime: new Date().toISOString()
+                incomes: incomes,
+                goals: goals,
+                assets: assets,
+                assetHistory: assetHistory,
+                monthlyExpenseOverrides: monthlyExpenseOverrides,
+                assetTypes: ASSET_TYPES
             };
             
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${currentUser}财务数据_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `财务完整备份_${currentUser}_${new Date().toISOString().split('T')[0]}.json`;
             a.click();
             URL.revokeObjectURL(url);
-            showToast('数据已导出', 'success');
+            
+            // 显示备份统计
+            const stats = `
+                ✅ 支出记录: ${expenses.length}条
+                ✅ 收入记录: ${incomes.length}条
+                ✅ 资产项目: ${assets.length}项
+                ✅ 资产历史: ${assetHistory.length}条
+                ✅ 储蓄目标: ${goals.length}个
+                ✅ 预算类目: ${categories.length}个
+            `;
+            alert('📦 数据备份成功！\n\n' + stats + '\n请妥善保管备份文件！');
         }
         
         function importData() {
@@ -3714,34 +3811,90 @@
                     try {
                         const data = JSON.parse(e.target.result);
                         
+                        // 显示备份信息
+                        const info = `
+备份版本: ${data.version || 'v3'}
+备份时间: ${data.exportTime || '未知'}
+用户: ${data.user || '未知'}
+
+包含数据:
+• 支出记录: ${data.expenses?.length || 0}条
+• 收入记录: ${data.incomes?.length || 0}条
+• 资产项目: ${data.assets?.length || 0}项
+• 资产历史: ${data.assetHistory?.length || 0}条
+• 储蓄目标: ${data.goals?.length || 0}个
+• 预算类目: ${data.categories?.length || 0}个
+                        `;
+                        
+                        if (!confirm('📦 确定要恢复此备份吗？\n\n' + info + '\n\n⚠️ 这将覆盖当前所有数据！')) {
+                            return;
+                        }
+                        
+                        // 恢复类目
                         if (data.categories) {
                             categories = data.categories;
                             await saveCategoriesToCloud();
                         }
                         
+                        // 恢复支出
                         if (data.expenses && data.expenses.length > 0) {
-                            if (confirm(`确定导入 ${data.expenses.length} 条记录吗？这将覆盖现有数据。`)) {
-                                // 删除旧数据
-                                await db.from('expenses').delete().eq('user_id', currentUser);
-                                
-                                // 插入新数据
-                                const expData = data.expenses.map(e => ({
-                                    user_id: currentUser,
-                                    date: e.date,
-                                    item: e.item,
-                                    amount: e.amount,
-                                    category_id: e.categoryId,
-                                    category_name: e.categoryName || categories.find(c => c.id === e.categoryId)?.name || '未知',
-                                    type: e.type || categories.find(c => c.id === e.categoryId)?.type || '弹性'
-                                }));
-                                
-                                await db.from('expenses').insert(expData);
-                                await loadDataFromCloud();
-                                showToast(`成功导入 ${data.expenses.length} 条记录`, 'success');
-                            }
+                            await db.from('expenses').delete().eq('user_id', currentUser);
+                            const expData = data.expenses.map(exp => ({
+                                user_id: currentUser,
+                                date: exp.date,
+                                item: exp.item,
+                                amount: exp.amount,
+                                category_id: exp.categoryId,
+                                category_name: exp.categoryName || '未知',
+                                type: exp.type || '弹性'
+                            }));
+                            await db.from('expenses').insert(expData);
                         }
+                        
+                        // 恢复收入
+                        if (data.incomes) {
+                            incomes = data.incomes;
+                            localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
+                        }
+                        
+                        // 恢复资产
+                        if (data.assets) {
+                            assets = data.assets;
+                            localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
+                        }
+                        
+                        // 恢复资产历史
+                        if (data.assetHistory) {
+                            assetHistory = data.assetHistory;
+                            localStorage.setItem('finance_asset_history_' + currentUser, JSON.stringify(assetHistory));
+                        }
+                        
+                        // 恢复目标
+                        if (data.goals) {
+                            goals = data.goals;
+                            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+                        }
+                        
+                        // 恢复月度支出覆盖
+                        if (data.monthlyExpenseOverrides) {
+                            monthlyExpenseOverrides = data.monthlyExpenseOverrides;
+                            localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
+                        }
+                        
+                        // 恢复资产类目配置
+                        if (data.assetTypes) {
+                            ASSET_TYPES = data.assetTypes;
+                            localStorage.setItem('finance_asset_types_' + currentUser, JSON.stringify(ASSET_TYPES));
+                        }
+                        
+                        // 重新加载数据
+                        await loadDataFromCloud();
+                        alert('✅ 数据恢复成功！\n\n页面将自动刷新。');
+                        location.reload();
+                        
                     } catch (err) {
-                        showToast('导入失败：文件格式错误', 'error');
+                        console.error('导入错误:', err);
+                        alert('❌ 导入失败：文件格式错误\n\n' + err.message);
                     }
                 };
                 reader.readAsText(file);
@@ -7059,9 +7212,12 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             
             localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
             
+            // 🔥 同步到云端
+            saveAssetsToCloud();
+            
             closeIncomeEditModal();
             renderIncomeTable();
-            showToast('已保存', 'success');
+            showToast('已保存并同步到云端', 'success');
         }
         
         // ==================== 存量资产管理 ====================
@@ -7103,6 +7259,8 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
         function saveAssets() {
             localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
             localStorage.setItem('finance_assets_history_' + currentUser, JSON.stringify(assetHistory));
+            // 🔥 同步到云端
+            saveAssetsToCloud();
         }
         
         function renderAssets() {
@@ -7822,9 +7980,13 @@ ${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gap
             });
             
             localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
+            
+            // 🔥 同步到云端
+            saveAssetsToCloud();
+            
             closeManageAssetTypesModal();
             renderAssets();
-            showToast('类目已保存', 'success');
+            showToast('类目已保存并同步到云端', 'success');
         }
         
         function closeManageAssetTypesModal() {
