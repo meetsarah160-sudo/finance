@@ -368,6 +368,113 @@
             overflow-y: auto;
         }
         
+        /* 🔥 CFP财务生命体征仪表盘样式 */
+        .vital-signs-card {
+            margin-bottom: 20px;
+        }
+        
+        .vital-signs-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+        }
+        
+        @media (max-width: 768px) {
+            .vital-signs-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .vital-signs-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .vital-sign-item {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .vital-sign-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .vital-sign-item.status-green {
+            border-color: var(--green-500);
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        }
+        
+        .vital-sign-item.status-yellow {
+            border-color: var(--yellow-500);
+            background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+        }
+        
+        .vital-sign-item.status-red {
+            border-color: var(--red-500);
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        }
+        
+        .vital-sign-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .vital-sign-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 4px;
+        }
+        
+        .vital-sign-item.status-green .vital-sign-value { color: var(--green-600); }
+        .vital-sign-item.status-yellow .vital-sign-value { color: var(--yellow-600); }
+        .vital-sign-item.status-red .vital-sign-value { color: var(--red-600); }
+        
+        .vital-sign-label {
+            font-size: 11px;
+            color: var(--gray-600);
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        
+        .vital-sign-status {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-top: 4px;
+        }
+        
+        .vital-sign-item.status-green .vital-sign-status {
+            background: var(--green-500);
+            color: white;
+        }
+        
+        .vital-sign-item.status-yellow .vital-sign-status {
+            background: var(--yellow-500);
+            color: var(--gray-800);
+        }
+        
+        .vital-sign-item.status-red .vital-sign-status {
+            background: var(--red-500);
+            color: white;
+        }
+        
+        .vital-sign-hint {
+            font-size: 9px;
+            color: var(--gray-500);
+            margin-top: 6px;
+            line-height: 1.3;
+        }
+        
         .dashboard-quick-actions {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -2582,6 +2689,14 @@
                     </div>
                 </div>
                 
+                <!-- 🔥 CFP财务生命体征仪表盘 -->
+                <div class="dashboard-card vital-signs-card">
+                    <h3>🏥 财务生命体征 <span style="font-size: 12px; color: var(--gray-500); font-weight: normal;">CFP专业指标</span></h3>
+                    <div class="vital-signs-grid" id="dashboardVitalSigns">
+                        <!-- 由JS动态渲染 -->
+                    </div>
+                </div>
+                
                 <!-- 双列布局：预算执行 + 储蓄目标 -->
                 <div class="dashboard-two-col">
                     <div class="dashboard-card">
@@ -3989,6 +4104,7 @@
         function renderDashboard() {
             renderDashboardKPI();
             renderDashboardNetworth();
+            renderDashboardVitalSigns(); // 🔥 CFP财务生命体征
             renderDashboardBudget();
             renderDashboardGoals();
             renderDashboardRecentTx();
@@ -4066,6 +4182,167 @@
             document.getElementById('dashboardNetworthValue').textContent = '¥' + total.toLocaleString();
             document.getElementById('dashboardGoalPercent').textContent = progress.toFixed(1) + '%';
             document.getElementById('dashboardGoalFill').style.width = progress + '%';
+        }
+        
+        // 🔥🔥🔥 CFP财务生命体征仪表盘 🔥🔥🔥
+        function renderDashboardVitalSigns() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            
+            // ========== 计算基础数据 ==========
+            // 本月收入
+            const monthIncomes = incomes.filter(i => {
+                const d = new Date(i.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            });
+            const totalIncome = monthIncomes.reduce((sum, i) => sum + (i.amount || 0), 0);
+            
+            // 本月支出（按类型）
+            let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
+            let rigidBudget = 0;
+            
+            categories.forEach(cat => {
+                const spent = expenses.filter(e => {
+                    const d = new Date(e.date);
+                    return d.getFullYear() === year && d.getMonth() + 1 === month && e.categoryId === cat.id;
+                }).reduce((sum, e) => sum + (e.amount || 0), 0);
+                
+                const monthly = getMonthly(cat);
+                
+                if (cat.type === '刚性') {
+                    rigidSpent += spent;
+                    rigidBudget += monthly;
+                } else if (cat.type === '日常') {
+                    dailySpent += spent;
+                } else {
+                    flexibleSpent += spent;
+                }
+            });
+            
+            const totalExpense = rigidSpent + dailySpent + flexibleSpent;
+            const balance = totalIncome - totalExpense;
+            
+            // 上月弹性支出（用于计算生活膨胀）
+            const lastMonth = month === 1 ? 12 : month - 1;
+            const lastYear = month === 1 ? year - 1 : year;
+            const lastMonthFlexible = expenses.filter(e => {
+                const d = new Date(e.date);
+                const cat = categories.find(c => c.id === e.categoryId);
+                return d.getFullYear() === lastYear && d.getMonth() + 1 === lastMonth && cat && cat.type === '弹性';
+            }).reduce((sum, e) => sum + (e.amount || 0), 0);
+            
+            // 资产数据
+            const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
+            
+            // 按类型统计资产
+            let liquidAssets = 0, investAssets = 0;
+            assets.forEach(a => {
+                const type = ASSET_TYPES.find(t => t.id === a.typeId);
+                if (type) {
+                    if (type.id === 'liquid' || type.name === '流动资金') {
+                        liquidAssets += (a.value || 0);
+                    } else if (type.id === 'invest' || type.name === '投资资产') {
+                        investAssets += (a.value || 0);
+                    }
+                }
+            });
+            
+            // ========== 计算5大CFP指标 ==========
+            
+            // 【指标1】生存跑道 Runway
+            const monthlyRigidBurn = rigidSpent > 0 ? rigidSpent : (rigidBudget > 0 ? rigidBudget : totalExpense * 0.4);
+            const runwayMonths = monthlyRigidBurn > 0 ? (liquidAssets / monthlyRigidBurn) : 0;
+            const runwayStatus = runwayMonths >= 12 ? 'green' : runwayMonths >= 6 ? 'yellow' : 'red';
+            const runwayStatusText = runwayMonths >= 12 ? '安全' : runwayMonths >= 6 ? '警戒' : '危险';
+            
+            // 【指标2】刚性负担率 Rigid Ratio
+            const rigidRatio = totalIncome > 0 ? ((rigidSpent / totalIncome) * 100) : 0;
+            const rigidStatus = rigidRatio <= 30 ? 'green' : rigidRatio <= 50 ? 'yellow' : 'red';
+            const rigidStatusText = rigidRatio <= 30 ? '优秀' : rigidRatio <= 50 ? '偏高' : '危险';
+            
+            // 【指标3】资金效率 Cash Drag
+            const cashDragRatio = totalAssets > 0 ? ((liquidAssets / totalAssets) * 100) : 0;
+            const cashStatus = cashDragRatio <= 20 ? 'green' : cashDragRatio <= 40 ? 'yellow' : 'red';
+            const cashStatusText = cashDragRatio <= 20 ? '高效' : cashDragRatio <= 40 ? '一般' : '闲置';
+            
+            // 【指标4】生活膨胀 Lifestyle Creep
+            const flexibleGrowthRate = lastMonthFlexible > 0 ? ((flexibleSpent - lastMonthFlexible) / lastMonthFlexible * 100) : 0;
+            const creepStatus = flexibleGrowthRate <= 0 ? 'green' : flexibleGrowthRate <= 20 ? 'yellow' : 'red';
+            const creepStatusText = flexibleGrowthRate <= 0 ? '控制' : flexibleGrowthRate <= 20 ? '上升' : '膨胀';
+            
+            // 【指标5】目标速度 Velocity
+            const targetAmount = 1000000;
+            const gapAmount = targetAmount - totalAssets;
+            let velocityMonths = 0;
+            let velocityText = 'N/A';
+            let velocityStatus = 'yellow';
+            let velocityStatusText = '计算中';
+            
+            if (gapAmount <= 0) {
+                velocityText = '已达成!';
+                velocityStatus = 'green';
+                velocityStatusText = '恭喜';
+            } else if (balance > 0) {
+                velocityMonths = Math.ceil(gapAmount / balance);
+                const years = (velocityMonths / 12).toFixed(1);
+                velocityText = years + '年';
+                velocityStatus = velocityMonths <= 36 ? 'green' : velocityMonths <= 60 ? 'yellow' : 'red';
+                velocityStatusText = velocityMonths <= 36 ? '快速' : velocityMonths <= 60 ? '稳健' : '较慢';
+            } else {
+                velocityText = '∞';
+                velocityStatus = 'red';
+                velocityStatusText = '无结余';
+            }
+            
+            // ========== 渲染仪表盘 ==========
+            const container = document.getElementById('dashboardVitalSigns');
+            container.innerHTML = `
+                <!-- 生存跑道 -->
+                <div class="vital-sign-item status-${runwayStatus}">
+                    <div class="vital-sign-icon">🛡️</div>
+                    <div class="vital-sign-value">${runwayMonths > 0 ? runwayMonths.toFixed(1) : 'N/A'}</div>
+                    <div class="vital-sign-label">生存跑道(月)</div>
+                    <div class="vital-sign-status">${runwayStatusText}</div>
+                    <div class="vital-sign-hint">收入中断可撑几月</div>
+                </div>
+                
+                <!-- 刚性负担率 -->
+                <div class="vital-sign-item status-${rigidStatus}">
+                    <div class="vital-sign-icon">🔒</div>
+                    <div class="vital-sign-value">${rigidRatio.toFixed(0)}%</div>
+                    <div class="vital-sign-label">刚性负担率</div>
+                    <div class="vital-sign-status">${rigidStatusText}</div>
+                    <div class="vital-sign-hint">固定支出占收入比</div>
+                </div>
+                
+                <!-- 资金效率 -->
+                <div class="vital-sign-item status-${cashStatus}">
+                    <div class="vital-sign-icon">💵</div>
+                    <div class="vital-sign-value">${cashDragRatio.toFixed(0)}%</div>
+                    <div class="vital-sign-label">现金占比</div>
+                    <div class="vital-sign-status">${cashStatusText}</div>
+                    <div class="vital-sign-hint">${cashDragRatio > 40 ? '建议配置理财' : '资金配置合理'}</div>
+                </div>
+                
+                <!-- 生活膨胀 -->
+                <div class="vital-sign-item status-${creepStatus}">
+                    <div class="vital-sign-icon">📈</div>
+                    <div class="vital-sign-value">${flexibleGrowthRate >= 0 ? '+' : ''}${flexibleGrowthRate.toFixed(0)}%</div>
+                    <div class="vital-sign-label">弹性支出环比</div>
+                    <div class="vital-sign-status">${creepStatusText}</div>
+                    <div class="vital-sign-hint">享乐消费变化</div>
+                </div>
+                
+                <!-- 目标速度 -->
+                <div class="vital-sign-item status-${velocityStatus}">
+                    <div class="vital-sign-icon">🎯</div>
+                    <div class="vital-sign-value">${velocityText}</div>
+                    <div class="vital-sign-label">百万目标</div>
+                    <div class="vital-sign-status">${velocityStatusText}</div>
+                    <div class="vital-sign-hint">${gapAmount > 0 ? '还差¥' + (gapAmount/10000).toFixed(0) + '万' : '已实现!'}</div>
+                </div>
+            `;
         }
         
         function renderDashboardBudget() {
@@ -5072,6 +5349,11 @@
             const btn = document.getElementById('aiReportBtn2');
             const resultDiv = document.getElementById('reportAISection');
             
+            // 🔥 读取月度报告页面的月份选择器
+            const monthSelect = document.getElementById('reportMonth');
+            const selectedMonth = monthSelect ? monthSelect.value : null;
+            const monthText = selectedMonth ? selectedMonth.replace('-', '年') + '月' : '当前月';
+            
             if (btn) { btn.disabled = true; btn.textContent = '🤖 分析中...'; }
             
             // 显示结果区域
@@ -5079,7 +5361,7 @@
             resultDiv.innerHTML = `
                 <h4 style="margin-bottom: 15px; color: var(--primary);">🤖 AI理财分析报告</h4>
                 <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
-                    📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser}
+                    📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser} | 📊 分析月份：${monthText}
                 </div>
                 <div id="aiStreamContent" class="ai-stream-content">
                     <span class="typing-cursor">▊</span>
@@ -5087,7 +5369,8 @@
             `;
             
             try {
-                await callAIAnalysisStream('aiStreamContent');
+                // 🔥 传递选择的月份
+                await callAIAnalysisStream('aiStreamContent', selectedMonth);
             } catch (error) {
                 document.getElementById('aiStreamContent').innerHTML = '❌ 分析失败，请稍后重试<br><br>错误信息：' + error.message;
             }
@@ -5222,7 +5505,7 @@
                 .replace(/🏥|💡|📅|🎯|💰|✅|🚨|📊|🏆|📈/g, match => `<span style="font-size: 1.2em;">${match}</span>`);
         }
         
-        // 构建AI Prompt（含资产数据）
+        // 构建AI Prompt（CFP专业理财师版本）
         function buildAIPrompt(selectedMonth = null) {
             // 如果传入了选择的月份，使用它；否则使用当前月份
             let year, month, day, daysInMonth, remainingDays, timeProgress;
@@ -5232,11 +5515,10 @@
                 year = y;
                 month = m;
                 const now = new Date();
-                // 如果是当前月，用实际日期；如果是历史月份，用月末
                 if (y === now.getFullYear() && m === now.getMonth() + 1) {
                     day = now.getDate();
                 } else {
-                    day = new Date(y, m, 0).getDate(); // 该月最后一天
+                    day = new Date(y, m, 0).getDate();
                 }
                 daysInMonth = new Date(y, m, 0).getDate();
                 remainingDays = Math.max(0, daysInMonth - day);
@@ -5253,12 +5535,10 @@
             
             // ==================== 1. 本月支出数据 ====================
             let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
-            let dailyBudget = 0, flexibleBudget = 0;
+            let dailyBudget = 0, flexibleBudget = 0, rigidBudget = 0;
             
-            // 类目详情（带超支标记）- 根据选择的月份筛选
             const categoryAnalysis = [];
             categories.forEach(cat => {
-                // 计算指定月份的支出
                 const spent = expenses.filter(e => {
                     const d = new Date(e.date);
                     return d.getFullYear() === year && d.getMonth() + 1 === month && e.categoryId === cat.id;
@@ -5270,6 +5550,7 @@
                 
                 if (cat.type === '刚性') {
                     rigidSpent += spent;
+                    rigidBudget += monthly;
                 } else if (cat.type === '日常') {
                     dailySpent += spent;
                     dailyBudget += monthly;
@@ -5278,22 +5559,19 @@
                     flexibleBudget += monthly;
                 }
                 
-                if (cat.type !== '刚性') {
-                    categoryAnalysis.push({
-                        name: cat.name,
-                        type: cat.type,
-                        spent: spent,
-                        budget: monthly,
-                        rate: rate,
-                        status: status,
-                        overspent: spent - monthly
-                    });
-                }
+                categoryAnalysis.push({
+                    name: cat.name,
+                    type: cat.type,
+                    spent: spent,
+                    budget: monthly,
+                    rate: rate,
+                    status: status,
+                    overspent: spent - monthly
+                });
             });
             
             const totalBudget = dailyBudget + flexibleBudget;
             const budgetSpent = dailySpent + flexibleSpent;
-            const spendingProgress = totalBudget > 0 ? (budgetSpent / totalBudget * 100) : 0;
             const remainingBudget = totalBudget - budgetSpent;
             const dailyAllowance = remainingDays > 0 ? (remainingBudget / remainingDays) : 0;
             
@@ -5310,338 +5588,277 @@
             });
             const incomeDetails = Object.entries(incomeByType).map(([type, amount]) => `${type}: ¥${amount}`).join('、') || '暂无收入记录';
             
-            // 储蓄率计算
             const totalExpense = rigidSpent + dailySpent + flexibleSpent;
             const balance = totalIncome - totalExpense;
             const savingRate = totalIncome > 0 ? ((balance / totalIncome) * 100) : 0;
             
-            // ==================== 3. 上月对比（环比分析） ====================
+            // ==================== 3. 上月对比 ====================
             const lastMonth = month === 1 ? 12 : month - 1;
             const lastYear = month === 1 ? year - 1 : year;
             
-            const safeExpenses = expenses || [];
-            const lastMonthExpenses = safeExpenses.filter(e => {
+            const lastMonthExpenses = (expenses || []).filter(e => {
                 const d = new Date(e.date);
                 return d.getFullYear() === lastYear && d.getMonth() + 1 === lastMonth;
             });
             const lastMonthTotal = lastMonthExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-            const expenseChange = lastMonthTotal > 0 ? ((totalExpense - lastMonthTotal) / lastMonthTotal * 100) : 0;
-            const expenseChangeText = expenseChange > 0 ? `增加${expenseChange.toFixed(1)}%` : `减少${Math.abs(expenseChange).toFixed(1)}%`;
-            
-            // 上月各类目对比
-            const lastMonthByCategory = {};
-            lastMonthExpenses.forEach(e => {
-                lastMonthByCategory[e.categoryName] = (lastMonthByCategory[e.categoryName] || 0) + e.amount;
-            });
+            const lastMonthFlexible = lastMonthExpenses.filter(e => {
+                const cat = categories.find(c => c.id === e.categoryId);
+                return cat && cat.type === '弹性';
+            }).reduce((sum, e) => sum + (e.amount || 0), 0);
             
             // ==================== 4. 年度累计 ====================
             const yearExpenses = expenses.filter(e => new Date(e.date).getFullYear() === year);
             const yearTotal = yearExpenses.reduce((sum, e) => sum + e.amount, 0);
             const yearIncomes = incomes.filter(i => new Date(i.date).getFullYear() === year);
             const yearIncomeTotal = yearIncomes.reduce((sum, i) => sum + i.amount, 0);
-            const yearBalance = yearIncomeTotal - yearTotal;
-            const monthlyAvgExpense = month > 0 ? (yearTotal / month) : 0;
+            const monthlyAvgExpense = month > 0 ? (yearTotal / month) : totalExpense;
             
-            // ==================== 5. 异常消费识别 ====================
+            // ==================== 5. 消费明细 ====================
             const monthExpenseList = expenses.filter(e => {
                 const d = new Date(e.date);
                 return d.getFullYear() === year && d.getMonth() + 1 === month;
             });
             
-            // 大额消费（>500）
             const bigExpenses = monthExpenseList.filter(e => e.amount >= 500).sort((a, b) => b.amount - a.amount);
-            const bigExpenseText = bigExpenses.length > 0 
-                ? bigExpenses.map(e => `${e.date.slice(5)} ${e.item} ¥${e.amount} (${e.categoryName})`).join('\n')
-                : '无';
+            const bigExpenseText = bigExpenses.slice(0, 5).map(e => 
+                `${e.date.slice(5)} ${e.item} ¥${e.amount} (${e.categoryName})`
+            ).join('、') || '无';
             
-            // 高频消费（同类目出现>5次）
-            const frequencyByCategory = {};
-            monthExpenseList.forEach(e => {
-                frequencyByCategory[e.categoryName] = (frequencyByCategory[e.categoryName] || 0) + 1;
-            });
-            const highFrequency = Object.entries(frequencyByCategory)
-                .filter(([_, count]) => count >= 5)
-                .map(([name, count]) => `${name}(${count}次)`)
-                .join('、') || '无';
-            
-            // ==================== 6. 消费日分布 ====================
-            const spendingByWeekday = [0, 0, 0, 0, 0, 0, 0]; // 周日到周六
-            const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-            monthExpenseList.forEach(e => {
-                const weekday = new Date(e.date).getDay();
-                spendingByWeekday[weekday] += e.amount;
-            });
-            const maxWeekdayAmount = Math.max(...spendingByWeekday);
-            const maxWeekday = maxWeekdayAmount > 0 ? spendingByWeekday.indexOf(maxWeekdayAmount) : 0;
-            const nonZeroWeekdays = spendingByWeekday.filter(v => v > 0);
-            const minWeekdayAmount = nonZeroWeekdays.length > 0 ? Math.min(...nonZeroWeekdays) : 0;
-            const minWeekday = minWeekdayAmount > 0 ? spendingByWeekday.indexOf(minWeekdayAmount) : 0;
-            
-            // ==================== 7. 超支/警戒类目 ====================
-            const problemCategories = categoryAnalysis
-                .filter(c => c.rate >= 80)
-                .sort((a, b) => b.rate - a.rate);
+            // 问题类目
+            const problemCategories = categoryAnalysis.filter(c => c.rate >= 80).sort((a, b) => b.rate - a.rate);
             const problemText = problemCategories.length > 0
-                ? problemCategories.map(c => {
-                    const spent = c.spent || 0;
-                    const budget = c.budget || 0;
-                    const rate = c.rate || 0;
-                    const overspent = c.overspent || 0;
-                    return `${c.status} ${c.name}：已花¥${spent.toFixed(0)}/预算¥${budget}，${rate.toFixed(0)}%${overspent > 0 ? '，超支¥' + overspent.toFixed(0) : ''}`;
-                }).join('\n')
-                : '全部正常 ✅';
+                ? problemCategories.map(c => `${c.status} ${c.name}：¥${c.spent.toFixed(0)}/¥${c.budget}，${c.rate.toFixed(0)}%`).join('\n')
+                : '✅ 全部正常';
             
-            // 健康类目
-            const healthyCategories = categoryAnalysis
-                .filter(c => c.rate < 50 && c.spent > 0)
-                .map(c => `${c.name}(${(c.rate || 0).toFixed(0)}%)`)
-                .join('、') || '无';
-            
-            // ==================== 8. TOP10消费明细 ====================
-            const top10 = monthExpenseList
-                .sort((a, b) => b.amount - a.amount)
-                .slice(0, 10)
-                .map((e, i) => `${i+1}. ${e.date.slice(5)} ${e.item} ¥${e.amount} [${e.categoryName}]`)
-                .join('\n') || '暂无数据';
-            
-            // ==================== 9. 类目排行 ====================
-            const categoryRanking = categoryAnalysis.length > 0 
-                ? categoryAnalysis
-                    .sort((a, b) => b.spent - a.spent)
-                    .slice(0, 5)
-                    .map((c, i) => `${i+1}. ${c.name}：¥${(c.spent || 0).toFixed(0)} (${budgetSpent > 0 ? ((c.spent/budgetSpent)*100).toFixed(1) : 0}%)`)
-                    .join('\n')
-                : '暂无数据';
-            
-            // ==================== 10. 存量资产数据 ====================
+            // ==================== 6. 存量资产数据 ====================
             const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
             
-            // 各类资产明细
-            const assetDetails = assets
-                .filter(a => a.value > 0)
-                .map(a => `${a.name}: ¥${a.value.toLocaleString()}`)
-                .join('、') || '暂无资产数据';
+            // 按类型统计资产
+            const assetByType = {};
+            ASSET_TYPES.forEach(type => { assetByType[type.id] = 0; assetByType[type.name] = 0; });
+            assets.forEach(a => {
+                const type = ASSET_TYPES.find(t => t.id === a.typeId);
+                if (type) {
+                    assetByType[type.id] += (a.value || 0);
+                    assetByType[type.name] += (a.value || 0);
+                }
+            });
             
-            // 资产历史数据分析
+            // 流动资产（现金、活期等）
+            const liquidAssets = assetByType['liquid'] || assetByType['流动资金'] || 0;
+            // 投资资产
+            const investAssets = assetByType['invest'] || assetByType['投资资产'] || 0;
+            // 固定资产
+            const fixedAssets = assetByType['fixed'] || assetByType['固定资产'] || 0;
+            
+            // 资产历史
             const sortedAssetHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
-            
-            // 本月资产增长
-            let monthAssetGrowth = 0, monthAssetGrowthPct = 0;
-            let yearAssetGrowth = 0, yearAssetGrowthPct = 0;
-            let totalAssetGrowth = 0, totalAssetGrowthPct = 0;
-            
+            let monthAssetGrowth = 0;
             if (sortedAssetHistory.length > 0) {
-                // 上月数据
                 const lastMonthKey = month === 1 ? `${year-1}-12` : `${year}-${String(month-1).padStart(2,'0')}`;
                 const lastMonthAsset = sortedAssetHistory.find(h => h.month === lastMonthKey);
                 if (lastMonthAsset) {
                     monthAssetGrowth = totalAssets - lastMonthAsset.total;
-                    monthAssetGrowthPct = lastMonthAsset.total > 0 ? (monthAssetGrowth / lastMonthAsset.total * 100) : 0;
-                }
-                
-                // 年初数据
-                const yearStartKey = `${year}-01`;
-                const lastYearEndKey = `${year-1}-12`;
-                const yearStartAsset = sortedAssetHistory.find(h => h.month === yearStartKey) || sortedAssetHistory.find(h => h.month === lastYearEndKey);
-                if (yearStartAsset) {
-                    yearAssetGrowth = totalAssets - yearStartAsset.total;
-                    yearAssetGrowthPct = yearStartAsset.total > 0 ? (yearAssetGrowth / yearStartAsset.total * 100) : 0;
-                }
-                
-                // 累计增长（从最早记录）
-                const firstAsset = sortedAssetHistory[0];
-                if (firstAsset) {
-                    totalAssetGrowth = totalAssets - firstAsset.total;
-                    totalAssetGrowthPct = firstAsset.total > 0 ? (totalAssetGrowth / firstAsset.total * 100) : 0;
                 }
             }
             
-            // 资产历史趋势（最近6个月）
-            const assetTrendText = sortedAssetHistory.slice(-6).map(h => {
-                const [y, m] = h.month.split('-');
-                return `${y}.${m}: ¥${(h.total/10000).toFixed(1)}万`;
-            }).join(' → ') || '暂无历史数据';
+            // ============================================================
+            // 🔥🔥🔥 CFP专业财务指标计算 🔥🔥🔥
+            // ============================================================
             
-            // 计算达到100万还需多少
-            const targetMillion = 1000000;
-            const gapToMillion = targetMillion - totalAssets;
-            const monthsToMillion = monthAssetGrowth > 0 ? Math.ceil(gapToMillion / monthAssetGrowth) : '未知';
+            // 【指标1】生存跑道 (Financial Runway) - 创业者命门
+            // 公式：流动资产 / 月均刚性支出
+            const monthlyRigidBurn = rigidSpent > 0 ? rigidSpent : (rigidBudget > 0 ? rigidBudget : totalExpense * 0.4);
+            const runwayMonths = monthlyRigidBurn > 0 ? (liquidAssets / monthlyRigidBurn) : 0;
+            const runwayText = runwayMonths > 0 ? runwayMonths.toFixed(1) : "N/A";
+            const runwayStatus = runwayMonths >= 12 ? '🟢 安全' : runwayMonths >= 6 ? '🟡 警戒' : '🔴 危险';
+            const runwayAdvice = runwayMonths < 12 ? '创业者建议保持12个月以上' : '符合创业者安全标准';
             
-            // 资产配置比例
-            const assetAllocation = {};
-            ASSET_TYPES.forEach(type => {
-                assetAllocation[type.name] = 0;
-            });
-            assets.forEach(a => {
-                const type = ASSET_TYPES.find(t => t.id === a.typeId);
-                if (type) {
-                    assetAllocation[type.name] += (a.value || 0);
+            // 【指标2】刚性负担率 (Rigid Ratio) - 财务弹性
+            // 公式：刚性支出 / 总收入
+            const rigidRatio = totalIncome > 0 ? ((rigidSpent / totalIncome) * 100) : 0;
+            const rigidRatioStatus = rigidRatio <= 30 ? '🟢 优秀' : rigidRatio <= 50 ? '🟡 偏高' : '🔴 危险';
+            const rigidRatioAdvice = rigidRatio > 50 ? '超过50%意味着财务弹性极差' : rigidRatio > 30 ? '建议控制在30%以内' : '财务弹性良好';
+            
+            // 【指标3】资金闲置率 (Cash Drag) - 资产效率
+            // 公式：流动资金 / 总资产
+            const cashDragRatio = totalAssets > 0 ? ((liquidAssets / totalAssets) * 100) : 0;
+            const cashDragStatus = cashDragRatio <= 20 ? '🟢 高效' : cashDragRatio <= 40 ? '🟡 一般' : '🔴 闲置';
+            const cashDragAdvice = cashDragRatio > 40 ? '现金过多正在贬值，建议配置理财' : cashDragRatio < 10 ? '流动性偏低，注意应急储备' : '资金配置合理';
+            
+            // 【指标4】生活方式膨胀 (Lifestyle Creep)
+            // 比较弹性支出增长率 vs 收入增长率
+            const flexibleGrowthRate = lastMonthFlexible > 0 ? ((flexibleSpent - lastMonthFlexible) / lastMonthFlexible * 100) : 0;
+            const incomeGrowthRate = 0; // 简化处理，可扩展
+            const lifestyleCreepStatus = flexibleGrowthRate > 20 ? '🔴 膨胀' : flexibleGrowthRate > 0 ? '🟡 上升' : '🟢 控制';
+            const lifestyleCreepAdvice = flexibleGrowthRate > 20 ? '享乐消费增速过快，警惕由俭入奢' : '消费习惯稳定';
+            
+            // 【指标5】目标达成速度 (Velocity to Goal)
+            const targetAmount = 1000000;
+            const gapAmount = targetAmount - totalAssets;
+            const progressPercent = (totalAssets / targetAmount * 100).toFixed(1);
+            
+            // 使用近3个月平均结余作为速度（更科学）
+            const recentMonths = 3;
+            let avgMonthlyBalance = balance; // 默认用本月
+            const recentBalances = [];
+            for (let i = 0; i < recentMonths; i++) {
+                const checkMonth = month - i;
+                const checkYear = checkMonth <= 0 ? year - 1 : year;
+                const actualMonth = checkMonth <= 0 ? checkMonth + 12 : checkMonth;
+                
+                const monthIncome = incomes.filter(inc => {
+                    const d = new Date(inc.date);
+                    return d.getFullYear() === checkYear && d.getMonth() + 1 === actualMonth;
+                }).reduce((sum, inc) => sum + inc.amount, 0);
+                
+                const monthExpense = expenses.filter(exp => {
+                    const d = new Date(exp.date);
+                    return d.getFullYear() === checkYear && d.getMonth() + 1 === actualMonth;
+                }).reduce((sum, exp) => sum + exp.amount, 0);
+                
+                if (monthIncome > 0 || monthExpense > 0) {
+                    recentBalances.push(monthIncome - monthExpense);
                 }
-            });
-            const allocationText = Object.entries(assetAllocation)
-                .filter(([_, v]) => v > 0)
-                .map(([name, value]) => `${name}: ¥${value.toLocaleString()} (${(value/totalAssets*100).toFixed(1)}%)`)
-                .join('\n') || '暂无配置数据';
+            }
+            if (recentBalances.length > 0) {
+                avgMonthlyBalance = recentBalances.reduce((a, b) => a + b, 0) / recentBalances.length;
+            }
             
-            // ==================== 构建超级Prompt ====================
-            const prompt = `你是一位CFP持证的专业理财师，服务过500+客户。请根据以下详细数据，为用户生成一份**超级实用**的财务分析报告。
+            let timeToGoalText = "无法预测";
+            let timeToGoalMonths = 0;
+            if (gapAmount <= 0) {
+                timeToGoalText = "🎉 已达成！";
+            } else if (avgMonthlyBalance <= 0) {
+                timeToGoalText = "遥遥无期（当前无正结余）";
+            } else {
+                timeToGoalMonths = Math.ceil(gapAmount / avgMonthlyBalance);
+                const years = (timeToGoalMonths / 12).toFixed(1);
+                timeToGoalText = `约 ${timeToGoalMonths} 个月（${years} 年）`;
+            }
+            
+            // 计算如何加速20%
+            const acceleratedMonths = Math.ceil(timeToGoalMonths * 0.8);
+            const requiredMonthlyBalance = gapAmount > 0 && acceleratedMonths > 0 ? Math.ceil(gapAmount / acceleratedMonths) : 0;
+            const additionalSavingNeeded = requiredMonthlyBalance - avgMonthlyBalance;
+            
+            // 用户画像识别
+            const isHighSpender = flexibleSpent > 5000 || categoryAnalysis.some(c => c.name.includes('旅') && c.spent > 1000);
+            const userProfile = isHighSpender ? '高净值潜力/注重生活品质' : '创业者/收入波动型';
+            
+            // ============================================================
+            // 🔥🔥🔥 构建CFP专业Prompt 🔥🔥🔥
+            // ============================================================
+            
+            const prompt = `你是一位拥有15年经验的**私人财富管家（CFP持证）**，服务过500+高净值客户。
+你的服务对象是**${currentUser}**（用户画像：${userProfile}）。
 
-⚠️ 重要要求：
-1. 所有建议必须带**具体数字**（如"本周预算¥800"而非"控制消费"）
-2. 指出**最需要控制的1-2个类目**，给出具体省钱金额
-3. 根据数据识别**消费习惯问题**
-4. 用户是创业者，收入可能不稳定，建议要考虑现金流安全
+⚠️ 重要原则：
+1. 忽略琐碎流水账，聚焦"结构"和"风险"
+2. 所有建议必须带**具体数字**
+3. 语气专业、客观，像真正的理财师一样犀利
+4. 用户是创业者，重点关注现金流安全
 
-═══════════════════════════════════════
-📋 用户画像
-═══════════════════════════════════════
-用户：${currentUser}
-分析时间：${year}年${month}月${day}日
-本月剩余：${remainingDays}天
+══════════════════════════════════════════════════════════
+🏥 财务生命体征 (Financial Vital Signs)
+══════════════════════════════════════════════════════════
 
-═══════════════════════════════════════
-💰 收支总览
-═══════════════════════════════════════
-【本月收入】¥${totalIncome.toFixed(0)}
-收入构成：${incomeDetails}
+【生存安全线 Runway】${runwayStatus} ${runwayText} 个月
+   含义：若收入中断，流动资产可维持刚性生活的时间
+   诊断：${runwayAdvice}
+   计算：流动资产 ¥${liquidAssets.toLocaleString()} ÷ 月刚性支出 ¥${monthlyRigidBurn.toFixed(0)}
 
-【本月支出】¥${totalExpense.toFixed(0)}
-├─ 刚性支出：¥${rigidSpent.toFixed(0)}（房租、保险等固定支出）
-├─ 日常支出：¥${dailySpent.toFixed(0)} / 预算¥${dailyBudget}
-└─ 弹性支出：¥${flexibleSpent.toFixed(0)} / 预算¥${flexibleBudget}
+【刚性负担率 Rigid Ratio】${rigidRatioStatus} ${rigidRatio.toFixed(1)}%
+   含义：固定支出占收入的比例，决定财务弹性
+   诊断：${rigidRatioAdvice}
+   计算：刚性支出 ¥${rigidSpent.toFixed(0)} ÷ 总收入 ¥${totalIncome.toFixed(0)}
 
-【结余】¥${balance.toFixed(0)} ${balance >= 0 ? '✅' : '❌赤字'}
-【储蓄率】${savingRate.toFixed(1)}% ${savingRate >= 20 ? '(优秀)' : savingRate >= 10 ? '(及格)' : savingRate >= 0 ? '(偏低)' : '(负储蓄!)'}
+【资金效率 Cash Drag】${cashDragStatus} 现金占比 ${cashDragRatio.toFixed(1)}%
+   含义：${cashDragRatio > 40 ? '⚠️ 现金过多，资产在贬值（跑输通胀）' : cashDragRatio < 10 ? '⚠️ 流动性偏低，应急能力不足' : '✅ 资金配置合理'}
+   配置：流动 ¥${liquidAssets.toLocaleString()} | 投资 ¥${investAssets.toLocaleString()} | 固定 ¥${fixedAssets.toLocaleString()}
 
-═══════════════════════════════════════
-📊 预算执行情况
-═══════════════════════════════════════
-时间进度：${timeProgress}%（${day}/${daysInMonth}天）
-消费进度：${spendingProgress.toFixed(1)}%（¥${budgetSpent.toFixed(0)}/¥${totalBudget}）
-进度差：${(spendingProgress - parseFloat(timeProgress)).toFixed(1)}% ${spendingProgress > parseFloat(timeProgress) ? '⚠️消费超前' : '✅控制良好'}
+【生活膨胀 Lifestyle Creep】${lifestyleCreepStatus} 弹性支出环比 ${flexibleGrowthRate >= 0 ? '+' : ''}${flexibleGrowthRate.toFixed(1)}%
+   含义：享乐型消费是否随收入增长而失控
+   诊断：${lifestyleCreepAdvice}
+   本月弹性：¥${flexibleSpent.toFixed(0)} | 上月：¥${lastMonthFlexible.toFixed(0)}
 
-剩余可用：¥${Math.max(0, remainingBudget).toFixed(0)}
-日均可花：¥${Math.max(0, dailyAllowance).toFixed(0)}/天
+【百万目标 Goal Velocity】进度 ${progressPercent}% | 预计达成：${timeToGoalText}
+   当前净值：¥${totalAssets.toLocaleString()}
+   距离目标：¥${gapAmount > 0 ? gapAmount.toLocaleString() : 0}
+   月均结余：¥${avgMonthlyBalance.toFixed(0)}（近${recentBalances.length}个月平均）
+   ${additionalSavingNeeded > 0 ? `加速20%需额外月存：¥${additionalSavingNeeded.toFixed(0)}` : ''}
 
-═══════════════════════════════════════
-🚨 问题类目预警
-═══════════════════════════════════════
+══════════════════════════════════════════════════════════
+📊 ${year}年${month}月收支结构
+══════════════════════════════════════════════════════════
+
+【收入】¥${totalIncome.toLocaleString()}
+   ${incomeDetails}
+
+【支出】¥${totalExpense.toLocaleString()}
+   ├─ 🔒 刚性（房租/保险）：¥${rigidSpent.toFixed(0)}（${totalExpense > 0 ? (rigidSpent/totalExpense*100).toFixed(1) : 0}%）
+   ├─ 📅 日常（生活必需）：¥${dailySpent.toFixed(0)}（${totalExpense > 0 ? (dailySpent/totalExpense*100).toFixed(1) : 0}%）
+   └─ 🌟 弹性（品质享乐）：¥${flexibleSpent.toFixed(0)}（${totalExpense > 0 ? (flexibleSpent/totalExpense*100).toFixed(1) : 0}%）
+
+【结余】¥${balance.toFixed(0)} ${balance >= 0 ? '✅' : '❌ 赤字警告'}
+【储蓄率】${savingRate.toFixed(1)}% ${savingRate >= 30 ? '🟢优秀' : savingRate >= 20 ? '🟡及格' : savingRate >= 0 ? '🔴偏低' : '🔴负储蓄'}
+
+══════════════════════════════════════════════════════════
+🔍 异常行为侦测
+══════════════════════════════════════════════════════════
+
+【预警类目】
 ${problemText}
 
-控制良好的类目：${healthyCategories}
-
-═══════════════════════════════════════
-📈 环比分析（vs上月）
-═══════════════════════════════════════
-上月总支出：¥${lastMonthTotal.toFixed(0)}
-本月总支出：¥${totalExpense.toFixed(0)}
-变化：${expenseChangeText} ${expenseChange > 20 ? '⚠️涨幅过大' : expenseChange < -10 ? '✅有效控制' : ''}
-
-═══════════════════════════════════════
-📅 年度累计
-═══════════════════════════════════════
-${year}年已支出：¥${yearTotal.toFixed(0)}
-${year}年已收入：¥${yearIncomeTotal.toFixed(0)}
-年度结余：¥${yearBalance.toFixed(0)}
-月均支出：¥${monthlyAvgExpense.toFixed(0)}
-
-═══════════════════════════════════════
-🔍 消费行为分析
-═══════════════════════════════════════
-【大额消费（≥¥500）】
+【大额消费追踪】
 ${bigExpenseText}
 
-【高频消费类目】${highFrequency}
+【剩余预算】¥${Math.max(0, remainingBudget).toFixed(0)}（日均 ¥${Math.max(0, dailyAllowance).toFixed(0)}）
 
-【消费日规律】
-花钱最多：${weekdayNames[maxWeekday]}（¥${(spendingByWeekday[maxWeekday] || 0).toFixed(0)}）
-花钱最少：${weekdayNames[minWeekday]}（¥${(spendingByWeekday[minWeekday] || 0).toFixed(0)}）
+══════════════════════════════════════════════════════════
 
-═══════════════════════════════════════
-🏆 支出TOP5类目
-═══════════════════════════════════════
-${categoryRanking}
+请按以下结构输出 **CFP级专业报告**（语气要专业、犀利，多用数字说话）：
 
-═══════════════════════════════════════
-📝 本月消费TOP10
-═══════════════════════════════════════
-${top10}
+### 🩺 深度诊断 (Deep Dive)
+*不要只报数字，要分析结构性问题*
 
-═══════════════════════════════════════
-💎 存量资产分析
-═══════════════════════════════════════
-【当前总资产】¥${totalAssets.toLocaleString()}
+1. **现金流压力测试**
+   结合用户身份（${userProfile}），评价 ${runwayText} 个月的生存期是否安全？
+   给出具体的安全垫建议金额。
 
-【资产构成】
-${assetDetails}
+2. **刚性负担评估**
+   ${rigidRatio.toFixed(1)}% 的刚性负担率意味着什么？
+   如果收入波动30%，用户的生活会受到怎样的冲击？
 
-【资产配置】
-${allocationText}
+3. **资产配置诊断**
+   针对 ${cashDragRatio.toFixed(1)}% 的现金占比，给出具体调整方向：
+   - 应保留多少流动资金？
+   - 多余资金如何配置（固收/权益比例建议）？
 
-【资产增长情况】
-├─ 本月增长：¥${monthAssetGrowth.toLocaleString()} (${monthAssetGrowthPct >= 0 ? '+' : ''}${monthAssetGrowthPct.toFixed(1)}%)
-├─ 今年增长：¥${yearAssetGrowth.toLocaleString()} (${yearAssetGrowthPct >= 0 ? '+' : ''}${yearAssetGrowthPct.toFixed(1)}%)
-└─ 累计增长：¥${totalAssetGrowth.toLocaleString()} (${totalAssetGrowthPct >= 0 ? '+' : ''}${totalAssetGrowthPct.toFixed(1)}%)
+4. **生活品质 vs 财务自由**
+   弹性支出 ¥${flexibleSpent.toFixed(0)} 是否合理？
+   这些享乐消费让百万目标推迟了多少？
 
-【资产趋势】${assetTrendText}
+### 🎯 目标加速器
+*当前距离百万还差 ¥${gapAmount > 0 ? gapAmount.toLocaleString() : 0}*
 
-【距离100万目标】
-${totalAssets >= targetMillion ? '✅ 已达成百万目标！' : `还差¥${gapToMillion.toLocaleString()}，按当前增速约需${monthsToMillion}个月`}
+给出 **2个具体可执行的建议**（开源或节流），帮助用户将达成时间从"${timeToGoalText}"缩短20%：
+1. [具体方案 + 预期月增存金额 + 效果]
+2. [具体方案 + 预期月增存金额 + 效果]
 
-═══════════════════════════════════════
+### 🚨 风险红灯
+指出本月账单中隐藏的 **1个最大风险点**：
+（如：收入来源单一、刚性支出过高、某项消费失控、流动性危机等）
 
-请按以下格式输出报告（每个部分都要有具体数字！）：
+### 📝 下月行动清单 (Action Plan)
+用 checkbox 格式，给出可立即执行的动作：
+- [ ] 资金操作：[具体金额和去向]
+- [ ] 预算控制：[具体类目和金额]
+- [ ] 习惯调整：[具体行为改变]
 
-🏥 财务健康诊断
-综合评分：XX分（满分100）
-收支健康度：XX分
-资产增长度：XX分
-核心问题：
-1. [最严重的问题+具体数据]
-2. [第二个问题+具体数据]
-消费习惯洞察：[根据数据发现的行为模式]
-
-💎 资产状况分析
-当前净值：¥${totalAssets.toLocaleString()}
-资产配置评价：[评价当前配置是否合理，如"基金占比XX%偏高/偏低"]
-增长趋势：[分析资产增长速度]
-风险提示：[如流动资金过低等]
-
-🎯 百万目标规划
-当前进度：${(totalAssets/targetMillion*100).toFixed(1)}%
-差距：¥${gapToMillion > 0 ? gapToMillion.toLocaleString() : 0}
-达成策略：
-1. [具体建议+预期效果]
-2. [具体建议+预期效果]
-预计达成时间：[根据增速预估]
-
-💡 本周行动指南（未来7天）
-消费预算：¥XXX
-储蓄目标：¥XXX
-具体建议：
-1. [可立即执行的动作+预期效果]
-2. [可立即执行的动作+预期效果]
-3. [可立即执行的动作+预期效果]
-
-📅 本月收尾策略（剩余${remainingDays}天）
-剩余预算：¥${Math.max(0, remainingBudget).toFixed(0)}
-日均上限：¥${Math.max(0, dailyAllowance).toFixed(0)}
-必须控制的类目：[1-2个]
-月末资产目标：¥XXX
-
-🎯 下月规划
-预算建议：¥XXX
-储蓄目标：¥XXX
-资产配置调整：[如有]
-
-💰 创业者财务安全
-应急储备现状：¥${assetAllocation['流动资金'] || 0}（${monthlyAvgExpense > 0 ? ((assetAllocation['流动资金'] || 0)/monthlyAvgExpense).toFixed(1) : 0}个月支出）
-建议储备：¥XXX（至少X个月）
-现金流风险：[评估]
-
-✅ 三句话总结
-1. [资产状况总评]
-2. [最关键的行动]
+### ✅ 三句话总结
+1. [财务健康总评 - 用一个比喻]
+2. [最关键的一个行动]
 3. [鼓励的话]`;
 
             return prompt;
