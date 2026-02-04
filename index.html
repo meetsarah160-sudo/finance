@@ -361,6 +361,13 @@
             gap: 8px;
         }
         
+        /* Dashboard预算和目标区域可滚动 */
+        #dashboardBudgetProgress,
+        #dashboardGoalsProgress {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
         .dashboard-quick-actions {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -3011,6 +3018,12 @@
                     <p>AI会分析您的消费数据，生成：<strong>本月诊断</strong> → <strong>下月计划</strong> → <strong>年度规划</strong> → <strong>行动清单</strong></p>
                 </div>
                 
+                <!-- 月份选择器 -->
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center;">
+                    <label style="font-weight: 500;">选择分析月份：</label>
+                    <select id="aiAnalysisMonth" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300); flex: 1; max-width: 200px;"></select>
+                </div>
+                
                 <button id="aiReportBtn" class="btn btn-primary" style="width: 100%; padding: 15px; font-size: 16px; margin-bottom: 20px;" onclick="generateAIReport()">🤖 生成理财分析报告</button>
                 
                 <div class="ai-report" id="aiReport">
@@ -4158,43 +4171,36 @@
                 if (tabs[i] === tab) t.classList.add('active');
             });
             
-            // 隐藏所有分析子页面
-            ['page-report', 'page-charts', 'page-calendar', 'page-yearly', 'page-ai'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.style.display = 'none';
-            });
-            
-            // 显示对应子页面并移动到容器中
+            // 显示对应子页面内容
             const container = document.getElementById('analysis-content');
-            let targetPage = null;
             
             if (tab === 'report') {
-                targetPage = document.getElementById('page-report');
+                const source = document.getElementById('page-report');
+                container.innerHTML = source ? source.innerHTML : '';
                 initReportMonthSelector();
                 setTimeout(() => renderReport(), 50);
             } else if (tab === 'charts') {
-                targetPage = document.getElementById('page-charts');
+                const source = document.getElementById('page-charts');
+                container.innerHTML = source ? source.innerHTML : '';
                 setTimeout(() => {
                     initChartMonthSelector();
                     renderCharts();
                 }, 50);
             } else if (tab === 'calendar') {
-                targetPage = document.getElementById('page-calendar');
+                const source = document.getElementById('page-calendar');
+                container.innerHTML = source ? source.innerHTML : '';
                 setTimeout(() => renderCalendar(), 50);
             } else if (tab === 'yearly') {
-                targetPage = document.getElementById('page-yearly');
+                const source = document.getElementById('page-yearly');
+                container.innerHTML = source ? source.innerHTML : '';
                 setTimeout(() => {
                     initYearSelector();
                     renderYearlyStats();
                 }, 50);
             } else if (tab === 'ai') {
-                targetPage = document.getElementById('page-ai');
-            }
-            
-            if (targetPage) {
-                container.innerHTML = '';
-                container.appendChild(targetPage);
-                targetPage.style.display = 'block';
+                const source = document.getElementById('page-ai');
+                container.innerHTML = source ? source.innerHTML : '';
+                setTimeout(() => initAIMonthSelector(), 50);
             }
         }
         
@@ -4207,37 +4213,28 @@
                 if (tabs[i] === tab) t.classList.add('active');
             });
             
-            // 隐藏所有财富子页面
-            ['page-assets', 'page-income', 'page-budget', 'page-goals'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.style.display = 'none';
-            });
-            
-            // 显示对应子页面并移动到容器中
+            // 显示对应子页面内容
             const container = document.getElementById('wealth-content');
-            let targetPage = null;
             
             if (tab === 'assets') {
-                targetPage = document.getElementById('page-assets');
+                const source = document.getElementById('page-assets');
+                container.innerHTML = source ? source.innerHTML : '';
                 setTimeout(() => renderAssets(), 50);
             } else if (tab === 'income') {
-                targetPage = document.getElementById('page-income');
+                const source = document.getElementById('page-income');
+                container.innerHTML = source ? source.innerHTML : '';
                 setTimeout(() => {
                     initIncomeYearSelector();
                     renderIncomeTable();
                 }, 50);
             } else if (tab === 'budget') {
-                targetPage = document.getElementById('page-budget');
+                const source = document.getElementById('page-budget');
+                container.innerHTML = source ? source.innerHTML : '';
                 setTimeout(() => renderBudgetStatus(), 50);
             } else if (tab === 'goals') {
-                targetPage = document.getElementById('page-goals');
+                const source = document.getElementById('page-goals');
+                container.innerHTML = source ? source.innerHTML : '';
                 setTimeout(() => renderGoals(), 50);
-            }
-            
-            if (targetPage) {
-                container.innerHTML = '';
-                container.appendChild(targetPage);
-                targetPage.style.display = 'block';
             }
         }
         
@@ -5069,11 +5066,16 @@
         async function generateAIReport() {
             const btn = document.getElementById('aiReportBtn');
             const resultDiv = document.getElementById('aiReport');
+            const monthSelect = document.getElementById('aiAnalysisMonth');
+            const selectedMonth = monthSelect ? monthSelect.value : null;
+            
+            // 获取选择的月份显示文本
+            const monthText = selectedMonth ? selectedMonth.replace('-', '年') + '月' : '当前月';
             
             if (btn) { btn.disabled = true; btn.textContent = '🤖 分析中...'; }
             resultDiv.innerHTML = `
                 <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
-                    📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser}
+                    📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser} | 📊 分析月份：${monthText}
                 </div>
                 <div id="aiStreamContent2" class="ai-stream-content">
                     <span class="typing-cursor">▊</span>
@@ -5081,7 +5083,7 @@
             `;
             
             try {
-                await callAIAnalysisStream('aiStreamContent2');
+                await callAIAnalysisStream('aiStreamContent2', selectedMonth);
             } catch (error) {
                 console.error('AI分析失败:', error);
                 document.getElementById('aiStreamContent2').innerHTML = '❌ 分析失败，请稍后重试<br><br>错误信息：' + error.message;
@@ -5090,9 +5092,28 @@
             if (btn) { btn.disabled = false; btn.textContent = '🤖 生成理财分析报告'; }
         }
         
+        // 初始化AI分析月份选择器
+        function initAIMonthSelector() {
+            const select = document.getElementById('aiAnalysisMonth');
+            if (!select) return;
+            
+            const now = new Date();
+            const options = [];
+            
+            // 生成最近12个月的选项
+            for (let i = 0; i < 12; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const value = `${d.getFullYear()}-${d.getMonth() + 1}`;
+                const label = `${d.getFullYear()}年${d.getMonth() + 1}月`;
+                options.push(`<option value="${value}">${label}</option>`);
+            }
+            
+            select.innerHTML = options.join('');
+        }
+        
         // 核心AI调用逻辑 - 流式输出版
-        async function callAIAnalysisStream(targetDivId) {
-            const prompt = buildAIPrompt();
+        async function callAIAnalysisStream(targetDivId, selectedMonth = null) {
+            const prompt = buildAIPrompt(selectedMonth);
             const targetDiv = document.getElementById(targetDivId);
             
             const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
@@ -5164,23 +5185,47 @@
         }
         
         // 构建AI Prompt（含资产数据）
-        function buildAIPrompt() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = now.getMonth() + 1;
-            const day = now.getDate();
-            const daysInMonth = new Date(year, month, 0).getDate();
-            const remainingDays = daysInMonth - day;
-            const timeProgress = (day / daysInMonth * 100).toFixed(1);
+        function buildAIPrompt(selectedMonth = null) {
+            // 如果传入了选择的月份，使用它；否则使用当前月份
+            let year, month, day, daysInMonth, remainingDays, timeProgress;
+            
+            if (selectedMonth) {
+                const [y, m] = selectedMonth.split('-').map(Number);
+                year = y;
+                month = m;
+                const now = new Date();
+                // 如果是当前月，用实际日期；如果是历史月份，用月末
+                if (y === now.getFullYear() && m === now.getMonth() + 1) {
+                    day = now.getDate();
+                } else {
+                    day = new Date(y, m, 0).getDate(); // 该月最后一天
+                }
+                daysInMonth = new Date(y, m, 0).getDate();
+                remainingDays = Math.max(0, daysInMonth - day);
+                timeProgress = (day / daysInMonth * 100).toFixed(1);
+            } else {
+                const now = new Date();
+                year = now.getFullYear();
+                month = now.getMonth() + 1;
+                day = now.getDate();
+                daysInMonth = new Date(year, month, 0).getDate();
+                remainingDays = daysInMonth - day;
+                timeProgress = (day / daysInMonth * 100).toFixed(1);
+            }
             
             // ==================== 1. 本月支出数据 ====================
             let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
             let dailyBudget = 0, flexibleBudget = 0;
             
-            // 类目详情（带超支标记）
+            // 类目详情（带超支标记）- 根据选择的月份筛选
             const categoryAnalysis = [];
             categories.forEach(cat => {
-                const spent = getMonthSpent(cat.id);
+                // 计算指定月份的支出
+                const spent = expenses.filter(e => {
+                    const d = new Date(e.date);
+                    return d.getFullYear() === year && d.getMonth() + 1 === month && e.categoryId === cat.id;
+                }).reduce((sum, e) => sum + (e.amount || 0), 0);
+                
                 const monthly = getMonthly(cat);
                 const rate = monthly > 0 ? (spent / monthly * 100) : 0;
                 const status = rate >= 100 ? '🔴超支' : rate >= 80 ? '🟡警戒' : '🟢正常';
