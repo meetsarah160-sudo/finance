@@ -4073,11 +4073,11 @@
             const year = now.getFullYear();
             const month = now.getMonth() + 1;
             
-            // 按类型统计预算使用情况
+            // 只显示日常和弹性类目（排除刚性支出，因为刚性不属于预算执行范畴）
             const budgetData = [];
-            const topCategories = categories.slice(0, 4); // 只显示前4个类目
+            const controllableCategories = categories.filter(cat => cat.type !== '刚性').slice(0, 4);
             
-            topCategories.forEach(cat => {
+            controllableCategories.forEach(cat => {
                 const monthlyBudget = getMonthly(cat);
                 const spent = expenses.filter(e => {
                     const d = new Date(e.date);
@@ -4171,36 +4171,51 @@
                 if (tabs[i] === tab) t.classList.add('active');
             });
             
-            // 显示对应子页面内容
+            // 所有子页面ID
+            const subPages = ['page-report', 'page-charts', 'page-calendar', 'page-yearly', 'page-ai'];
             const container = document.getElementById('analysis-content');
             
-            if (tab === 'report') {
-                const source = document.getElementById('page-report');
-                container.innerHTML = source ? source.innerHTML : '';
-                initReportMonthSelector();
-                setTimeout(() => renderReport(), 50);
-            } else if (tab === 'charts') {
-                const source = document.getElementById('page-charts');
-                container.innerHTML = source ? source.innerHTML : '';
+            // 确保所有子页面都在容器内，并隐藏它们
+            subPages.forEach(id => {
+                let page = document.getElementById(id);
+                if (page) {
+                    // 如果页面不在容器内，移动进去
+                    if (page.parentNode !== container) {
+                        page.style.display = 'none';
+                        container.appendChild(page);
+                    } else {
+                        page.style.display = 'none';
+                    }
+                }
+            });
+            
+            // 显示目标页面并初始化
+            const targetId = 'page-' + (tab === 'report' ? 'report' : tab === 'charts' ? 'charts' : tab === 'calendar' ? 'calendar' : tab === 'yearly' ? 'yearly' : 'ai');
+            const targetPage = document.getElementById(targetId);
+            
+            if (targetPage) {
+                targetPage.style.display = 'block';
+                
+                // 根据不同页面执行初始化
                 setTimeout(() => {
-                    initChartMonthSelector();
-                    renderCharts();
+                    if (tab === 'report') {
+                        initReportMonthSelector();
+                        renderReport();
+                    } else if (tab === 'charts') {
+                        initChartMonthSelector();
+                        renderCharts();
+                    } else if (tab === 'calendar') {
+                        // 重置为当前月份
+                        calendarYear = new Date().getFullYear();
+                        calendarMonth = new Date().getMonth() + 1;
+                        renderCalendar();
+                    } else if (tab === 'yearly') {
+                        initYearSelector();
+                        renderYearlyStats();
+                    } else if (tab === 'ai') {
+                        initAIMonthSelector();
+                    }
                 }, 50);
-            } else if (tab === 'calendar') {
-                const source = document.getElementById('page-calendar');
-                container.innerHTML = source ? source.innerHTML : '';
-                setTimeout(() => renderCalendar(), 50);
-            } else if (tab === 'yearly') {
-                const source = document.getElementById('page-yearly');
-                container.innerHTML = source ? source.innerHTML : '';
-                setTimeout(() => {
-                    initYearSelector();
-                    renderYearlyStats();
-                }, 50);
-            } else if (tab === 'ai') {
-                const source = document.getElementById('page-ai');
-                container.innerHTML = source ? source.innerHTML : '';
-                setTimeout(() => initAIMonthSelector(), 50);
             }
         }
         
@@ -4213,28 +4228,44 @@
                 if (tabs[i] === tab) t.classList.add('active');
             });
             
-            // 显示对应子页面内容
+            // 所有子页面ID
+            const subPages = ['page-assets', 'page-income', 'page-budget', 'page-goals'];
             const container = document.getElementById('wealth-content');
             
-            if (tab === 'assets') {
-                const source = document.getElementById('page-assets');
-                container.innerHTML = source ? source.innerHTML : '';
-                setTimeout(() => renderAssets(), 50);
-            } else if (tab === 'income') {
-                const source = document.getElementById('page-income');
-                container.innerHTML = source ? source.innerHTML : '';
+            // 确保所有子页面都在容器内，并隐藏它们
+            subPages.forEach(id => {
+                let page = document.getElementById(id);
+                if (page) {
+                    // 如果页面不在容器内，移动进去
+                    if (page.parentNode !== container) {
+                        page.style.display = 'none';
+                        container.appendChild(page);
+                    } else {
+                        page.style.display = 'none';
+                    }
+                }
+            });
+            
+            // 显示目标页面并初始化
+            const targetId = 'page-' + (tab === 'assets' ? 'assets' : tab === 'income' ? 'income' : tab === 'budget' ? 'budget' : 'goals');
+            const targetPage = document.getElementById(targetId);
+            
+            if (targetPage) {
+                targetPage.style.display = 'block';
+                
+                // 根据不同页面执行初始化
                 setTimeout(() => {
-                    initIncomeYearSelector();
-                    renderIncomeTable();
+                    if (tab === 'assets') {
+                        renderAssets();
+                    } else if (tab === 'income') {
+                        initIncomeYearSelector();
+                        renderIncomeTable();
+                    } else if (tab === 'budget') {
+                        renderBudgetStatus();
+                    } else if (tab === 'goals') {
+                        renderGoals();
+                    }
                 }, 50);
-            } else if (tab === 'budget') {
-                const source = document.getElementById('page-budget');
-                container.innerHTML = source ? source.innerHTML : '';
-                setTimeout(() => renderBudgetStatus(), 50);
-            } else if (tab === 'goals') {
-                const source = document.getElementById('page-goals');
-                container.innerHTML = source ? source.innerHTML : '';
-                setTimeout(() => renderGoals(), 50);
             }
         }
         
@@ -4501,11 +4532,13 @@
                     <h3>日常支出</h3>
                     <div class="amount">¥${dailySpent.toFixed(0)}</div>
                     <div class="sub">预算 ¥${dailyBudget}</div>
+                    <div class="sub" style="color: ${dailyBudget - dailySpent >= 0 ? 'var(--green-600)' : 'var(--red-600)'};">剩余预算 ¥${(dailyBudget - dailySpent).toFixed(0)}</div>
                 </div>
                 <div class="summary-card ${flexibleSpent/flexibleBudget >= 1 ? 'danger' : flexibleSpent/flexibleBudget >= 0.8 ? 'warning' : ''}">
                     <h3>弹性支出</h3>
                     <div class="amount">¥${flexibleSpent.toFixed(0)}</div>
                     <div class="sub">预算 ¥${flexibleBudget}</div>
+                    <div class="sub" style="color: ${flexibleBudget - flexibleSpent >= 0 ? 'var(--green-600)' : 'var(--red-600)'};">剩余预算 ¥${(flexibleBudget - flexibleSpent).toFixed(0)}</div>
                 </div>
                 <div class="summary-card">
                     <h3>本月总支出</h3>
@@ -5073,20 +5106,25 @@
             const monthText = selectedMonth ? selectedMonth.replace('-', '年') + '月' : '当前月';
             
             if (btn) { btn.disabled = true; btn.textContent = '🤖 分析中...'; }
-            resultDiv.innerHTML = `
-                <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
-                    📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser} | 📊 分析月份：${monthText}
-                </div>
-                <div id="aiStreamContent2" class="ai-stream-content">
-                    <span class="typing-cursor">▊</span>
-                </div>
-            `;
+            if (resultDiv) {
+                resultDiv.innerHTML = `
+                    <div style="color: var(--gray-600); font-size: 12px; margin-bottom: 15px;">
+                        📅 生成时间：${new Date().toLocaleString()} | 👤 用户：${currentUser} | 📊 分析月份：${monthText}
+                    </div>
+                    <div id="aiStreamContent2" class="ai-stream-content">
+                        <span class="typing-cursor">▊</span>
+                    </div>
+                `;
+            }
             
             try {
                 await callAIAnalysisStream('aiStreamContent2', selectedMonth);
             } catch (error) {
                 console.error('AI分析失败:', error);
-                document.getElementById('aiStreamContent2').innerHTML = '❌ 分析失败，请稍后重试<br><br>错误信息：' + error.message;
+                const streamDiv = document.getElementById('aiStreamContent2');
+                if (streamDiv) {
+                    streamDiv.innerHTML = '❌ 分析失败，请稍后重试<br><br>错误信息：' + error.message;
+                }
             }
             
             if (btn) { btn.disabled = false; btn.textContent = '🤖 生成理财分析报告'; }
