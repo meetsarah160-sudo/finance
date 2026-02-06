@@ -5552,7 +5552,7 @@
         
         // ==================== 数据迁移工具 ====================
         async function resetToDefaultCategories() {
-            if (!confirm('⚠️ 确定要重置为默认的22个类目吗？\n\n这会覆盖当前所有类目设置，但不会删除你的消费记录。\n\n重置后建议使用「扫描待迁移记录」将旧记录映射到新类目。')) return;
+            if (!confirm('⚠️ 确定要重置为默认的22个类目吗？\n\n这会覆盖当前所有类目设置，但不会删除你的消费记录。\n\n重置后会自动扫描需要迁移的记录。')) return;
             
             categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
             await saveCategoriesToCloud();
@@ -5560,26 +5560,38 @@
             renderCategoryGrid();
             renderBudgetTip();
             renderBudgetStatus();
-            showToast('✅ 已重置为默认类目', 'success');
+            showToast('✅ 已重置为默认类目，正在扫描...', 'success');
+            
+            // 自动触发扫描
+            setTimeout(() => scanAndShowMigration(), 500);
         }
         
         function scanAndShowMigration() {
             const knownIds = new Set(categories.map(c => c.id));
             
-            // 收集孤立记录（categoryId不在当前类目中的）
-            const orphanMap = new Map(); // oldCatId -> { name, records: [] }
+            // 收集需要迁移的记录：分两类
+            // 1. 孤立记录：categoryId不在当前类目中
+            // 2. 名称不匹配：categoryId存在，但expense的categoryName与当前类目名称不同（说明ID含义变了）
+            const migrationMap = new Map(); // key = "oldId_oldName" -> { oldId, oldName, newCurrentName, records, totalAmount, isMismatch }
             
             expenses.forEach(e => {
-                if (!knownIds.has(e.categoryId)) {
-                    if (!orphanMap.has(e.categoryId)) {
-                        orphanMap.set(e.categoryId, {
+                const currentCat = categories.find(c => c.id === e.categoryId);
+                const isOrphan = !currentCat;
+                const isMismatch = currentCat && e.categoryName && e.categoryName !== currentCat.name;
+                
+                if (isOrphan || isMismatch) {
+                    const key = `${e.categoryId}_${e.categoryName || '未知'}`;
+                    if (!migrationMap.has(key)) {
+                        migrationMap.set(key, {
                             oldId: e.categoryId,
                             oldName: e.categoryName || '未知',
+                            newCurrentName: currentCat ? currentCat.name : null,
                             records: [],
-                            totalAmount: 0
+                            totalAmount: 0,
+                            isMismatch: isMismatch
                         });
                     }
-                    const info = orphanMap.get(e.categoryId);
+                    const info = migrationMap.get(key);
                     info.records.push(e);
                     info.totalAmount += e.amount;
                 }
@@ -5587,7 +5599,7 @@
             
             const panel = document.getElementById('migrationPanel');
             
-            if (orphanMap.size === 0) {
+            if (migrationMap.size === 0) {
                 panel.style.display = 'block';
                 panel.innerHTML = `
                     <div style="background: var(--green-100); border-radius: 12px; padding: 20px; text-align: center;">
@@ -5600,19 +5612,32 @@
             }
             
             // 构建映射UI
-            const orphanList = Array.from(orphanMap.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+            const migrationList = Array.from(migrationMap.values()).sort((a, b) => b.totalAmount - a.totalAmount);
             
             // 智能推荐：根据名称相似度推荐新类目
             function suggestNewCategory(oldName) {
                 const nameMap = {
-                    '备用金': '备用金', '社交': '社交social', '行政': '公司代账费',
-                    '创业购置': '创业购置', '餐饮': '餐饮-外食', '外食': '餐饮-外食',
-                    '交通': '交通', '生活': '生活费', '旅行': '旅行', '旅游': '旅行',
+                    '备用金': '备用金', '社交': '社交social', '社交娱乐': '社交social',
+                    '行政': '公司代账费', '创业购置': '创业购置',
+                    '餐饮': '餐饮-外食', '外食': '餐饮-外食', '餐饮外食': '餐饮-外食',
+                    '交通': '交通', '交通出行': '交通',
+                    '生活': '生活费', '生活日用': '生活费',
+                    '旅行': '旅行', '旅游': '旅行', '旅行出游': '旅行',
                     '家人': '家人', '服装': '服装鞋帽', '体检': '体检', '家政': '家政',
-                    '美容': '美容美妆美发', '健康': '身体健康类', '医疗': '身体健康类',
-                    '随礼': '朋友_随礼', '礼物': '朋友_生日礼物', '零用': '小零用',
-                    '保险': '保险_基础', '房租': '房租', '水电': '水电煤气话费物业费'
+                    '美容': '美容美妆美发', '健康': '身体健康类', '医疗': '身体健康类', '医疗健康': '身体健康类',
+                    '随礼': '朋友_随礼', '礼物': '朋友_生日礼物', '人情往来': '朋友_随礼',
+                    '零用': '小零用', '小零用': '小零用',
+                    '保险': '保险_基础', '房租': '房租', '水电': '水电煤气话费物业费', '水电煤气网费': '水电煤气话费物业费',
+                    '购物': '小零用', '购物消费': '小零用',
+                    '学习': '小零用', '学习提升': '小零用',
+                    '其他': '小零用', '其他支出': '小零用'
                 };
+                // 精确匹配
+                if (nameMap[oldName]) {
+                    const match = categories.find(c => c.name === nameMap[oldName]);
+                    if (match) return match.id;
+                }
+                // 关键词匹配
                 for (const [key, val] of Object.entries(nameMap)) {
                     if (oldName.includes(key)) {
                         const match = categories.find(c => c.name === val);
@@ -5625,28 +5650,38 @@
                 // 部分匹配
                 const partial = categories.find(c => oldName.includes(c.name) || c.name.includes(oldName));
                 if (partial) return partial.id;
-                return categories[0]?.id || 1;
+                return categories.find(c => c.type === '弹性')?.id || categories[0]?.id || 1;
             }
+            
+            const totalRecords = migrationList.reduce((s, o) => s + o.records.length, 0);
+            const totalAmount = migrationList.reduce((s, o) => s + o.totalAmount, 0);
+            const mismatchCount = migrationList.filter(o => o.isMismatch).length;
+            const orphanCount = migrationList.filter(o => !o.isMismatch).length;
             
             panel.style.display = 'block';
             panel.innerHTML = `
                 <div style="background: #fff5f5; border: 2px solid #fed7d7; border-radius: 12px; padding: 20px; margin-bottom: 15px;">
-                    <h4 style="color: #c53030; margin-bottom: 8px;">⚠️ 发现 ${orphanList.length} 个旧类目需要迁移</h4>
-                    <p style="font-size: 13px; color: var(--gray-600);">共 ${orphanList.reduce((s, o) => s + o.records.length, 0)} 条记录，总金额 ¥${orphanList.reduce((s, o) => s + o.totalAmount, 0).toFixed(0)}</p>
+                    <h4 style="color: #c53030; margin-bottom: 8px;">⚠️ 发现 ${migrationList.length} 组记录需要迁移</h4>
+                    <p style="font-size: 13px; color: var(--gray-600);">
+                        共 ${totalRecords} 条记录，总金额 ¥${totalAmount.toFixed(0)}<br>
+                        ${mismatchCount > 0 ? `🔀 ${mismatchCount} 组是ID含义变更（旧类目名≠新类目名）` : ''}
+                        ${orphanCount > 0 ? `<br>❌ ${orphanCount} 组是ID已不存在` : ''}
+                    </p>
                 </div>
                 
                 <div style="background: white; border: 1px solid var(--gray-300); border-radius: 12px; overflow: hidden;">
-                    <div style="background: var(--gray-100); padding: 12px 15px; display: grid; grid-template-columns: 1fr 60px 80px 1fr; gap: 10px; align-items: center; font-weight: 600; font-size: 13px;">
+                    <div style="background: var(--gray-100); padding: 12px 15px; display: grid; grid-template-columns: 1.2fr 50px 70px 1.2fr; gap: 8px; align-items: center; font-weight: 600; font-size: 13px;">
                         <span>旧类目</span>
                         <span>笔数</span>
                         <span>金额</span>
-                        <span>映射到 →</span>
+                        <span>映射到新类目 →</span>
                     </div>
-                    ${orphanList.map((o, idx) => `
-                        <div style="padding: 12px 15px; display: grid; grid-template-columns: 1fr 60px 80px 1fr; gap: 10px; align-items: center; border-top: 1px solid var(--gray-200); font-size: 13px;">
+                    ${migrationList.map((o, idx) => `
+                        <div style="padding: 12px 15px; display: grid; grid-template-columns: 1.2fr 50px 70px 1.2fr; gap: 8px; align-items: center; border-top: 1px solid var(--gray-200); font-size: 13px; ${o.isMismatch ? 'background: #fffbeb;' : ''}">
                             <div>
                                 <strong>${o.oldName}</strong>
                                 <span style="color: var(--gray-500); font-size: 11px;">(ID:${o.oldId})</span>
+                                ${o.isMismatch ? `<div style="font-size: 11px; color: #b7791f;">🔀 当前ID${o.oldId}=${o.newCurrentName}</div>` : ''}
                             </div>
                             <span>${o.records.length}笔</span>
                             <span style="color: var(--danger);">¥${o.totalAmount.toFixed(0)}</span>
@@ -5667,8 +5702,8 @@
                 </div>
             `;
             
-            // 保存orphanList到全局供执行使用
-            window._migrationOrphans = orphanList;
+            // 保存migrationList到全局供执行使用
+            window._migrationOrphans = migrationList;
         }
         
         async function executeMigration() {
