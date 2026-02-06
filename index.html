@@ -4707,11 +4707,12 @@
         
         async function deleteExpenseFromHistory(id) {
             if (!confirm('确定要删除这条记录吗？')) return;
-            expenses = expenses.filter(e => e.id !== id);
+            expenses = expenses.filter(e => String(e.id) !== String(id));
             await deleteExpenseFromCloud(id);
-            await saveData();
             renderHistoryInModal(); // 刷新弹窗列表
-            renderAll(); // 刷新主界面
+            renderHistory(); // 刷新历史页面
+            renderBudgetStatus(); // 刷新预算
+            renderCheckinCalendar(); // 刷新打卡日历
             showToast('已删除', 'success');
         }
         
