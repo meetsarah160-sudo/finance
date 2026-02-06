@@ -3327,7 +3327,17 @@
                 
                 <div id="settingsList"></div>
                 
-                <button class="add-category-btn" onclick="addCategory()">➕ 添加新类目</button>
+                <div id="missingCategoriesAlert" style="display: none; background: #fff5f5; border: 1px solid var(--red-300); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                    <h4 style="color: var(--red-600); margin-bottom: 10px;">⚠️ 检测到缺失的类目</h4>
+                    <p style="font-size: 13px; color: var(--gray-600); margin-bottom: 10px;">以下类目在你的消费记录中存在，但不在类目列表中：</p>
+                    <div id="missingCategoriesList" style="margin-bottom: 10px;"></div>
+                    <button class="btn btn-primary" onclick="autoFixCategories()">🔧 一键添加缺失类目</button>
+                </div>
+                
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="add-category-btn" onclick="addCategory()">➕ 添加新类目</button>
+                    <button class="btn btn-outline" onclick="checkMissingCategories()">🔍 检测缺失类目</button>
+                </div>
             </div>
             
             <!-- 图表页面 -->
@@ -3746,11 +3756,28 @@
                     .maybeSingle();
                 
                 if (configData) {
-                    // 加载类目
+                    // 加载类目 - 优先云端，其次本地，最后默认
                     if (configData.categories && configData.categories.length > 0) {
                         categories = configData.categories;
+                        console.log('✅ 从云端加载类目:', categories.length, '个');
                     } else {
-                        categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                        // 云端为空，尝试本地备份
+                        const localCat = localStorage.getItem('finance_categories_' + currentUser);
+                        if (localCat) {
+                            const parsedCat = JSON.parse(localCat);
+                            if (parsedCat && parsedCat.length > 0) {
+                                categories = parsedCat;
+                                console.log('⚠️ 云端类目为空，使用本地备份:', categories.length, '个');
+                                // 同步本地数据到云端
+                                await saveCategoriesToCloud();
+                            } else {
+                                categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                                console.log('⚠️ 本地类目也为空，使用默认类目');
+                            }
+                        } else {
+                            categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                            console.log('⚠️ 无本地备份，使用默认类目');
+                        }
                     }
                     
                     // 🔥 加载云端资产数据（优先使用云端）
@@ -3793,9 +3820,31 @@
                         monthlyExpenseOverrides = JSON.parse(localStorage.getItem('finance_expense_overrides_' + currentUser) || '{}');
                     }
                 } else {
-                    // 云端没有配置，使用默认值
-                    categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-                    await saveCategoriesToCloud();
+                    // 云端没有配置，优先使用本地备份
+                    console.log('⚠️ 云端无user_configs数据');
+                    const localCat = localStorage.getItem('finance_categories_' + currentUser);
+                    if (localCat) {
+                        const parsedCat = JSON.parse(localCat);
+                        if (parsedCat && parsedCat.length > 0) {
+                            categories = parsedCat;
+                            console.log('⚠️ 使用本地类目备份:', categories.length, '个');
+                        } else {
+                            categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                        }
+                    } else {
+                        categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                    }
+                    // 加载其他本地数据
+                    assets = JSON.parse(localStorage.getItem('finance_assets_' + currentUser) || '[]');
+                    assetHistory = JSON.parse(localStorage.getItem('finance_asset_history_' + currentUser) || '[]');
+                    monthlyExpenseOverrides = JSON.parse(localStorage.getItem('finance_expense_overrides_' + currentUser) || '{}');
+                    const savedAssetTypes = localStorage.getItem('finance_asset_types_' + currentUser);
+                    if (savedAssetTypes) ASSET_TYPES = JSON.parse(savedAssetTypes);
+                    
+                    // 同步到云端（只有确认有数据才同步）
+                    if (categories.length > 0) {
+                        await saveCategoriesToCloud();
+                    }
                 }
                 
                 // 加载支出
@@ -4887,9 +4936,32 @@
         // ==================== 预算页面 ====================
         function renderBudgetStatus() {
             const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
             
             let rigidSpent = 0, dailySpent = 0, flexibleSpent = 0;
             let dailyBudget = 0, flexibleBudget = 0;
+            
+            // 获取所有已知类目的ID
+            const knownCategoryIds = new Set(categories.map(c => c.id));
+            
+            // 统计未分类的消费（categoryId不在categories列表中的）
+            let uncategorizedSpent = 0;
+            const uncategorizedExpenses = [];
+            
+            // 先获取本月所有消费
+            const thisMonthExpenses = expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            });
+            
+            // 检查每笔消费是否有对应的类目
+            thisMonthExpenses.forEach(e => {
+                if (!knownCategoryIds.has(e.categoryId)) {
+                    uncategorizedSpent += e.amount;
+                    uncategorizedExpenses.push(e);
+                }
+            });
             
             categories.forEach(cat => {
                 const spent = getMonthSpent(cat.id);
@@ -4903,9 +4975,24 @@
                 }
             });
             
+            // 未分类的消费计入弹性支出
+            flexibleSpent += uncategorizedSpent;
+            
             const totalBudget = dailyBudget + flexibleBudget;
             const budgetSpent = dailySpent + flexibleSpent;
-            const budgetRate = budgetSpent / totalBudget;
+            const budgetRate = totalBudget > 0 ? budgetSpent / totalBudget : 0;
+            
+            // 如果有未分类消费，显示警告
+            let uncategorizedWarning = '';
+            if (uncategorizedSpent > 0) {
+                uncategorizedWarning = `
+                    <div class="summary-card" style="background: #fff5f5; border: 1px solid var(--red-300);">
+                        <h3 style="color: var(--red-600);">⚠️ 未分类</h3>
+                        <div class="amount" style="color: var(--red-600);">¥${uncategorizedSpent.toFixed(0)}</div>
+                        <div class="sub">${uncategorizedExpenses.length}笔待整理</div>
+                    </div>
+                `;
+            }
             
             document.getElementById('summaryCards').innerHTML = `
                 <div class="summary-card ${budgetRate >= 1 ? 'danger' : budgetRate >= 0.8 ? 'warning' : 'success'}">
@@ -4918,13 +5005,13 @@
                     <div class="amount">¥${rigidSpent.toFixed(0)}</div>
                     <div class="sub">不计入月预算</div>
                 </div>
-                <div class="summary-card ${dailySpent/dailyBudget >= 1 ? 'danger' : dailySpent/dailyBudget >= 0.8 ? 'warning' : ''}">
+                <div class="summary-card ${dailyBudget > 0 && dailySpent/dailyBudget >= 1 ? 'danger' : dailyBudget > 0 && dailySpent/dailyBudget >= 0.8 ? 'warning' : ''}">
                     <h3>日常支出</h3>
                     <div class="amount">¥${dailySpent.toFixed(0)}</div>
                     <div class="sub">预算 ¥${dailyBudget}</div>
                     <div class="sub" style="color: ${dailyBudget - dailySpent >= 0 ? 'var(--green-600)' : 'var(--red-600)'};">剩余预算 ¥${(dailyBudget - dailySpent).toFixed(0)}</div>
                 </div>
-                <div class="summary-card ${flexibleSpent/flexibleBudget >= 1 ? 'danger' : flexibleSpent/flexibleBudget >= 0.8 ? 'warning' : ''}">
+                <div class="summary-card ${flexibleBudget > 0 && flexibleSpent/flexibleBudget >= 1 ? 'danger' : flexibleBudget > 0 && flexibleSpent/flexibleBudget >= 0.8 ? 'warning' : ''}">
                     <h3>弹性支出</h3>
                     <div class="amount">¥${flexibleSpent.toFixed(0)}</div>
                     <div class="sub">预算 ¥${flexibleBudget}</div>
@@ -4940,14 +5027,44 @@
                     <div class="amount">¥${Math.max(0, totalBudget - budgetSpent).toFixed(0)}</div>
                     <div class="sub">可控部分</div>
                 </div>
+                ${uncategorizedWarning}
             `;
             
             // 类目详情列表
             let html = '';
+            
+            // 先显示未分类的消费（如果有）
+            if (uncategorizedExpenses.length > 0) {
+                const expanded = expandedCategories.has('uncategorized');
+                html += `
+                    <div class="budget-category ${expanded ? 'expanded' : ''}" onclick="toggleCategory('uncategorized')" style="background: #fff5f5; border: 1px solid var(--red-300);">
+                        <div class="budget-category-header">
+                            <div>
+                                <div class="name" style="color: var(--red-600);">⚠️ 未分类消费</div>
+                                <div style="font-size: 12px; color: var(--red-500);">这些消费的类目不存在，请在设置中添加类目或重新分类</div>
+                            </div>
+                            <div class="spent" style="color: var(--red-600);">
+                                ¥${uncategorizedSpent.toFixed(0)}
+                            </div>
+                            <div class="toggle">▼</div>
+                        </div>
+                        <div class="budget-category-detail">
+                            ${uncategorizedExpenses.map(e => `
+                                <div class="detail-item">
+                                    <span class="date">${e.date.slice(5)}</span>
+                                    <span class="item">${e.item} <span style="color: var(--red-500); font-size: 11px;">(原类目: ${e.categoryName || 'ID:' + e.categoryId})</span></span>
+                                    <span class="amount">¥${e.amount.toFixed(2)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
             categories.forEach(cat => {
                 const spent = getMonthSpent(cat.id);
                 const monthly = getMonthly(cat);
-                const rate = spent / monthly;
+                const rate = monthly > 0 ? spent / monthly : 0;
                 const expanded = expandedCategories.has(cat.id);
                 const catExpenses = getMonthExpenses(cat.id);
                 
@@ -5289,6 +5406,93 @@
             renderBudgetTip();
             renderBudgetStatus();
             showToast('已删除', 'success');
+        }
+        
+        // ==================== 缺失类目检测和修复 ====================
+        function checkMissingCategories() {
+            const knownCategoryIds = new Set(categories.map(c => c.id));
+            const missingCategories = new Map(); // categoryId -> {name, count, amount}
+            
+            expenses.forEach(e => {
+                if (!knownCategoryIds.has(e.categoryId)) {
+                    const key = e.categoryId;
+                    if (!missingCategories.has(key)) {
+                        missingCategories.set(key, {
+                            id: e.categoryId,
+                            name: e.categoryName || '未知类目',
+                            count: 0,
+                            amount: 0
+                        });
+                    }
+                    const info = missingCategories.get(key);
+                    info.count++;
+                    info.amount += e.amount;
+                }
+            });
+            
+            const alertDiv = document.getElementById('missingCategoriesAlert');
+            const listDiv = document.getElementById('missingCategoriesList');
+            
+            if (missingCategories.size === 0) {
+                alertDiv.style.display = 'none';
+                showToast('✅ 所有类目都正常，无缺失', 'success');
+                return;
+            }
+            
+            // 显示缺失类目
+            alertDiv.style.display = 'block';
+            listDiv.innerHTML = Array.from(missingCategories.values()).map(cat => `
+                <div style="background: white; padding: 10px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: var(--red-600);">${cat.name}</strong>
+                        <span style="font-size: 12px; color: var(--gray-500);">(ID: ${cat.id})</span>
+                    </div>
+                    <div style="text-align: right; font-size: 12px; color: var(--gray-600);">
+                        ${cat.count}笔消费 | ¥${cat.amount.toFixed(0)}
+                    </div>
+                </div>
+            `).join('');
+            
+            // 保存缺失类目信息供修复使用
+            window._missingCategories = missingCategories;
+        }
+        
+        async function autoFixCategories() {
+            if (!window._missingCategories || window._missingCategories.size === 0) {
+                showToast('没有需要修复的类目', 'error');
+                return;
+            }
+            
+            const missingList = Array.from(window._missingCategories.values());
+            let addedCount = 0;
+            
+            for (const cat of missingList) {
+                // 检查是否已存在相同ID
+                if (!categories.find(c => c.id === cat.id)) {
+                    categories.push({
+                        id: cat.id,
+                        name: cat.name,
+                        yearly: 6000, // 默认年预算
+                        type: '弹性' // 默认类型
+                    });
+                    addedCount++;
+                }
+            }
+            
+            if (addedCount > 0) {
+                // 按ID排序
+                categories.sort((a, b) => a.id - b.id);
+                await saveCategoriesToCloud();
+                renderSettings();
+                renderCategoryGrid();
+                renderBudgetStatus();
+            }
+            
+            // 隐藏提示
+            document.getElementById('missingCategoriesAlert').style.display = 'none';
+            window._missingCategories = null;
+            
+            showToast(`✅ 已添加 ${addedCount} 个缺失类目`, 'success');
         }
         
         async function addCategory() {
