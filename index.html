@@ -475,37 +475,96 @@
             line-height: 1.3;
         }
         
-        /* ==================== 记账打卡日历 ==================== */
-        .checkin-calendar {
+        /* ==================== 记账打卡日历（紧凑版） ==================== */
+        .checkin-bar {
             background: white;
-            border-radius: 16px;
-            padding: 15px;
+            border-radius: 12px;
+            padding: 12px 15px;
             margin-bottom: 15px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-        .checkin-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        .checkin-title {
-            font-weight: 600;
-            font-size: 14px;
-            color: var(--gray-700);
+        .checkin-bar:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
-        .checkin-stats {
-            font-size: 12px;
-            color: var(--gray-500);
+        .checkin-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        .checkin-stats span {
+        .checkin-bar-dots {
+            display: flex;
+            gap: 3px;
+        }
+        .checkin-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+        .checkin-dot.checked { background: var(--success); }
+        .checkin-dot.unchecked { background: var(--gray-200); }
+        .checkin-dot.today { border: 1.5px solid var(--primary); }
+        .checkin-bar-text {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        .checkin-bar-text span {
             color: var(--success);
             font-weight: 600;
+        }
+        .checkin-bar-arrow {
+            color: var(--gray-400);
+            font-size: 12px;
+        }
+        
+        /* 展开的日历弹窗 */
+        .checkin-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .checkin-modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            max-width: 350px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .checkin-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .checkin-modal-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--gray-700);
+        }
+        .checkin-modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--gray-400);
         }
         .checkin-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
-            gap: 6px;
+            gap: 4px;
         }
         .checkin-day-header {
             font-size: 10px;
@@ -519,57 +578,20 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
-            font-size: 12px;
+            border-radius: 6px;
+            font-size: 11px;
             position: relative;
-            transition: all 0.2s;
         }
-        .checkin-day.empty {
-            background: transparent;
-        }
-        .checkin-day.future {
-            background: var(--gray-100);
-            color: var(--gray-400);
-        }
+        .checkin-day.empty { background: transparent; }
+        .checkin-day.future { background: var(--gray-100); color: var(--gray-400); }
         .checkin-day.checked {
             background: linear-gradient(135deg, #48bb78, #38a169);
             color: white;
             font-weight: 600;
-            box-shadow: 0 2px 6px rgba(72, 187, 120, 0.3);
         }
-        .checkin-day.unchecked {
-            background: var(--gray-100);
-            color: var(--gray-600);
-        }
-        .checkin-day.today {
-            border: 2px solid var(--primary);
-        }
-        .checkin-day .day-num {
-            font-size: 11px;
-        }
-        .checkin-day.checked .check-mark {
-            font-size: 8px;
-            margin-top: 1px;
-        }
-        .checkin-legend {
-            display: flex;
-            gap: 15px;
-            margin-top: 10px;
-            font-size: 11px;
-            color: var(--gray-500);
-        }
-        .checkin-legend-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .legend-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 3px;
-        }
-        .legend-dot.checked { background: linear-gradient(135deg, #48bb78, #38a169); }
-        .legend-dot.unchecked { background: var(--gray-200); }
+        .checkin-day.unchecked { background: var(--gray-100); color: var(--gray-600); }
+        .checkin-day.today { border: 2px solid var(--primary); }
+        .checkin-day .check-mark { font-size: 8px; }
         
         .dashboard-quick-actions {
             display: grid;
@@ -6709,11 +6731,6 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             const month = now.getMonth() + 1;
             const today = now.getDate();
             
-            // 获取本月第一天是星期几（0=周日）
-            const firstDay = new Date(year, month - 1, 1).getDay();
-            // 本月总天数
-            const daysInMonth = new Date(year, month, 0).getDate();
-            
             // 统计哪些天有记账（支出或收入）
             const checkedDays = new Set();
             
@@ -6733,24 +6750,68 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             
             // 统计打卡天数
             const checkedCount = checkedDays.size;
-            const passedDays = today; // 已过去的天数（包括今天）
+            const passedDays = today;
             const checkinRate = passedDays > 0 ? Math.round(checkedCount / passedDays * 100) : 0;
             
-            // 星期标题
+            // 生成最近7天的小圆点
+            let dotsHTML = '';
+            for (let i = 6; i >= 0; i--) {
+                const day = today - i;
+                if (day >= 1) {
+                    const isChecked = checkedDays.has(day);
+                    const isToday = day === today;
+                    dotsHTML += `<div class="checkin-dot ${isChecked ? 'checked' : 'unchecked'} ${isToday ? 'today' : ''}"></div>`;
+                }
+            }
+            
+            // 今天是否已打卡
+            const todayChecked = checkedDays.has(today);
+            const statusText = todayChecked ? '✅ 今日已打卡' : '⏰ 今日未记账';
+            
+            container.innerHTML = `
+                <div class="checkin-bar" onclick="showCheckinModal()">
+                    <div class="checkin-bar-left">
+                        <div class="checkin-bar-dots">${dotsHTML}</div>
+                        <div class="checkin-bar-text">${month}月打卡 <span>${checkedCount}</span>/${passedDays}天 | ${statusText}</div>
+                    </div>
+                    <div class="checkin-bar-arrow">查看 ›</div>
+                </div>
+            `;
+        }
+        
+        function showCheckinModal() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const today = now.getDate();
+            
+            const firstDay = new Date(year, month - 1, 1).getDay();
+            const daysInMonth = new Date(year, month, 0).getDate();
+            
+            const checkedDays = new Set();
+            expenses.forEach(e => {
+                const d = new Date(e.date);
+                if (d.getFullYear() === year && d.getMonth() + 1 === month) {
+                    checkedDays.add(d.getDate());
+                }
+            });
+            incomes.forEach(i => {
+                const d = new Date(i.date);
+                if (d.getFullYear() === year && d.getMonth() + 1 === month) {
+                    checkedDays.add(d.getDate());
+                }
+            });
+            
+            const checkedCount = checkedDays.size;
+            const checkinRate = today > 0 ? Math.round(checkedCount / today * 100) : 0;
+            
             const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+            let calendarHTML = weekDays.map(d => `<div class="checkin-day-header">${d}</div>`).join('');
             
-            // 生成日历格子
-            let calendarHTML = '';
-            
-            // 星期标题行
-            calendarHTML += weekDays.map(d => `<div class="checkin-day-header">${d}</div>`).join('');
-            
-            // 填充月初空白
             for (let i = 0; i < firstDay; i++) {
                 calendarHTML += '<div class="checkin-day empty"></div>';
             }
             
-            // 填充每一天
             for (let day = 1; day <= daysInMonth; day++) {
                 const isToday = day === today;
                 const isFuture = day > today;
@@ -6758,41 +6819,34 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 
                 let dayClass = 'checkin-day';
                 if (isToday) dayClass += ' today';
-                if (isFuture) {
-                    dayClass += ' future';
-                } else if (isChecked) {
-                    dayClass += ' checked';
-                } else {
-                    dayClass += ' unchecked';
-                }
+                if (isFuture) dayClass += ' future';
+                else if (isChecked) dayClass += ' checked';
+                else dayClass += ' unchecked';
                 
-                calendarHTML += `
-                    <div class="${dayClass}">
-                        <span class="day-num">${day}</span>
-                        ${isChecked && !isFuture ? '<span class="check-mark">✓</span>' : ''}
-                    </div>
-                `;
+                calendarHTML += `<div class="${dayClass}">${day}${isChecked && !isFuture ? '<span class="check-mark">✓</span>' : ''}</div>`;
             }
             
-            container.innerHTML = `
-                <div class="checkin-header">
-                    <div class="checkin-title">📅 ${month}月记账打卡</div>
-                    <div class="checkin-stats">已打卡 <span>${checkedCount}</span>/${passedDays}天 (${checkinRate}%)</div>
-                </div>
-                <div class="checkin-grid">
-                    ${calendarHTML}
-                </div>
-                <div class="checkin-legend">
-                    <div class="checkin-legend-item">
-                        <div class="legend-dot checked"></div>
-                        <span>已记账</span>
+            const modal = document.createElement('div');
+            modal.className = 'checkin-modal';
+            modal.id = 'checkinModal';
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+            modal.innerHTML = `
+                <div class="checkin-modal-content">
+                    <div class="checkin-modal-header">
+                        <div class="checkin-modal-title">📅 ${month}月记账打卡</div>
+                        <button class="checkin-modal-close" onclick="document.getElementById('checkinModal').remove()">✕</button>
                     </div>
-                    <div class="checkin-legend-item">
-                        <div class="legend-dot unchecked"></div>
-                        <span>未记账</span>
+                    <div style="text-align: center; margin-bottom: 15px; font-size: 13px; color: var(--gray-600);">
+                        已打卡 <span style="color: var(--success); font-weight: 600;">${checkedCount}</span>/${today}天 (${checkinRate}%)
+                    </div>
+                    <div class="checkin-grid">${calendarHTML}</div>
+                    <div style="display: flex; gap: 15px; margin-top: 12px; font-size: 11px; color: var(--gray-500); justify-content: center;">
+                        <span>🟢 已记账</span>
+                        <span>⬜ 未记账</span>
                     </div>
                 </div>
             `;
+            document.body.appendChild(modal);
         }
         
         // ==================== 消费日历 ====================
