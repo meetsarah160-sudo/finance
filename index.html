@@ -2822,6 +2822,12 @@
                 <!-- 关键指标卡片 -->
                 <div class="dashboard-kpi-grid" id="dashboardKPI"></div>
                 
+                <!-- 💡 每日提醒 -->
+                <div id="dailyReminder" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 20px; margin-bottom: 15px; color: white; position: relative; overflow: hidden;">
+                    <div style="position: absolute; right: -20px; top: -20px; font-size: 80px; opacity: 0.15;">💰</div>
+                    <div id="dailyReminderContent"></div>
+                </div>
+                
                 <!-- 资产净值大卡片 -->
                 <div class="dashboard-networth" id="dashboardNetworth">
                     <div class="nw-label">💎 资产净值</div>
@@ -3338,6 +3344,21 @@
                     <button class="add-category-btn" onclick="addCategory()">➕ 添加新类目</button>
                     <button class="btn btn-outline" onclick="checkMissingCategories()">🔍 检测缺失类目</button>
                 </div>
+                
+                <!-- 数据迁移工具 -->
+                <div style="margin-top: 25px; border-top: 2px solid var(--gray-200); padding-top: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">🔄 数据迁移工具</h3>
+                    <div class="settings-tip" style="margin-bottom: 15px;">
+                        💡 更换类目后，旧的消费记录可能关联了已不存在的类目ID。使用此工具可以将旧记录重新映射到新类目。
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+                        <button class="btn btn-warning" onclick="resetToDefaultCategories()">🔄 重置为默认类目</button>
+                        <button class="btn btn-primary" onclick="scanAndShowMigration()">🔍 扫描待迁移记录</button>
+                    </div>
+                    
+                    <div id="migrationPanel" style="display: none;"></div>
+                </div>
             </div>
             
             <!-- 图表页面 -->
@@ -3419,31 +3440,46 @@
         
         // 默认类目（通用模板）
         const DEFAULT_CATEGORIES = [
-            { id: 1, name: "房租/房贷", yearly: 36000, type: "刚性" },
-            { id: 2, name: "水电煤气网费", yearly: 3600, type: "刚性" },
-            { id: 3, name: "保险", yearly: 12000, type: "刚性" },
-            { id: 4, name: "生活日用", yearly: 24000, type: "日常" },
-            { id: 5, name: "交通出行", yearly: 6000, type: "日常" },
-            { id: 6, name: "餐饮外食", yearly: 12000, type: "弹性" },
-            { id: 7, name: "社交娱乐", yearly: 6000, type: "弹性" },
-            { id: 8, name: "购物消费", yearly: 12000, type: "弹性" },
-            { id: 9, name: "医疗健康", yearly: 6000, type: "弹性" },
-            { id: 10, name: "学习提升", yearly: 6000, type: "弹性" },
-            { id: 11, name: "人情往来", yearly: 6000, type: "弹性" },
-            { id: 12, name: "旅行出游", yearly: 12000, type: "弹性" },
-            { id: 13, name: "其他支出", yearly: 6000, type: "弹性" }
+            { id: 1, name: "房租", yearly: 24000, type: "刚性" },
+            { id: 2, name: "水电煤气话费物业费", yearly: 2800, type: "刚性" },
+            { id: 3, name: "公司代账费", yearly: 9000, type: "刚性" },
+            { id: 4, name: "保险_基础", yearly: 15673, type: "刚性" },
+            { id: 5, name: "保险_中端", yearly: 20000, type: "刚性" },
+            { id: 6, name: "生活费", yearly: 24000, type: "日常" },
+            { id: 7, name: "交通", yearly: 6000, type: "日常" },
+            { id: 8, name: "家政", yearly: 1400, type: "弹性" },
+            { id: 9, name: "餐饮-外食", yearly: 6000, type: "弹性" },
+            { id: 10, name: "社交social", yearly: 4000, type: "弹性" },
+            { id: 11, name: "身体健康类", yearly: 8000, type: "弹性" },
+            { id: 12, name: "朋友_生日礼物", yearly: 5000, type: "弹性" },
+            { id: 13, name: "朋友_节日礼物", yearly: 2000, type: "弹性" },
+            { id: 14, name: "朋友_随礼", yearly: 2000, type: "弹性" },
+            { id: 15, name: "家人", yearly: 5000, type: "弹性" },
+            { id: 16, name: "服装鞋帽", yearly: 6000, type: "弹性" },
+            { id: 17, name: "美容美妆美发", yearly: 6000, type: "弹性" },
+            { id: 18, name: "体检", yearly: 2000, type: "弹性" },
+            { id: 19, name: "旅行", yearly: 15000, type: "弹性" },
+            { id: 20, name: "小零用", yearly: 6000, type: "弹性" },
+            { id: 21, name: "备用金", yearly: 6000, type: "弹性" },
+            { id: 22, name: "创业购置", yearly: 5000, type: "弹性" }
         ];
         
         // 智能关键词匹配
         const KEYWORDS = {
-            '打车': 5, '滴滴': 5, '地铁': 5, '公交': 5, '加油': 5, '停车': 5,
-            '咖啡': 6, '奶茶': 6, '外卖': 6, '饿了么': 6, '美团': 6, '餐厅': 6, '火锅': 6,
-            '电影': 7, '游戏': 7, '演出': 7, 'ktv': 7,
-            '淘宝': 8, '京东': 8, '购物': 8, '衣服': 8, '鞋': 8,
-            '医院': 9, '药': 9, '体检': 9,
-            '书': 10, '课程': 10, '培训': 10,
-            '红包': 11, '礼物': 11, '随礼': 11,
-            '机票': 12, '酒店': 12, '旅游': 12, '景点': 12
+            '打车': 7, '滴滴': 7, '地铁': 7, '公交': 7, '加油': 7, '停车': 7,
+            '咖啡': 9, '奶茶': 9, '外卖': 9, '饿了么': 9, '美团': 9, '餐厅': 9, '火锅': 9, '午饭': 9, '晚饭': 9,
+            '电影': 10, '游戏': 10, '演出': 10, 'ktv': 10, '聚餐': 10,
+            '淘宝': 16, '京东': 16, '衣服': 16, '鞋': 16, '裤': 16,
+            '医院': 11, '药': 11, '看病': 11,
+            '体检': 18,
+            '红包': 14, '随礼': 14, '份子': 14,
+            '生日': 12, '礼物': 12,
+            '机票': 19, '酒店': 19, '旅游': 19, '景点': 19,
+            '超市': 6, '日用': 6, '水果': 6, '蔬菜': 6, '粮油': 6,
+            '理发': 17, '美容': 17, '化妆': 17, '美甲': 17, '护肤': 17,
+            '保姆': 8, '家政': 8, '清洁': 8,
+            '家人': 15, '爸': 15, '妈': 15, '父': 15, '母': 15,
+            '购物': 20, '零食': 20
         };
         
         // ==================== 状态 ====================
@@ -3534,6 +3570,18 @@
             return Math.round(cat.yearly / 12);
         }
         
+        // 按类型计算月预算（先汇总年预算再除12，避免四舍五入误差）
+        function getTypeBudget(type) {
+            const totalYearly = categories
+                .filter(c => c.type === type)
+                .reduce((sum, c) => sum + c.yearly, 0);
+            return Math.floor(totalYearly / 12);
+        }
+        
+        function getTotalMonthlyBudget() {
+            return getTypeBudget('日常') + getTypeBudget('弹性');
+        }
+        
         function getMonthExpenses(categoryId) {
             const now = new Date();
             const year = now.getFullYear();
@@ -3564,29 +3612,11 @@
         
         // 简单的密码哈希
         async function hashPassword(password) {
-            const saltedPassword = password + 'finance_salt_2026';
-            
-            // 优先使用crypto.subtle（HTTPS环境）
-            if (window.crypto && window.crypto.subtle) {
-                try {
-                    const encoder = new TextEncoder();
-                    const data = encoder.encode(saltedPassword);
-                    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-                    const hashArray = Array.from(new Uint8Array(hashBuffer));
-                    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-                } catch (e) {
-                    console.log('crypto.subtle不可用，使用fallback');
-                }
-            }
-            
-            // Fallback: 简单hash（HTTP环境或crypto不可用时）
-            let hash = 0;
-            for (let i = 0; i < saltedPassword.length; i++) {
-                const char = saltedPassword.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return 'fallback_' + Math.abs(hash).toString(16) + '_' + saltedPassword.length;
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password + 'finance_salt_2026');
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
         
         // 获取本地存储的密码
@@ -3628,15 +3658,11 @@
             
             try {
                 // 检查昵称是否已存在
-                const { data: existing, error: checkError } = await db
+                const { data: existing } = await db
                     .from('user_configs')
                     .select('user_id')
                     .eq('user_id', nickname)
                     .maybeSingle();
-                
-                if (checkError) {
-                    console.log('检查用户时出错（可能是网络问题）:', checkError);
-                }
                 
                 const { data: expenseData } = await db
                     .from('expenses')
@@ -3653,43 +3679,23 @@
                     return;
                 }
                 
-                // 先保存本地密码（确保即使云端失败也能登录）
+                // 创建新用户
                 const hashedPwd = await hashPassword(password);
                 setLocalPassword(nickname, hashedPwd);
-                console.log('✅ 本地密码已保存');
                 
-                // 尝试创建云端用户
-                const { data: insertData, error: insertError } = await db.from('user_configs').insert({
+                await db.from('user_configs').insert({
                     user_id: nickname,
                     categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES))
-                }).select();
+                });
                 
-                if (insertError) {
-                    console.error('Supabase插入错误:', insertError);
-                    // 即使云端失败，也允许本地注册
-                    showToast('注册成功！（本地模式）', 'success');
-                } else {
-                    console.log('注册成功，云端数据:', insertData);
-                    showToast('注册成功！请登录', 'success');
-                }
-                
+                showToast('注册成功！请登录', 'success');
                 showLogin();
                 document.getElementById('loginNickname').value = nickname;
                 document.getElementById('loginPassword').value = '';
                 
             } catch (error) {
                 console.error('注册失败:', error);
-                // 即使出错，也尝试本地注册
-                try {
-                    const hashedPwd = await hashPassword(password);
-                    setLocalPassword(nickname, hashedPwd);
-                    showToast('注册成功！（离线模式）', 'success');
-                    showLogin();
-                    document.getElementById('loginNickname').value = nickname;
-                } catch (e2) {
-                    console.error('本地注册也失败:', e2);
-                    showToast('注册失败: ' + (error.message || '请检查网络'), 'error');
-                }
+                showToast('注册失败，请重试', 'error');
             }
             
             btn.disabled = false;
@@ -3715,20 +3721,12 @@
             btn.textContent = '⏳ 登录中...';
             
             try {
-                // 先检查本地是否有密码（支持本地注册的用户）
-                const storedPwd = getLocalPassword(nickname);
-                const hashedPwd = await hashPassword(password);
-                
-                // 检查云端用户是否存在
-                const { data: userData, error: userError } = await db
+                // 检查用户是否存在
+                const { data: userData } = await db
                     .from('user_configs')
                     .select('user_id, categories')
                     .eq('user_id', nickname)
                     .maybeSingle();
-                
-                if (userError) {
-                    console.log('检查用户时出错:', userError);
-                }
                 
                 const { data: expenseData } = await db
                     .from('expenses')
@@ -3736,30 +3734,27 @@
                     .eq('user_id', nickname)
                     .limit(1);
                 
-                const isCloudUser = userData || (expenseData && expenseData.length > 0);
-                const isLocalUser = storedPwd !== null;
+                const isExistingUser = userData || (expenseData && expenseData.length > 0);
                 
-                // 既不是云端用户也不是本地用户
-                if (!isCloudUser && !isLocalUser) {
+                if (!isExistingUser) {
                     showToast('用户不存在，请先注册', 'error');
                     btn.disabled = false;
                     btn.textContent = '🚀 登录';
                     return;
                 }
                 
-                // 验证密码
-                if (isLocalUser) {
-                    // 有本地密码，验证密码
-                    if (storedPwd !== hashedPwd) {
-                        showToast('密码错误', 'error');
-                        btn.disabled = false;
-                        btn.textContent = '🚀 登录';
-                        return;
-                    }
-                } else {
-                    // 云端老用户，第一次设置密码
+                const hashedPwd = await hashPassword(password);
+                const storedPwd = getLocalPassword(nickname);
+                
+                // 老用户第一次使用密码功能
+                if (!storedPwd) {
                     setLocalPassword(nickname, hashedPwd);
                     showToast('已为您设置密码，请牢记！', 'success');
+                } else if (storedPwd !== hashedPwd) {
+                    showToast('密码错误', 'error');
+                    btn.disabled = false;
+                    btn.textContent = '🚀 登录';
+                    return;
                 }
                 
                 // 登录成功
@@ -4362,11 +4357,84 @@
         // ==================== Dashboard 功能 ====================
         function renderDashboard() {
             renderDashboardKPI();
+            renderDailyReminder();
             renderDashboardNetworth();
             renderDashboardVitalSigns(); // 🔥 CFP财务生命体征
             renderDashboardBudget();
             renderDashboardGoals();
             renderDashboardRecentTx();
+        }
+        
+        function renderDailyReminder() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const daysLeft = daysInMonth - day;
+            
+            // 本月可控预算（日常+弹性）
+            const totalBudget = getTotalMonthlyBudget();
+            
+            // 本月已花（不含刚性）
+            const monthSpent = expenses.filter(e => {
+                const d = new Date(e.date);
+                const cat = categories.find(c => c.id === e.categoryId);
+                return d.getFullYear() === year && d.getMonth() + 1 === month && cat && cat.type !== '刚性';
+            }).reduce((sum, e) => sum + (e.amount || 0), 0);
+            
+            const remaining = totalBudget - monthSpent;
+            const dailyAvailable = daysLeft > 0 ? Math.floor(remaining / daysLeft) : remaining;
+            
+            // 今日已花
+            const todaySpent = expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month && d.getDate() === day;
+            }).reduce((sum, e) => sum + (e.amount || 0), 0);
+            
+            // 记账天数
+            const recordDays = new Set(expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            }).map(e => e.date)).size;
+            
+            // 根据状态生成提醒文案
+            let emoji, mainText, subText;
+            
+            if (remaining <= 0) {
+                emoji = '🚨';
+                mainText = '本月预算已超支';
+                subText = `超出 ¥${Math.abs(remaining).toFixed(0)}，接下来${daysLeft}天尽量控制开支`;
+            } else if (dailyAvailable < 100) {
+                emoji = '⚠️';
+                mainText = `今天还能花 ¥${Math.max(0, dailyAvailable - todaySpent).toFixed(0)}`;
+                subText = `预算吃紧，剩${daysLeft}天 · 日均可花 ¥${dailyAvailable}`;
+            } else if (todaySpent === 0 && day > 1) {
+                emoji = '📝';
+                mainText = `今天还没记账哦～`;
+                subText = `日均可花 ¥${dailyAvailable} · 剩余预算 ¥${remaining.toFixed(0)}`;
+            } else {
+                emoji = '✨';
+                mainText = `今天还能花 ¥${Math.max(0, dailyAvailable - todaySpent).toFixed(0)}`;
+                subText = `剩${daysLeft}天 · 日均 ¥${dailyAvailable} · 已连续记账${recordDays}天`;
+            }
+            
+            // 进度条百分比
+            const progressPercent = Math.min((monthSpent / totalBudget) * 100, 100);
+            const progressColor = progressPercent > 90 ? '#fc8181' : progressPercent > 70 ? '#fbd38d' : 'rgba(255,255,255,0.8)';
+            
+            document.getElementById('dailyReminderContent').innerHTML = `
+                <div style="font-size: 13px; opacity: 0.85; margin-bottom: 4px;">${emoji} ${month}月${day}日 · 还剩${daysLeft}天</div>
+                <div style="font-size: 24px; font-weight: 700; margin-bottom: 6px;">${mainText}</div>
+                <div style="font-size: 13px; opacity: 0.8; margin-bottom: 12px;">${subText}</div>
+                <div style="background: rgba(255,255,255,0.2); border-radius: 10px; height: 8px; overflow: hidden;">
+                    <div style="background: ${progressColor}; height: 100%; border-radius: 10px; width: ${progressPercent}%; transition: width 0.5s;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; opacity: 0.7; margin-top: 4px;">
+                    <span>已花 ¥${monthSpent.toFixed(0)}</span>
+                    <span>预算 ¥${totalBudget}</span>
+                </div>
+            `;
         }
         
         function renderDashboardKPI() {
@@ -4819,11 +4887,8 @@
         }
         
         function renderBudgetTip() {
-            let dailyBudget = 0, flexibleBudget = 0;
-            categories.forEach(cat => {
-                if (cat.type === '日常') dailyBudget += getMonthly(cat);
-                if (cat.type === '弹性') flexibleBudget += getMonthly(cat);
-            });
+            const dailyBudget = getTypeBudget('日常');
+            const flexibleBudget = getTypeBudget('弹性');
             
             document.getElementById('budgetTip').innerHTML = 
                 `💡 每月可控预算 = ¥${dailyBudget}(日常) + ¥${flexibleBudget}(弹性) = <strong>¥${dailyBudget + flexibleBudget}</strong>`;
@@ -4831,14 +4896,14 @@
         
         // ==================== 常用消费快捷按钮 ====================
         const QUICK_ITEMS = [
-            { name: '☕ 咖啡', amount: 25, categoryId: 6 },
-            { name: '🚕 打车', amount: 15, categoryId: 5 },
-            { name: '🍜 外卖', amount: 35, categoryId: 6 },
-            { name: '🚇 地铁', amount: 5, categoryId: 5 },
-            { name: '🧋 奶茶', amount: 18, categoryId: 6 },
-            { name: '🍎 水果', amount: 30, categoryId: 4 },
-            { name: '🛒 超市', amount: 50, categoryId: 4 },
-            { name: '💊 药品', amount: 30, categoryId: 9 }
+            { name: '☕ 咖啡', amount: 25, categoryId: 9 },
+            { name: '🚕 打车', amount: 15, categoryId: 7 },
+            { name: '🍜 外卖', amount: 35, categoryId: 9 },
+            { name: '🚇 地铁', amount: 5, categoryId: 7 },
+            { name: '🧋 奶茶', amount: 18, categoryId: 9 },
+            { name: '🍎 水果', amount: 30, categoryId: 6 },
+            { name: '🛒 超市', amount: 50, categoryId: 6 },
+            { name: '💊 药品', amount: 30, categoryId: 11 }
         ];
         
         function renderQuickButtons() {
@@ -4868,6 +4933,7 @@
             
             expenses.unshift(expense);
             await saveExpenseToCloud(expense);
+            trackRecentCategory(item.categoryId);
             renderBudgetStatus();
             renderCheckinCalendar();
             showToast(`已记录 ${item.name} ¥${item.amount}`, 'success');
@@ -4876,6 +4942,31 @@
         function renderCategoryGrid() {
             const container = document.getElementById('categoryGrid');
             container.innerHTML = '';
+            
+            // 最近使用的类目（最多显示5个）
+            const recentIds = getRecentCategories();
+            const recentCats = recentIds.map(id => categories.find(c => c.id === id)).filter(Boolean);
+            
+            if (recentCats.length > 0) {
+                const recentSection = document.createElement('div');
+                recentSection.className = 'category-section';
+                recentSection.innerHTML = `
+                    <div class="category-section-title" onclick="toggleSection(this)">
+                        ⚡ 最近使用
+                    </div>
+                    <div class="category-grid">
+                        ${recentCats.map(cat => `
+                            <button class="category-btn ${selectedCategory === cat.id ? 'selected' : ''}" 
+                                    onclick="selectCategory(${cat.id})"
+                                    style="border: 2px solid var(--primary); background: #f0f4ff;">
+                                <div class="name">${cat.id}. ${cat.name}</div>
+                                <div class="budget">¥${getMonthly(cat)}/月</div>
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(recentSection);
+            }
             
             const types = [
                 { type: '刚性', icon: '🔒', title: '刚性（不计入月预算）', collapsed: true },
@@ -4905,6 +4996,21 @@
                 `;
                 container.appendChild(section);
             });
+        }
+        
+        // 最近使用类目追踪
+        function getRecentCategories() {
+            try {
+                return JSON.parse(localStorage.getItem('finance_recent_cats_' + currentUser) || '[]');
+            } catch(e) { return []; }
+        }
+        
+        function trackRecentCategory(catId) {
+            let recent = getRecentCategories();
+            recent = recent.filter(id => id !== catId);
+            recent.unshift(catId);
+            recent = recent.slice(0, 5); // 最多保留5个
+            localStorage.setItem('finance_recent_cats_' + currentUser, JSON.stringify(recent));
         }
         
         function toggleSection(el) {
@@ -4976,6 +5082,9 @@
             expenses.unshift(expense);
             await saveExpenseToCloud(expense);
             
+            // 记录最近使用的类目
+            trackRecentCategory(selectedCategory);
+            
             document.getElementById('expenseItem').value = '';
             document.getElementById('expenseAmount').value = '';
             selectedCategory = null;
@@ -5021,12 +5130,14 @@
                 if (cat.type === '刚性') rigidSpent += spent;
                 else if (cat.type === '日常') {
                     dailySpent += spent;
-                    dailyBudget += getMonthly(cat);
                 } else {
                     flexibleSpent += spent;
-                    flexibleBudget += getMonthly(cat);
                 }
             });
+            
+            // 使用汇总计算（先加年预算再除12）
+            dailyBudget = getTypeBudget('日常');
+            flexibleBudget = getTypeBudget('弹性');
             
             // 未分类的消费计入弹性支出
             flexibleSpent += uncategorizedSpent;
@@ -5560,6 +5671,243 @@
             renderSettings();
             renderCategoryGrid();
             showToast('已添加', 'success');
+        }
+        
+        // ==================== 数据迁移工具 ====================
+        async function resetToDefaultCategories() {
+            if (!confirm('⚠️ 确定要重置为默认的22个类目吗？\n\n这会覆盖当前所有类目设置，但不会删除你的消费记录。\n\n重置后会自动扫描需要迁移的记录。')) return;
+            
+            categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+            await saveCategoriesToCloud();
+            renderSettings();
+            renderCategoryGrid();
+            renderBudgetTip();
+            renderBudgetStatus();
+            showToast('✅ 已重置为默认类目，正在扫描...', 'success');
+            
+            // 自动触发扫描
+            setTimeout(() => scanAndShowMigration(), 500);
+        }
+        
+        function scanAndShowMigration() {
+            const knownIds = new Set(categories.map(c => c.id));
+            
+            // 收集需要迁移的记录：分两类
+            // 1. 孤立记录：categoryId不在当前类目中
+            // 2. 名称不匹配：categoryId存在，但expense的categoryName与当前类目名称不同（说明ID含义变了）
+            const migrationMap = new Map(); // key = "oldId_oldName" -> { oldId, oldName, newCurrentName, records, totalAmount, isMismatch }
+            
+            expenses.forEach(e => {
+                const currentCat = categories.find(c => c.id === e.categoryId);
+                const isOrphan = !currentCat;
+                const isMismatch = currentCat && e.categoryName && e.categoryName !== currentCat.name;
+                
+                if (isOrphan || isMismatch) {
+                    const key = `${e.categoryId}_${e.categoryName || '未知'}`;
+                    if (!migrationMap.has(key)) {
+                        migrationMap.set(key, {
+                            oldId: e.categoryId,
+                            oldName: e.categoryName || '未知',
+                            newCurrentName: currentCat ? currentCat.name : null,
+                            records: [],
+                            totalAmount: 0,
+                            isMismatch: isMismatch
+                        });
+                    }
+                    const info = migrationMap.get(key);
+                    info.records.push(e);
+                    info.totalAmount += e.amount;
+                }
+            });
+            
+            const panel = document.getElementById('migrationPanel');
+            
+            if (migrationMap.size === 0) {
+                panel.style.display = 'block';
+                panel.innerHTML = `
+                    <div style="background: var(--green-100); border-radius: 12px; padding: 20px; text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 10px;">✅</div>
+                        <h4 style="color: var(--success);">所有消费记录都已正确关联类目</h4>
+                        <p style="font-size: 13px; color: var(--gray-600); margin-top: 8px;">无需迁移</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 构建映射UI
+            const migrationList = Array.from(migrationMap.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+            
+            // 智能推荐：根据名称相似度推荐新类目
+            function suggestNewCategory(oldName) {
+                const nameMap = {
+                    '备用金': '备用金', '社交': '社交social', '社交娱乐': '社交social',
+                    '行政': '公司代账费', '创业购置': '创业购置',
+                    '餐饮': '餐饮-外食', '外食': '餐饮-外食', '餐饮外食': '餐饮-外食',
+                    '交通': '交通', '交通出行': '交通',
+                    '生活': '生活费', '生活日用': '生活费',
+                    '旅行': '旅行', '旅游': '旅行', '旅行出游': '旅行',
+                    '家人': '家人', '服装': '服装鞋帽', '体检': '体检', '家政': '家政',
+                    '美容': '美容美妆美发', '健康': '身体健康类', '医疗': '身体健康类', '医疗健康': '身体健康类',
+                    '随礼': '朋友_随礼', '礼物': '朋友_生日礼物', '人情往来': '朋友_随礼',
+                    '零用': '小零用', '小零用': '小零用',
+                    '保险': '保险_基础', '房租': '房租', '水电': '水电煤气话费物业费', '水电煤气网费': '水电煤气话费物业费',
+                    '购物': '小零用', '购物消费': '小零用',
+                    '学习': '小零用', '学习提升': '小零用',
+                    '其他': '小零用', '其他支出': '小零用'
+                };
+                // 精确匹配
+                if (nameMap[oldName]) {
+                    const match = categories.find(c => c.name === nameMap[oldName]);
+                    if (match) return match.id;
+                }
+                // 关键词匹配
+                for (const [key, val] of Object.entries(nameMap)) {
+                    if (oldName.includes(key)) {
+                        const match = categories.find(c => c.name === val);
+                        if (match) return match.id;
+                    }
+                }
+                // 直接名称匹配
+                const exact = categories.find(c => c.name === oldName);
+                if (exact) return exact.id;
+                // 部分匹配
+                const partial = categories.find(c => oldName.includes(c.name) || c.name.includes(oldName));
+                if (partial) return partial.id;
+                return categories.find(c => c.type === '弹性')?.id || categories[0]?.id || 1;
+            }
+            
+            const totalRecords = migrationList.reduce((s, o) => s + o.records.length, 0);
+            const totalAmount = migrationList.reduce((s, o) => s + o.totalAmount, 0);
+            const mismatchCount = migrationList.filter(o => o.isMismatch).length;
+            const orphanCount = migrationList.filter(o => !o.isMismatch).length;
+            
+            panel.style.display = 'block';
+            panel.innerHTML = `
+                <div style="background: #fff5f5; border: 2px solid #fed7d7; border-radius: 12px; padding: 20px; margin-bottom: 15px;">
+                    <h4 style="color: #c53030; margin-bottom: 8px;">⚠️ 发现 ${migrationList.length} 组记录需要迁移</h4>
+                    <p style="font-size: 13px; color: var(--gray-600);">
+                        共 ${totalRecords} 条记录，总金额 ¥${totalAmount.toFixed(0)}<br>
+                        ${mismatchCount > 0 ? `🔀 ${mismatchCount} 组是ID含义变更（旧类目名≠新类目名）` : ''}
+                        ${orphanCount > 0 ? `<br>❌ ${orphanCount} 组是ID已不存在` : ''}
+                    </p>
+                </div>
+                
+                <div style="background: white; border: 1px solid var(--gray-300); border-radius: 12px; overflow: hidden;">
+                    <div style="background: var(--gray-100); padding: 12px 15px; display: grid; grid-template-columns: 1.2fr 50px 70px 1.2fr; gap: 8px; align-items: center; font-weight: 600; font-size: 13px;">
+                        <span>旧类目</span>
+                        <span>笔数</span>
+                        <span>金额</span>
+                        <span>映射到新类目 →</span>
+                    </div>
+                    ${migrationList.map((o, idx) => `
+                        <div style="padding: 12px 15px; display: grid; grid-template-columns: 1.2fr 50px 70px 1.2fr; gap: 8px; align-items: center; border-top: 1px solid var(--gray-200); font-size: 13px; ${o.isMismatch ? 'background: #fffbeb;' : ''}">
+                            <div>
+                                <strong>${o.oldName}</strong>
+                                <span style="color: var(--gray-500); font-size: 11px;">(ID:${o.oldId})</span>
+                                ${o.isMismatch ? `<div style="font-size: 11px; color: #b7791f;">🔀 当前ID${o.oldId}=${o.newCurrentName}</div>` : ''}
+                            </div>
+                            <span>${o.records.length}笔</span>
+                            <span style="color: var(--danger);">¥${o.totalAmount.toFixed(0)}</span>
+                            <select id="migrate_${idx}" style="padding: 8px; border-radius: 6px; border: 1px solid var(--gray-300); font-size: 13px;">
+                                ${categories.map(c => `<option value="${c.id}" ${c.id === suggestNewCategory(o.oldName) ? 'selected' : ''}>${c.id}. ${c.name} (${c.type})</option>`).join('')}
+                            </select>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div style="margin-top: 15px; display: flex; gap: 10px;">
+                    <button class="btn btn-success" onclick="executeMigration()" style="flex: 1; padding: 12px; font-size: 15px;">
+                        ✅ 确认迁移
+                    </button>
+                    <button class="btn btn-outline" onclick="document.getElementById('migrationPanel').style.display='none'" style="padding: 12px;">
+                        取消
+                    </button>
+                </div>
+            `;
+            
+            // 保存migrationList到全局供执行使用
+            window._migrationOrphans = migrationList;
+        }
+        
+        async function executeMigration() {
+            const orphanList = window._migrationOrphans;
+            if (!orphanList || orphanList.length === 0) return;
+            
+            // 收集映射关系
+            const mappings = [];
+            orphanList.forEach((o, idx) => {
+                const select = document.getElementById(`migrate_${idx}`);
+                const newCatId = parseInt(select.value);
+                const newCat = categories.find(c => c.id === newCatId);
+                mappings.push({
+                    oldId: o.oldId,
+                    oldName: o.oldName,
+                    newId: newCatId,
+                    newName: newCat?.name || '未知',
+                    newType: newCat?.type || '弹性',
+                    count: o.records.length
+                });
+            });
+            
+            const summary = mappings.map(m => `${m.oldName}(${m.count}笔) → ${m.newName}`).join('\n');
+            if (!confirm(`确认以下迁移映射？\n\n${summary}\n\n⚠️ 此操作会修改消费记录的类目，建议先导出备份！`)) return;
+            
+            let totalMigrated = 0;
+            
+            // 更新内存中的expenses
+            for (const m of mappings) {
+                expenses.forEach(e => {
+                    if (e.categoryId === m.oldId) {
+                        e.categoryId = m.newId;
+                        e.categoryName = m.newName;
+                        e.type = m.newType;
+                        totalMigrated++;
+                    }
+                });
+                
+                // 更新云端Supabase
+                try {
+                    const { error } = await db
+                        .from('expenses')
+                        .update({
+                            category_id: m.newId,
+                            category_name: m.newName,
+                            type: m.newType
+                        })
+                        .eq('user_id', currentUser)
+                        .eq('category_id', m.oldId);
+                    
+                    if (error) console.error('云端迁移错误:', error);
+                } catch (err) {
+                    console.error('迁移请求失败:', err);
+                }
+            }
+            
+            // 更新本地存储
+            localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
+            
+            // 刷新所有界面
+            renderBudgetStatus();
+            renderCategoryGrid();
+            renderHistory();
+            renderCheckinCalendar();
+            
+            // 隐藏面板并显示结果
+            document.getElementById('migrationPanel').innerHTML = `
+                <div style="background: var(--green-100); border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 40px; margin-bottom: 10px;">🎉</div>
+                    <h4 style="color: var(--success);">迁移完成！</h4>
+                    <p style="font-size: 14px; color: var(--gray-600); margin-top: 8px;">
+                        成功迁移 <strong>${totalMigrated}</strong> 条记录
+                    </p>
+                    <div style="margin-top: 12px; font-size: 13px; color: var(--gray-500); text-align: left;">
+                        ${mappings.map(m => `✅ ${m.oldName} → ${m.newName} (${m.count}笔)`).join('<br>')}
+                    </div>
+                </div>
+            `;
+            
+            window._migrationOrphans = null;
+            showToast(`✅ 已迁移 ${totalMigrated} 条记录`, 'success');
         }
         
         // ==================== 账户安全 ====================
@@ -8096,6 +8444,10 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             if (index !== -1) {
                 incomes[index] = { ...incomes[index], date, type, item, amount };
                 localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
+                // 同步到云端
+                try {
+                    await db.from('incomes').update({ date, type, item, amount }).eq('id', id);
+                } catch (e) { console.log('收入编辑同步失败:', e); }
                 renderIncomeTable();
                 closeIncomeEditModal();
                 showToast('已保存', 'success');
@@ -8129,7 +8481,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             document.getElementById('editCellAmount').select();
         }
         
-        function saveMonthIncome(year, month, type) {
+        async function saveMonthIncome(year, month, type) {
             const amount = parseFloat(document.getElementById('editCellAmount').value) || 0;
             const dateStr = `${year}-${String(month).padStart(2, '0')}-15`;
             
@@ -8143,20 +8495,25 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 if (existingIndex !== -1) {
                     // 更新现有记录
                     incomes[existingIndex].amount = amount;
+                    try { await db.from('incomes').update({ amount }).eq('id', incomes[existingIndex].id); } catch(e) {}
                 } else {
                     // 新增记录
-                    incomes.push({
+                    const income = {
                         id: 'inc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
                         date: dateStr,
                         item: `${month}月${type}`,
                         amount: amount,
                         type: type
-                    });
+                    };
+                    incomes.push(income);
+                    await saveIncomeToCloud(income);
                 }
             } else {
                 // 删除记录
                 if (existingIndex !== -1) {
+                    const delId = incomes[existingIndex].id;
                     incomes.splice(existingIndex, 1);
+                    await deleteIncomeFromCloud(delId);
                 }
             }
             
@@ -9173,10 +9530,9 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             const topCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]).slice(0, 5);
             
             // 计算预算相关数据
-            let totalBudget = 0, budgetSpent = 0;
+            let totalBudget = getTotalMonthlyBudget(), budgetSpent = 0;
             categories.forEach(cat => {
                 if (cat.type !== '刚性') {
-                    totalBudget += getMonthly(cat);
                     // 获取该月该类目的消费
                     const catSpent = monthExpenses
                         .filter(e => e.categoryId === cat.id)
