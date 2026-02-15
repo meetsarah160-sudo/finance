@@ -1196,6 +1196,21 @@
         /* 隐藏 */
         .hidden { display: none !important; }
         
+        /* 悬浮同步按钮 */
+        .float-sync-btn {
+            position: fixed; bottom: 25px; right: 20px; width: 56px; height: 56px;
+            border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white; border: none; font-size: 24px; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(102,126,234,0.5); z-index: 9000;
+            display: none; align-items: center; justify-content: center; transition: all 0.3s;
+        }
+        .float-sync-btn:hover { transform: scale(1.1); }
+        .float-sync-btn:active { transform: scale(0.95); }
+        .float-sync-btn.syncing { animation: spin 1s linear infinite; background: linear-gradient(135deg, #ed8936, #dd6b20); }
+        .float-sync-btn.success { background: linear-gradient(135deg, #48bb78, #38a169) !important; }
+        .float-sync-btn.error { background: linear-gradient(135deg, #f56565, #e53e3e) !important; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
         /* 图表页面 */
         .charts-container {
             display: grid;
@@ -3146,59 +3161,37 @@
                 <!-- 增长指标卡片 -->
                 <div class="assets-stats" id="assetsGrowthCards"></div>
                 
-                <!-- 双列图表区域 -->
+                <!-- 双列图表区域（Chart.js 交互图表） -->
                 <div class="assets-charts-grid">
                     <!-- 资产趋势折线图 -->
                     <div class="chart-card">
                         <h3>📈 资产增长趋势</h3>
-                        <div class="chart-wrapper">
-                            <canvas id="assetsTrendChart"></canvas>
+                        <div class="chart-wrapper" style="position: relative;">
+                            <canvas id="assetsTrendChartJS"></canvas>
                         </div>
+                        <div style="font-size: 11px; color: var(--gray-600); text-align: center; margin-top: 5px;">💡 点击数据点查看具体金额</div>
                     </div>
                     
                     <!-- 资产配置饼图 -->
                     <div class="chart-card">
                         <h3>🥧 资产配置</h3>
-                        <div class="chart-wrapper">
-                            <canvas id="assetsChart" width="280" height="200"></canvas>
+                        <div class="chart-wrapper" style="position: relative;">
+                            <canvas id="assetsChartJS"></canvas>
                         </div>
-                        <div id="assetsLegend" class="assets-legend"></div>
+                        <div style="font-size: 11px; color: var(--gray-600); text-align: center; margin-top: 5px;">💡 点击扇区查看具体金额</div>
                     </div>
                 </div>
                 
-                <!-- 里程碑进度 -->
+                <!-- 资产明细 -->
                 <div class="chart-card full-width">
-                    <h3>🎯 百万目标里程碑</h3>
-                    <div class="milestones-track" id="assetsMilestones"></div>
-                </div>
-                
-                <!-- 年度对比 -->
-                <div class="chart-card full-width">
-                    <h3>📅 年度增长对比</h3>
-                    <div id="assetsYearlyCompare"></div>
-                </div>
-                
-                <!-- 分类趋势 + 资产明细（左右布局） -->
-                <div class="assets-detail-grid">
-                    <!-- 左侧：分类资产变化图表 -->
-                    <div class="chart-card">
-                        <h3>📊 分类资产变化</h3>
-                        <div class="chart-wrapper-wide">
-                            <canvas id="assetsCategoryChart"></canvas>
+                    <div class="card-header-flex">
+                        <h3>📋 资产明细</h3>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="showManageAssetTypes()">⚙️ 管理类目</button>
+                            <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">✏️ 更新</button>
                         </div>
                     </div>
-                    
-                    <!-- 右侧：资产明细 -->
-                    <div class="chart-card">
-                        <div class="card-header-flex">
-                            <h3>📋 资产明细</h3>
-                            <div style="display: flex; gap: 8px;">
-                                <button class="btn btn-secondary btn-sm" onclick="showManageAssetTypes()">⚙️ 管理类目</button>
-                                <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">✏️ 更新</button>
-                            </div>
-                        </div>
-                        <div id="assetsList" class="assets-list"></div>
-                    </div>
+                    <div id="assetsList" class="assets-list"></div>
                 </div>
             </div>
             
@@ -3766,9 +3759,12 @@
                 document.getElementById('loginPage').classList.add('hidden');
                 document.getElementById('registerPage').classList.add('hidden');
                 document.getElementById('mainApp').classList.remove('hidden');
+                document.getElementById('floatSyncBtn').style.display = 'flex';
+                autoLocalBackup();
+                keepSupabaseAlive();
                 
                 localStorage.setItem('finance_user', nickname);
-                localStorage.setItem('finance_session', Date.now().toString()); // 保存会话标记
+                localStorage.setItem('finance_session', Date.now().toString());
                 
             } catch (error) {
                 console.error('登录失败:', error);
@@ -3784,11 +3780,12 @@
             categories = [];
             expenses = [];
             localStorage.removeItem('finance_user');
-            localStorage.removeItem('finance_session'); // 清除会话标记
+            localStorage.removeItem('finance_session');
             document.getElementById('loginPage').classList.remove('hidden');
             document.getElementById('registerPage').classList.add('hidden');
             document.getElementById('mainApp').classList.add('hidden');
             document.getElementById('loginPassword').value = '';
+            document.getElementById('floatSyncBtn').style.display = 'none';
         }
         
         // ==================== 数据加载/保存 ====================
@@ -4034,6 +4031,7 @@
                 localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
                 
                 setSyncStatus('synced');
+                scheduleAutoBackup();
             } catch (error) {
                 console.error('保存资产到云端失败:', error);
                 // 云端失败也保存到本地
@@ -4054,7 +4052,7 @@
                     type: expense.type
                 }).select().single();
                 
-                if (data) expense.id = data.id;
+                if (data) expense.id = data.id; scheduleAutoBackup();
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
             } catch (error) {
                 console.error('保存消费记录:', error);
@@ -4080,7 +4078,7 @@
                     type: income.type
                 }).select().single();
                 
-                if (data) income.id = data.id;
+                if (data) income.id = data.id; scheduleAutoBackup();
             } catch (error) {
                 console.log('收入表可能不存在，仅保存本地');
             }
@@ -4110,7 +4108,7 @@
             } catch (error) {
                 console.log('目标表可能不存在，仅保存本地');
             }
-            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals)); scheduleAutoBackup();
         }
         
         async function updateGoalInCloud(goal) {
@@ -4124,7 +4122,7 @@
             } catch (error) {
                 console.log('更新目标失败');
             }
-            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals)); scheduleAutoBackup();
         }
         
         async function deleteGoalFromCloud(id) {
@@ -4133,12 +4131,55 @@
             } catch (error) {
                 console.log('删除目标失败');
             }
-            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals)); scheduleAutoBackup();
         }
         
         async function syncData() {
-            await loadDataFromCloud();
-            showToast('同步完成', 'success');
+            const syncBtn = document.getElementById('floatSyncBtn');
+            if (syncBtn) { syncBtn.classList.add('syncing'); syncBtn.innerHTML = '⏳'; }
+            
+            try {
+                await loadDataFromCloud();
+                autoLocalBackup();
+                
+                const stats = [];
+                if (expenses.length > 0) stats.push(`${expenses.length}笔支出`);
+                if (incomes.length > 0) stats.push(`${incomes.length}笔收入`);
+                if (assets.length > 0) stats.push(`${assets.length}项资产`);
+                if (goals.length > 0) stats.push(`${goals.length}个目标`);
+                
+                const detail = stats.length > 0 ? stats.join('、') : '暂无数据';
+                showToast(`✅ 同步成功！已同步: ${detail}`, 'success');
+                
+                if (syncBtn) { syncBtn.classList.remove('syncing'); syncBtn.innerHTML = '🔄'; syncBtn.classList.add('success'); setTimeout(() => syncBtn.classList.remove('success'), 2000); }
+            } catch (error) {
+                console.error('同步失败:', error);
+                showToast('❌ 同步失败: ' + (error.message || '网络问题'), 'error');
+                if (syncBtn) { syncBtn.classList.remove('syncing'); syncBtn.innerHTML = '🔄'; syncBtn.classList.add('error'); setTimeout(() => syncBtn.classList.remove('error'), 2000); }
+            }
+        }
+        
+        // 自动本地备份
+        function autoLocalBackup() {
+            if (!currentUser) return;
+            try {
+                const backupData = { version: 'v4', user: currentUser, exportTime: new Date().toISOString(), categories, expenses, incomes, goals, assets, assetHistory, monthlyExpenseOverrides, assetTypes: ASSET_TYPES };
+                localStorage.setItem('finance_auto_backup_' + currentUser, JSON.stringify(backupData));
+                console.log('✅ 自动本地备份完成');
+            } catch (e) { console.warn('自动备份失败:', e); }
+        }
+        
+        // 防抖自动备份
+        let _backupTimer = null;
+        function scheduleAutoBackup() {
+            if (_backupTimer) clearTimeout(_backupTimer);
+            _backupTimer = setTimeout(() => { autoLocalBackup(); _backupTimer = null; }, 3000);
+        }
+        
+        // Supabase心跳保活（防止7天不用被暂停）
+        function keepSupabaseAlive() {
+            if (!currentUser) return;
+            try { db.from('user_configs').select('user_id').eq('user_id', currentUser).limit(1).then(() => console.log('[心跳] Supabase保活成功')).catch(() => {}); } catch(e) {}
         }
         
         // ==================== 导入导出 ====================
@@ -4252,7 +4293,7 @@
                         // 恢复目标
                         if (data.goals) {
                             goals = data.goals;
-                            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+                            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals)); scheduleAutoBackup();
                         }
                         
                         // 恢复月度支出覆盖
@@ -8610,6 +8651,10 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             saveAssetsToCloud();
         }
         
+        // Chart.js 实例（防止重复创建）
+        let assetsTrendChartInstance = null;
+        let assetsPieChartInstance = null;
+        
         function renderAssets() {
             // 计算总资产
             const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
@@ -8627,60 +8672,33 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             // 更新百万目标环形进度
             const targetMillion = 1000000;
             const progress = Math.min((totalAssets / targetMillion) * 100, 100);
-            const circumference = 2 * Math.PI * 45; // r=45
+            const circumference = 2 * Math.PI * 45;
             const offset = circumference - (progress / 100) * circumference;
             
             const progressCircle = document.getElementById('targetProgress');
             const percentText = document.getElementById('targetPercent');
-            if (progressCircle) {
-                progressCircle.style.strokeDashoffset = offset;
-            }
-            if (percentText) {
-                percentText.textContent = `${progress.toFixed(0)}%`;
-            }
+            if (progressCircle) progressCircle.style.strokeDashoffset = offset;
+            if (percentText) percentText.textContent = `${progress.toFixed(0)}%`;
             
             // 按类型分组计算
             const typeValues = {};
             ASSET_TYPES.forEach(type => {
-                typeValues[type.id] = {
-                    name: type.name,
-                    color: type.color,
-                    value: 0
-                };
+                typeValues[type.id] = { name: type.name, color: type.color, value: 0 };
             });
-            
             assets.forEach(a => {
-                if (typeValues[a.typeId]) {
-                    typeValues[a.typeId].value += (a.value || 0);
-                }
+                if (typeValues[a.typeId]) typeValues[a.typeId].value += (a.value || 0);
             });
             
             // 渲染增长指标卡片
             renderGrowthCards(totalAssets);
             
-            // 渲染里程碑
-            renderMilestones(totalAssets);
+            // 渲染 Chart.js 饼图（可交互）
+            renderAssetsPieChartJS(typeValues, totalAssets);
             
-            // 渲染年度对比
-            renderYearlyCompare();
+            // 渲染 Chart.js 趋势图（可交互）
+            renderAssetsTrendChartJS();
             
-            // 渲染饼图
-            renderAssetsChart(typeValues, totalAssets);
-            
-            // 渲染图例
-            document.getElementById('assetsLegend').innerHTML = Object.entries(typeValues)
-                .filter(([_, data]) => data.value > 0)
-                .map(([_, data]) => {
-                    const percent = totalAssets > 0 ? (data.value / totalAssets * 100).toFixed(1) : 0;
-                    return `
-                        <div class="assets-legend-item">
-                            <div class="assets-legend-color" style="background: ${data.color};"></div>
-                            <span>${data.name} ${percent}%</span>
-                        </div>
-                    `;
-                }).join('') || '<div style="color: var(--gray-500); font-size: 13px;">暂无数据</div>';
-            
-            // 渲染资产明细（新结构）
+            // 渲染资产明细（带删除按钮）
             let detailHtml = '';
             ASSET_TYPES.forEach(type => {
                 const typeAssets = assets.filter(a => a.typeId === type.id);
@@ -8688,7 +8706,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                     typeAssets.forEach(asset => {
                         const percent = totalAssets > 0 ? (asset.value / totalAssets * 100).toFixed(1) : 0;
                         detailHtml += `
-                            <div class="asset-row">
+                            <div class="asset-row" style="position: relative;">
                                 <div class="asset-row-left">
                                     <div class="asset-icon ${type.id}">${asset.icon}</div>
                                     <div class="asset-info">
@@ -8696,9 +8714,14 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                                         <div class="asset-type">${type.name}</div>
                                     </div>
                                 </div>
-                                <div class="asset-row-right">
-                                    <div class="asset-value">¥${(asset.value || 0).toLocaleString()}</div>
-                                    <div class="asset-pct">${percent}%</div>
+                                <div class="asset-row-right" style="display: flex; align-items: center; gap: 10px;">
+                                    <div>
+                                        <div class="asset-value">¥${(asset.value || 0).toLocaleString()}</div>
+                                        <div class="asset-pct">${percent}%</div>
+                                    </div>
+                                    <button onclick="deleteAssetItem('${asset.id}', '${asset.name}')" 
+                                        style="background: none; border: none; color: #cbd5e0; font-size: 16px; cursor: pointer; padding: 5px; line-height: 1;"
+                                        title="删除此资产项">✕</button>
                                 </div>
                             </div>
                         `;
@@ -8708,12 +8731,207 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             
             document.getElementById('assetsList').innerHTML = detailHtml || 
                 '<div style="text-align: center; padding: 30px; color: var(--gray-500);">暂无资产数据<br><small>点击上方更新按钮录入</small></div>';
+        }
+        
+        // ==================== 删除单条资产 ====================
+        function deleteAssetItem(assetId, assetName) {
+            if (!confirm(`确定删除「${assetName}」吗？\n\n删除后需要在"管理类目"中也移除对应子类，否则下次更新时会重新出现。`)) return;
             
-            // 渲染趋势折线图
-            renderAssetsTrendChart();
+            assets = assets.filter(a => a.id !== assetId);
+            localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
+            saveAssetsToCloud();
+            renderAssets();
+            showToast(`已删除「${assetName}」`, 'success');
+        }
+        
+        // ==================== Chart.js 资产配置饼图（点击显示金额）====================
+        function renderAssetsPieChartJS(typeValues, total) {
+            const canvas = document.getElementById('assetsChartJS');
+            if (!canvas) return;
             
-            // 渲染分类趋势图
-            renderCategoryTrendChart();
+            // 销毁旧实例
+            if (assetsPieChartInstance) {
+                assetsPieChartInstance.destroy();
+                assetsPieChartInstance = null;
+            }
+            
+            const entries = Object.entries(typeValues).filter(([_, d]) => d.value > 0);
+            
+            if (entries.length === 0) {
+                canvas.parentElement.innerHTML = '<canvas id="assetsChartJS"></canvas><div style="text-align:center; padding:40px; color:#a0aec0;">暂无数据</div>';
+                return;
+            }
+            
+            assetsPieChartInstance = new Chart(canvas, {
+                type: 'doughnut',
+                data: {
+                    labels: entries.map(([_, d]) => d.name),
+                    datasets: [{
+                        data: entries.map(([_, d]) => d.value),
+                        backgroundColor: entries.map(([_, d]) => d.color),
+                        borderWidth: 2,
+                        borderColor: '#fff',
+                        hoverBorderWidth: 3,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    cutout: '55%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 12,
+                                font: { size: 12 },
+                                usePointStyle: true,
+                                pointStyleWidth: 10
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(45, 55, 72, 0.95)',
+                            titleFont: { size: 13, weight: '600' },
+                            bodyFont: { size: 14 },
+                            padding: 12,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(ctx) {
+                                    const value = ctx.parsed;
+                                    const pct = total > 0 ? (value / total * 100).toFixed(1) : 0;
+                                    return ` ¥${value.toLocaleString()}（${pct}%）`;
+                                }
+                            }
+                        }
+                    },
+                    onClick: function(evt, elements) {
+                        // 点击也能触发 tooltip 显示
+                        if (elements.length > 0) {
+                            const idx = elements[0].index;
+                            const name = entries[idx][1].name;
+                            const value = entries[idx][1].value;
+                            const pct = total > 0 ? (value / total * 100).toFixed(1) : 0;
+                            showToast(`${name}: ¥${value.toLocaleString()}（${pct}%）`, 'success');
+                        }
+                    }
+                }
+            });
+        }
+        
+        // ==================== Chart.js 资产趋势折线图（点击显示金额）====================
+        function renderAssetsTrendChartJS() {
+            const canvas = document.getElementById('assetsTrendChartJS');
+            if (!canvas) return;
+            
+            // 销毁旧实例
+            if (assetsTrendChartInstance) {
+                assetsTrendChartInstance.destroy();
+                assetsTrendChartInstance = null;
+            }
+            
+            if (assetHistory.length === 0) {
+                canvas.parentElement.innerHTML = '<canvas id="assetsTrendChartJS"></canvas><div style="text-align:center; padding:40px; color:#a0aec0;">更新资产后将自动记录趋势</div>';
+                return;
+            }
+            
+            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+            const data = sortedHistory.map(h => h.total);
+            const labels = sortedHistory.map(h => {
+                const [y, m] = h.month.split('-');
+                return `${y.slice(2)}/${m}`;
+            });
+            
+            assetsTrendChartInstance = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '总资产',
+                        data: data,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.15)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 5,
+                        pointHoverRadius: 8,
+                        pointBackgroundColor: '#667eea',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointHoverBackgroundColor: '#5a67d8',
+                        pointHoverBorderColor: '#fff',
+                        pointHoverBorderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(45, 55, 72, 0.95)',
+                            titleFont: { size: 13, weight: '600' },
+                            bodyFont: { size: 15, weight: '700' },
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                title: function(ctx) {
+                                    return `📅 ${ctx[0].label}`;
+                                },
+                                label: function(ctx) {
+                                    const val = ctx.parsed.y;
+                                    const valStr = val >= 10000 
+                                        ? `¥${(val/10000).toFixed(2)}万` 
+                                        : `¥${val.toLocaleString()}`;
+                                    
+                                    // 计算环比
+                                    let changeStr = '';
+                                    const idx = ctx.dataIndex;
+                                    if (idx > 0) {
+                                        const prev = data[idx - 1];
+                                        const change = val - prev;
+                                        const changePct = prev > 0 ? (change / prev * 100).toFixed(1) : 0;
+                                        const arrow = change >= 0 ? '↑' : '↓';
+                                        changeStr = ` (${arrow}${Math.abs(changePct)}%)`;
+                                    }
+                                    
+                                    return ` ${valStr}${changeStr}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11 }, color: '#718096' }
+                        },
+                        y: {
+                            grid: { color: '#edf2f7' },
+                            ticks: {
+                                font: { size: 11 },
+                                color: '#718096',
+                                callback: function(val) {
+                                    return val >= 10000 ? `${(val/10000).toFixed(0)}万` : val.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    onClick: function(evt, elements) {
+                        if (elements.length > 0) {
+                            const idx = elements[0].index;
+                            const val = data[idx];
+                            const valStr = val >= 10000 ? `${(val/10000).toFixed(2)}万` : `¥${val.toLocaleString()}`;
+                            showToast(`${labels[idx]}: ¥${valStr}`, 'success');
+                        }
+                    }
+                }
+            });
         }
         
         // 渲染增长指标卡片
@@ -8810,405 +9028,12 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             `;
         }
         
-        // 渲染资产里程碑
-        function renderMilestones(totalAssets) {
-            const milestones = [
-                { target: 100000, label: '10万', icon: '🎯' },
-                { target: 300000, label: '30万', icon: '🎯' },
-                { target: 500000, label: '50万', icon: '⭐' },
-                { target: 800000, label: '80万', icon: '⭐' },
-                { target: 1000000, label: '100万', icon: '🏆' },
-                { target: 1500000, label: '150万', icon: '💎' },
-                { target: 2000000, label: '200万', icon: '👑' }
-            ];
-            
-            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
-            
-            // 找到每个里程碑的达成时间
-            const milestonesHtml = milestones.map(m => {
-                const achieved = totalAssets >= m.target;
-                let achievedDate = null;
-                
-                if (achieved) {
-                    // 找到首次达成的月份
-                    for (const h of sortedHistory) {
-                        if (h.total >= m.target) {
-                            const [y, mon] = h.month.split('-');
-                            achievedDate = `${y}.${mon} 达成`;
-                            break;
-                        }
-                    }
-                }
-                
-                // 预测达成时间
-                let predictDate = null;
-                if (!achieved && sortedHistory.length >= 2) {
-                    const recent = sortedHistory.slice(-3);
-                    if (recent.length >= 2) {
-                        const avgGrowth = (recent[recent.length - 1].total - recent[0].total) / recent.length;
-                        if (avgGrowth > 0) {
-                            const monthsNeeded = Math.ceil((m.target - totalAssets) / avgGrowth);
-                            const predictMonth = new Date();
-                            predictMonth.setMonth(predictMonth.getMonth() + monthsNeeded);
-                            predictDate = `预计 ${predictMonth.getFullYear()}.${String(predictMonth.getMonth() + 1).padStart(2, '0')}`;
-                        }
-                    }
-                }
-                
-                const progress = Math.min((totalAssets / m.target * 100), 100);
-                
-                return `
-                    <div class="milestone-row ${achieved ? 'achieved' : ''}">
-                        <div class="milestone-badge">${achieved ? '✓' : m.icon}</div>
-                        <div class="milestone-content">
-                            <div class="milestone-title">${m.label}</div>
-                            <div class="milestone-desc">${achieved ? achievedDate : (predictDate || '努力中...')}</div>
-                        </div>
-                        <div class="milestone-bar">
-                            <div class="milestone-bar-fill" style="width: ${progress}%"></div>
-                        </div>
-                        <div class="milestone-pct">${achieved ? '100%' : progress.toFixed(0) + '%'}</div>
-                    </div>
-                `;
-            }).join('');
-            
-            document.getElementById('assetsMilestones').innerHTML = milestonesHtml;
-        }
         
-        // 渲染年度对比
-        function renderYearlyCompare() {
-            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
-            
-            if (sortedHistory.length === 0) {
-                document.getElementById('assetsYearlyCompare').innerHTML = 
-                    '<div style="text-align: center; padding: 30px; color: var(--gray-500);">暂无数据</div>';
-                return;
-            }
-            
-            // 按年分组
-            const yearlyData = {};
-            sortedHistory.forEach(h => {
-                const year = h.month.split('-')[0];
-                if (!yearlyData[year]) {
-                    yearlyData[year] = { start: null, end: null };
-                }
-                if (!yearlyData[year].start || h.month < yearlyData[year].startMonth) {
-                    yearlyData[year].start = h.total;
-                    yearlyData[year].startMonth = h.month;
-                }
-                if (!yearlyData[year].end || h.month > yearlyData[year].endMonth) {
-                    yearlyData[year].end = h.total;
-                    yearlyData[year].endMonth = h.month;
-                }
-            });
-            
-            // 计算每年增长
-            const years = Object.keys(yearlyData).sort();
-            let prevYearEnd = null;
-            
-            const yearlyHtml = years.map(year => {
-                const data = yearlyData[year];
-                const startValue = prevYearEnd || data.start;
-                const growth = data.end - startValue;
-                const growthPct = startValue > 0 ? (growth / startValue * 100) : 0;
-                
-                prevYearEnd = data.end;
-                
-                return `
-                    <div class="yearly-row">
-                        <div class="year-label">${year}年</div>
-                        <div class="year-data">
-                            <div class="year-amount ${growth >= 0 ? 'positive' : 'negative'}">
-                                ${growth >= 0 ? '+' : ''}${(growth/10000).toFixed(1)}万
-                            </div>
-                            <div class="year-pct">${growth >= 0 ? '↑' : '↓'} ${Math.abs(growthPct).toFixed(1)}%</div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            document.getElementById('assetsYearlyCompare').innerHTML = yearlyHtml || 
-                '<div style="text-align: center; padding: 30px; color: var(--gray-500);">暂无数据</div>';
-        }
-        
-        function renderAssetsChart(typeValues, total) {
-            const canvas = document.getElementById('assetsChart');
-            const ctx = canvas.getContext('2d');
-            
-            // 清除画布
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (total <= 0) {
-                ctx.fillStyle = '#e2e8f0';
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('暂无数据', canvas.width / 2, canvas.height / 2);
-                return;
-            }
-            
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const radius = Math.min(centerX, centerY) - 20;
-            
-            let startAngle = -Math.PI / 2;
-            
-            Object.entries(typeValues).forEach(([_, data]) => {
-                if (data.value > 0) {
-                    const sliceAngle = (data.value / total) * 2 * Math.PI;
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(centerX, centerY);
-                    ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
-                    ctx.closePath();
-                    ctx.fillStyle = data.color;
-                    ctx.fill();
-                    
-                    startAngle += sliceAngle;
-                }
-            });
-            
-            // 中心圆（甜甜圈效果）
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
-            ctx.fillStyle = 'white';
-            ctx.fill();
-            
-            // 中心文字
-            ctx.fillStyle = '#1a202c';
-            ctx.font = 'bold 16px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(`¥${total.toLocaleString()}`, centerX, centerY);
-        }
-        
-        // 渲染资产趋势折线图
-        function renderAssetsTrendChart() {
-            const canvas = document.getElementById('assetsTrendChart');
-            const ctx = canvas.getContext('2d');
-            
-            // 设置canvas尺寸
-            const container = canvas.parentElement;
-            canvas.width = container.clientWidth - 30;
-            canvas.height = 220;
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (assetHistory.length === 0) {
-                ctx.fillStyle = '#a0aec0';
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('更新资产后将自动记录趋势', canvas.width / 2, canvas.height / 2);
-                return;
-            }
-            
-            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
-            const displayData = sortedHistory.slice(-12);
-            
-            const data = displayData.map(h => h.total);
-            const labels = displayData.map(h => {
-                const [y, m] = h.month.split('-');
-                return `${y.slice(2)}/${m}`;
-            });
-            
-            const maxVal = Math.max(...data) * 1.1;
-            const minVal = Math.min(...data) * 0.9;
-            const range = maxVal - minVal || 1;
-            
-            const padding = { top: 30, right: 20, bottom: 35, left: 50 };
-            const chartWidth = canvas.width - padding.left - padding.right;
-            const chartHeight = canvas.height - padding.top - padding.bottom;
-            
-            // 绘制网格线和Y轴标签
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 1;
-            ctx.fillStyle = '#718096';
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'right';
-            
-            for (let i = 0; i <= 4; i++) {
-                const y = padding.top + (chartHeight / 4) * i;
-                const value = maxVal - (range / 4) * i + minVal * (i / 4);
-                
-                ctx.beginPath();
-                ctx.moveTo(padding.left, y);
-                ctx.lineTo(canvas.width - padding.right, y);
-                ctx.stroke();
-                
-                const label = value >= 10000 ? `${(value / 10000).toFixed(0)}w` : `${(value / 1000).toFixed(0)}k`;
-                ctx.fillText(label, padding.left - 5, y + 3);
-            }
-            
-            // 计算点的位置
-            const points = data.map((val, i) => ({
-                x: padding.left + (chartWidth / (data.length - 1 || 1)) * i,
-                y: padding.top + chartHeight - ((val - minVal) / range) * chartHeight
-            }));
-            
-            // 绘制渐变填充区域
-            const gradient = ctx.createLinearGradient(0, padding.top, 0, canvas.height - padding.bottom);
-            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
-            gradient.addColorStop(1, 'rgba(102, 126, 234, 0.05)');
-            
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, canvas.height - padding.bottom);
-            points.forEach(p => ctx.lineTo(p.x, p.y));
-            ctx.lineTo(points[points.length - 1].x, canvas.height - padding.bottom);
-            ctx.closePath();
-            ctx.fillStyle = gradient;
-            ctx.fill();
-            
-            // 绘制折线
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            points.forEach(p => ctx.lineTo(p.x, p.y));
-            ctx.strokeStyle = '#667eea';
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.stroke();
-            
-            // 绘制数据点和标签
-            points.forEach((p, i) => {
-                // 数据点
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-                ctx.fillStyle = '#667eea';
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-                ctx.fillStyle = 'white';
-                ctx.fill();
-                
-                // X轴标签
-                ctx.fillStyle = '#718096';
-                ctx.font = '10px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(labels[i], p.x, canvas.height - 10);
-                
-                // 数值标签（只显示首尾和最高点）
-                if (i === 0 || i === points.length - 1 || data[i] === Math.max(...data)) {
-                    ctx.fillStyle = '#1a202c';
-                    ctx.font = 'bold 10px sans-serif';
-                    const valLabel = data[i] >= 10000 ? `${(data[i] / 10000).toFixed(1)}w` : `${(data[i] / 1000).toFixed(0)}k`;
-                    ctx.fillText(valLabel, p.x, p.y - 10);
-                }
-            });
-        }
-        
-        // 渲染分类资产趋势图
-        function renderCategoryTrendChart() {
-            const canvas = document.getElementById('assetsCategoryChart');
-            const container = canvas.parentElement;
-            
-            // 设置CSS尺寸
-            canvas.style.width = (container.clientWidth - 30) + 'px';
-            canvas.style.height = '200px';
-            
-            const { ctx, width, height } = setupHiDPICanvas(canvas);
-            
-            // 获取有详细数据的历史记录
-            const sortedHistory = [...assetHistory]
-                .filter(h => h.details)
-                .sort((a, b) => a.month.localeCompare(b.month))
-                .slice(-12);
-            
-            if (sortedHistory.length < 2) {
-                ctx.fillStyle = '#a0aec0';
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('需要至少2个月的详细数据', width / 2, height / 2);
-                return;
-            }
-            
-            const padding = { top: 20, right: 20, bottom: 35, left: 50 };
-            const chartWidth = width - padding.left - padding.right;
-            const chartHeight = height - padding.top - padding.bottom;
-            
-            // 获取所有资产ID和颜色
-            const assetConfigs = [];
-            ASSET_TYPES.forEach(type => {
-                type.items.forEach(item => {
-                    assetConfigs.push({
-                        id: item.id,
-                        name: item.name,
-                        color: type.color
-                    });
-                });
-            });
-            
-            // 提取每个资产的趋势数据
-            const assetTrends = assetConfigs.map(config => ({
-                ...config,
-                data: sortedHistory.map(h => h.details[config.id] || 0)
-            })).filter(t => t.data.some(v => v > 0)); // 只显示有数据的
-            
-            if (assetTrends.length === 0) {
-                ctx.fillStyle = '#a0aec0';
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('暂无分类数据', width / 2, height / 2);
-                return;
-            }
-            
-            // 计算最大值
-            const allValues = assetTrends.flatMap(t => t.data);
-            const maxVal = Math.max(...allValues) * 1.1;
-            
-            const labels = sortedHistory.map(h => {
-                const [y, m] = h.month.split('-');
-                return `${m}月`;
-            });
-            
-            // 绘制网格
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 1;
-            for (let i = 0; i <= 4; i++) {
-                const y = padding.top + (chartHeight / 4) * i;
-                ctx.beginPath();
-                ctx.moveTo(padding.left, y);
-                ctx.lineTo(width - padding.right, y);
-                ctx.stroke();
-            }
-            
-            // 绘制每条线
-            assetTrends.forEach((trend, trendIndex) => {
-                const points = trend.data.map((val, i) => ({
-                    x: padding.left + (chartWidth / (trend.data.length - 1 || 1)) * i,
-                    y: padding.top + chartHeight - (val / maxVal) * chartHeight
-                }));
-                
-                // 绘制线
-                ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                points.forEach(p => ctx.lineTo(p.x, p.y));
-                ctx.strokeStyle = trend.color;
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                
-                // 绘制最后一个点的标签
-                const lastPoint = points[points.length - 1];
-                const lastValue = trend.data[trend.data.length - 1];
-                ctx.fillStyle = trend.color;
-                ctx.beginPath();
-                ctx.arc(lastPoint.x, lastPoint.y, 4, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // 标签
-                ctx.font = '10px sans-serif';
-                ctx.textAlign = 'left';
-                const valLabel = lastValue >= 10000 ? `${(lastValue / 10000).toFixed(1)}w` : `${lastValue.toLocaleString()}`;
-                ctx.fillText(`${trend.name}: ${valLabel}`, lastPoint.x + 8, lastPoint.y + 3);
-            });
-            
-            // X轴标签
-            ctx.fillStyle = '#718096';
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'center';
-            labels.forEach((label, i) => {
-                const x = padding.left + (chartWidth / (labels.length - 1 || 1)) * i;
-                ctx.fillText(label, x, height - 10);
-            });
-        }
+        function renderAssetsChart() { /* 已替换为 Chart.js 版本 */ }
+        function renderAssetsTrendChart() { /* 已替换为 Chart.js 版本 */ }
+        function renderCategoryTrendChart() { /* 已移除 */ }
+        function renderMilestones() { /* 已移除 */ }
+        function renderYearlyCompare() { /* 已移除 */ }
         
         // ==================== 资产类目管理 ====================
         function showManageAssetTypes() {
@@ -9737,19 +9562,24 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                     document.getElementById('loginPage').classList.add('hidden');
                     document.getElementById('registerPage').classList.add('hidden');
                     document.getElementById('mainApp').classList.remove('hidden');
+                    document.getElementById('floatSyncBtn').style.display = 'flex';
+                    autoLocalBackup();
+                    keepSupabaseAlive();
                     
                     console.log('自动登录成功:', savedUser);
                 } catch (error) {
                     console.error('自动登录失败:', error);
-                    // 自动登录失败，清除会话，让用户重新登录
                     localStorage.removeItem('finance_session');
                     document.getElementById('loginNickname').value = savedUser;
                 }
             } else if (savedUser) {
-                // 只有用户名，填充输入框
                 document.getElementById('loginNickname').value = savedUser;
             }
         };
     </script>
+    
+    <!-- 悬浮一键同步按钮 -->
+    <button class="float-sync-btn" id="floatSyncBtn" onclick="syncData()" title="一键同步">🔄</button>
+    
 </body>
 </html>
