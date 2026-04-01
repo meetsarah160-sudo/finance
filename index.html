@@ -3519,8 +3519,21 @@
             ]}
         ];
         
+        // 安全的 JSON 解析，防止 localStorage 损坏导致崩溃
+        function safeParse(keyOrValue, fallback) {
+            try {
+                const raw = (keyOrValue && (keyOrValue.startsWith('{') || keyOrValue.startsWith('[')))
+                    ? keyOrValue
+                    : localStorage.getItem(keyOrValue);
+                return raw ? JSON.parse(raw) : fallback;
+            } catch (e) {
+                console.warn('JSON 解析失败:', keyOrValue, e);
+                return fallback;
+            }
+        }
+
         // 可自定义的资产类型（从localStorage加载或使用默认值）
-        let ASSET_TYPES = JSON.parse(localStorage.getItem('finance_asset_types_' + (localStorage.getItem('finance_current_user') || 'default'))) || JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES));
+        let ASSET_TYPES = safeParse('finance_asset_types_' + (localStorage.getItem('finance_current_user') || 'default'), JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
         
         // ==================== 高清Canvas适配 ====================
         function setupHiDPICanvas(canvas) {
@@ -3621,13 +3634,13 @@
         
         // 获取本地存储的密码
         function getLocalPassword(nickname) {
-            const passwords = JSON.parse(localStorage.getItem('finance_passwords') || '{}');
+            const passwords = safeParse('finance_passwords', {});
             return passwords[nickname];
         }
-        
+
         // 设置本地密码
         function setLocalPassword(nickname, hashedPwd) {
-            const passwords = JSON.parse(localStorage.getItem('finance_passwords') || '{}');
+            const passwords = safeParse('finance_passwords', {});
             passwords[nickname] = hashedPwd;
             localStorage.setItem('finance_passwords', JSON.stringify(passwords));
         }
@@ -3682,10 +3695,11 @@
                 // 创建新用户
                 const hashedPwd = await hashPassword(password);
                 setLocalPassword(nickname, hashedPwd);
-                
+
                 await db.from('user_configs').insert({
                     user_id: nickname,
-                    categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES))
+                    categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+                    password_hash: hashedPwd
                 });
                 
                 showToast('注册成功！请登录', 'success');
@@ -3744,17 +3758,45 @@
                 }
                 
                 const hashedPwd = await hashPassword(password);
-                const storedPwd = getLocalPassword(nickname);
-                
-                // 老用户第一次使用密码功能
-                if (!storedPwd) {
+
+                // 优先从云端验证密码
+                const { data: authData } = await db
+                    .from('user_configs')
+                    .select('password_hash')
+                    .eq('user_id', nickname)
+                    .maybeSingle();
+
+                if (authData && authData.password_hash) {
+                    // 云端有密码记录，验证密码
+                    if (authData.password_hash !== hashedPwd) {
+                        showToast('密码错误', 'error');
+                        btn.disabled = false;
+                        btn.textContent = '🚀 登录';
+                        return;
+                    }
+                    // 验证通过，缓存到本地
                     setLocalPassword(nickname, hashedPwd);
-                    showToast('已为您设置密码，请牢记！', 'success');
-                } else if (storedPwd !== hashedPwd) {
-                    showToast('密码错误', 'error');
-                    btn.disabled = false;
-                    btn.textContent = '🚀 登录';
-                    return;
+                } else {
+                    // 老用户没有云端密码，用本地验证并迁移到云端
+                    const storedPwd = getLocalPassword(nickname);
+                    if (storedPwd) {
+                        if (storedPwd !== hashedPwd) {
+                            showToast('密码错误', 'error');
+                            btn.disabled = false;
+                            btn.textContent = '🚀 登录';
+                            return;
+                        }
+                        // 迁移密码到云端
+                        try {
+                            await db.from('user_configs').update({ password_hash: hashedPwd }).eq('user_id', nickname);
+                        } catch (e) { console.log('密码迁移到云端失败:', e); }
+                    } else {
+                        // 全新设备且云端无密码记录 — 拒绝自动设密码，防止账号接管
+                        showToast('请在原设备登录后设置密码，或联系支持', 'error');
+                        btn.disabled = false;
+                        btn.textContent = '🚀 登录';
+                        return;
+                    }
                 }
                 
                 // 登录成功
@@ -3834,19 +3876,18 @@
                         localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
                         console.log('✅ 从云端加载资产数据:', assets.length, '条');
                     } else {
-                        // 云端没有，使用本地
-                        assets = JSON.parse(localStorage.getItem('finance_assets_' + currentUser) || '[]');
+                        assets = safeParse('finance_assets_' + currentUser, []);
                     }
-                    
+
                     // 🔥 加载云端资产历史
                     if (configData.asset_history && configData.asset_history.length > 0) {
                         assetHistory = configData.asset_history;
                         localStorage.setItem('finance_asset_history_' + currentUser, JSON.stringify(assetHistory));
                         console.log('✅ 从云端加载资产历史:', assetHistory.length, '条');
                     } else {
-                        assetHistory = JSON.parse(localStorage.getItem('finance_asset_history_' + currentUser) || '[]');
+                        assetHistory = safeParse('finance_asset_history_' + currentUser, []);
                     }
-                    
+
                     // 🔥 加载云端资产类型配置
                     if (configData.asset_types && configData.asset_types.length > 0) {
                         ASSET_TYPES = configData.asset_types;
@@ -3855,24 +3896,24 @@
                     } else {
                         const savedAssetTypes = localStorage.getItem('finance_asset_types_' + currentUser);
                         if (savedAssetTypes) {
-                            ASSET_TYPES = JSON.parse(savedAssetTypes);
+                            ASSET_TYPES = safeParse(savedAssetTypes, JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
                         }
                     }
-                    
+
                     // 🔥 加载云端月度支出覆盖
                     if (configData.expense_overrides && Object.keys(configData.expense_overrides).length > 0) {
                         monthlyExpenseOverrides = configData.expense_overrides;
                         localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
                         console.log('✅ 从云端加载月度支出覆盖');
                     } else {
-                        monthlyExpenseOverrides = JSON.parse(localStorage.getItem('finance_expense_overrides_' + currentUser) || '{}');
+                        monthlyExpenseOverrides = safeParse('finance_expense_overrides_' + currentUser, {});
                     }
                 } else {
                     // 云端没有配置，优先使用本地备份
                     console.log('⚠️ 云端无user_configs数据');
                     const localCat = localStorage.getItem('finance_categories_' + currentUser);
                     if (localCat) {
-                        const parsedCat = JSON.parse(localCat);
+                        const parsedCat = safeParse(localCat, null);
                         if (parsedCat && parsedCat.length > 0) {
                             categories = parsedCat;
                             console.log('⚠️ 使用本地类目备份:', categories.length, '个');
@@ -3883,11 +3924,11 @@
                         categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
                     }
                     // 加载其他本地数据
-                    assets = JSON.parse(localStorage.getItem('finance_assets_' + currentUser) || '[]');
-                    assetHistory = JSON.parse(localStorage.getItem('finance_asset_history_' + currentUser) || '[]');
-                    monthlyExpenseOverrides = JSON.parse(localStorage.getItem('finance_expense_overrides_' + currentUser) || '{}');
+                    assets = safeParse('finance_assets_' + currentUser, []);
+                    assetHistory = safeParse('finance_asset_history_' + currentUser, []);
+                    monthlyExpenseOverrides = safeParse('finance_expense_overrides_' + currentUser, {});
                     const savedAssetTypes = localStorage.getItem('finance_asset_types_' + currentUser);
-                    if (savedAssetTypes) ASSET_TYPES = JSON.parse(savedAssetTypes);
+                    if (savedAssetTypes) ASSET_TYPES = safeParse(savedAssetTypes, JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
                     
                     // 同步到云端（只有确认有数据才同步）
                     if (categories.length > 0) {
@@ -3947,7 +3988,7 @@
                 }
                 // 最后回退到 localStorage
                 if (!incomesLoaded) {
-                    incomes = JSON.parse(localStorage.getItem('finance_incomes_' + currentUser) || '[]');
+                    incomes = safeParse('finance_incomes_' + currentUser, []);
                     if (incomes.length > 0) {
                         console.log('⚠️ 使用本地收入数据:', incomes.length, '条');
                     }
@@ -3981,7 +4022,7 @@
                     console.log('✅ 从 user_configs.goals_data 加载目标:', goals.length, '条');
                 }
                 if (!goalsLoaded) {
-                    goals = JSON.parse(localStorage.getItem('finance_goals_' + currentUser) || '[]');
+                    goals = safeParse('finance_goals_' + currentUser, []);
                 }
                 
                 // 加载月度支出覆盖值（本地存储）
@@ -3998,13 +4039,12 @@
                 
             } catch (error) {
                 console.error('加载数据:', error);
+                showToast('云端数据加载失败，使用本地数据', 'warning');
                 setSyncStatus('synced');
-                const localCat = localStorage.getItem('finance_categories_' + currentUser);
-                const localExp = localStorage.getItem('finance_expenses_' + currentUser);
-                categories = localCat ? JSON.parse(localCat) : JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-                expenses = localExp ? JSON.parse(localExp) : [];
-                incomes = JSON.parse(localStorage.getItem('finance_incomes_' + currentUser) || '[]');
-                goals = JSON.parse(localStorage.getItem('finance_goals_' + currentUser) || '[]');
+                categories = safeParse('finance_categories_' + currentUser, null) || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                expenses = safeParse('finance_expenses_' + currentUser, []);
+                incomes = safeParse('finance_incomes_' + currentUser, []);
+                goals = safeParse('finance_goals_' + currentUser, []);
                 init();
             }
         }
@@ -4035,6 +4075,7 @@
                 setSyncStatus('synced');
             } catch (error) {
                 console.error('同步到云端失败:', error);
+                showToast('云端同步失败，数据已保存到本地', 'error');
                 // 云端失败也保存到本地
                 localStorage.setItem('finance_categories_' + currentUser, JSON.stringify(categories));
                 localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
@@ -4071,15 +4112,17 @@
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
             } catch (error) {
                 console.error('保存消费记录:', error);
+                showToast('消费记录同步失败，已保存本地', 'error');
             }
         }
-        
+
         async function deleteExpenseFromCloud(id) {
             try {
                 await db.from('expenses').delete().eq('id', id);
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
             } catch (error) {
                 console.error('删除失败:', error);
+                showToast('删除同步失败', 'error');
             }
         }
         
@@ -4204,7 +4247,24 @@
                 reader.onload = async (e) => {
                     try {
                         const data = JSON.parse(e.target.result);
-                        
+
+                        // 导入数据格式验证
+                        if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+                            throw new Error('备份文件格式不正确');
+                        }
+                        const arrayFields = ['categories', 'expenses', 'incomes', 'goals', 'assets', 'assetHistory'];
+                        for (const field of arrayFields) {
+                            if (data[field] !== undefined && !Array.isArray(data[field])) {
+                                throw new Error('字段 "' + field + '" 格式错误：应为数组');
+                            }
+                        }
+                        if (data.expenses && data.expenses.length > 0) {
+                            const sample = data.expenses[0];
+                            if (sample.amount === undefined || sample.date === undefined) {
+                                throw new Error('支出记录缺少必要字段（date/amount）');
+                            }
+                        }
+
                         // 显示备份信息
                         const info = `
 备份版本: ${data.version || 'v3'}
@@ -5985,7 +6045,11 @@
                 
                 const newHash = await hashPassword(newPwd);
                 setLocalPassword(currentUser, newHash);
-                
+                // 同步新密码到云端
+                try {
+                    await db.from('user_configs').update({ password_hash: newHash }).eq('user_id', currentUser);
+                } catch (e) { console.error('密码同步到云端失败:', e); }
+
                 closePasswordModal();
                 showToast('密码修改成功', 'success');
                 
@@ -6058,7 +6122,7 @@
                 await db.from('user_configs').delete().eq('user_id', currentUser);
                 
                 // 删除本地密码
-                const passwords = JSON.parse(localStorage.getItem('finance_passwords') || '{}');
+                const passwords = safeParse('finance_passwords', {});
                 delete passwords[currentUser];
                 localStorage.setItem('finance_passwords', JSON.stringify(passwords));
                 
@@ -8458,7 +8522,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 // 同步到云端
                 try {
                     await db.from('incomes').update({ date, type, item, amount }).eq('id', id);
-                } catch (e) { console.log('收入编辑同步失败:', e); }
+                } catch (e) { console.error('收入编辑同步失败:', e); showToast('收入编辑同步失败', 'error'); }
                 renderIncomeTable();
                 closeIncomeEditModal();
                 showToast('已保存', 'success');
@@ -8506,7 +8570,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 if (existingIndex !== -1) {
                     // 更新现有记录
                     incomes[existingIndex].amount = amount;
-                    try { await db.from('incomes').update({ amount }).eq('id', incomes[existingIndex].id); } catch(e) {}
+                    try { await db.from('incomes').update({ amount }).eq('id', incomes[existingIndex].id); } catch(e) { console.error('收入同步失败:', e); showToast('收入同步失败', 'error'); }
                 } else {
                     // 新增记录
                     const income = {
@@ -9736,24 +9800,35 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
         window.onload = async function() {
             const savedUser = localStorage.getItem('finance_user');
             const savedSession = localStorage.getItem('finance_session');
-            
+            const SESSION_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7天过期
+
             if (savedUser && savedSession) {
+                // 检查会话是否过期
+                const sessionAge = Date.now() - parseInt(savedSession, 10);
+                if (sessionAge > SESSION_MAX_AGE) {
+                    localStorage.removeItem('finance_session');
+                    document.getElementById('loginNickname').value = savedUser;
+                    showToast('登录已过期，请重新登录', 'warning');
+                    return;
+                }
+
                 // 有保存的会话，自动登录
                 currentUser = savedUser;
                 document.getElementById('displayUser').textContent = savedUser;
-                
+
                 try {
                     await loadDataFromCloud();
-                    
+
                     document.getElementById('loginPage').classList.add('hidden');
                     document.getElementById('registerPage').classList.add('hidden');
                     document.getElementById('mainApp').classList.remove('hidden');
-                    
+
                     console.log('自动登录成功:', savedUser);
                 } catch (error) {
                     console.error('自动登录失败:', error);
-                    // 自动登录失败，清除会话，让用户重新登录
+                    showToast('自动登录失败，请重新登录', 'error');
                     localStorage.removeItem('finance_session');
+                    currentUser = null;
                     document.getElementById('loginNickname').value = savedUser;
                 }
             } else if (savedUser) {
