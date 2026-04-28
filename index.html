@@ -3942,7 +3942,7 @@
                     .select('*')
                     .eq('user_id', currentUser)
                     .order('date', { ascending: false });
-                
+
                 if (expenseData && expenseData.length > 0) {
                     expenses = expenseData.map(e => ({
                         id: e.id,
@@ -3955,6 +3955,45 @@
                     }));
                 } else {
                     expenses = [];
+                }
+
+                // 检查 localStorage 中是否有未同步到云端的记录（ID 为整数表示未同步）
+                const localExpenses = safeParse('finance_expenses_' + currentUser, []);
+                const cloudIds = new Set(expenses.map(e => String(e.id)));
+                const unsynced = localExpenses.filter(e => !cloudIds.has(String(e.id)) && typeof e.id === 'number');
+                if (unsynced.length > 0) {
+                    console.log(`🔄 发现 ${unsynced.length} 条本地未同步记录，正在上传...`);
+                    const uploadData = unsynced.map(e => ({
+                        user_id: currentUser,
+                        date: e.date,
+                        item: e.item,
+                        amount: e.amount,
+                        category_id: e.categoryId,
+                        category_name: e.categoryName || '未知',
+                        type: e.type || '弹性'
+                    }));
+                    try {
+                        const { data: inserted } = await db.from('expenses').insert(uploadData).select();
+                        if (inserted && inserted.length > 0) {
+                            const newRecords = inserted.map(e => ({
+                                id: e.id,
+                                date: e.date,
+                                item: e.item,
+                                amount: parseFloat(e.amount),
+                                categoryId: e.category_id,
+                                categoryName: e.category_name,
+                                type: e.type
+                            }));
+                            expenses = [...expenses, ...newRecords].sort((a, b) => new Date(b.date) - new Date(a.date));
+                            localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
+                            showToast(`✅ 已同步 ${inserted.length} 条历史记录到云端`, 'success');
+                            console.log(`✅ 成功上传 ${inserted.length} 条未同步记录`);
+                        }
+                    } catch (uploadErr) {
+                        console.error('历史记录上传失败:', uploadErr);
+                        // 上传失败时，仍将本地未同步记录合并到内存，保证显示完整
+                        expenses = [...expenses, ...unsynced].sort((a, b) => new Date(b.date) - new Date(a.date));
+                    }
                 }
                 
                 // 加载收入：优先 incomes 表，其次 user_configs.incomes_data，最后 localStorage
@@ -4242,7 +4281,7 @@
             input.onchange = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                
+
                 const reader = new FileReader();
                 reader.onload = async (e) => {
                     try {
@@ -4265,87 +4304,130 @@
                             }
                         }
 
-                        // 显示备份信息
-                        const info = `
-备份版本: ${data.version || 'v3'}
-备份时间: ${data.exportTime || '未知'}
+                        // 拉取云端现有支出，用于差异比对（追加模式去重）
+                        const { data: existingExpRows, error: fetchErr } = await db.from('expenses')
+                            .select('date,item,amount').eq('user_id', currentUser);
+                        if (fetchErr) throw new Error('读取云端支出失败：' + fetchErr.message);
+                        const existingExp = existingExpRows || [];
+                        const expFp = r => `${r.date}|${r.item}|${Number(r.amount)}`;
+                        const existingExpFps = new Set(existingExp.map(expFp));
+                        const backupExpenses = data.expenses || [];
+                        const newExpenses = backupExpenses.filter(e => !existingExpFps.has(expFp(e)));
+                        const dupExpenses = backupExpenses.length - newExpenses.length;
+
+                        const info = `📦 备份信息
+版本: ${data.version || 'v3'}
+导出时间: ${data.exportTime || '未知'}
 用户: ${data.user || '未知'}
 
-包含数据:
-• 支出记录: ${data.expenses?.length || 0}条
-• 收入记录: ${data.incomes?.length || 0}条
-• 资产项目: ${data.assets?.length || 0}项
-• 资产历史: ${data.assetHistory?.length || 0}条
-• 储蓄目标: ${data.goals?.length || 0}个
-• 预算类目: ${data.categories?.length || 0}个
-                        `;
-                        
-                        if (!confirm('📦 确定要恢复此备份吗？\n\n' + info + '\n\n⚠️ 这将覆盖当前所有数据！')) {
+📊 数据对比（支出）
+• 备份文件含 ${backupExpenses.length} 条
+• 云端现有 ${existingExp.length} 条
+• 重复 ${dupExpenses} 条 / 新增 ${newExpenses.length} 条
+
+其他数据（收入 ${data.incomes?.length || 0} / 资产 ${data.assets?.length || 0} / 资产历史 ${data.assetHistory?.length || 0} / 目标 ${data.goals?.length || 0} / 类目 ${data.categories?.length || 0}）`;
+
+                        const mode = prompt(info + `
+
+请选择导入模式：
+  输入  追加  → 仅新增 ${newExpenses.length} 条不重复的支出，所有现有数据保留（推荐）
+  输入  覆盖  → 先删除云端全部 ${existingExp.length} 条支出，再写入备份内容（危险，不可恢复）
+  其他/取消    → 不导入`);
+
+                        if (mode !== '追加' && mode !== '覆盖') {
+                            alert('已取消导入');
                             return;
                         }
-                        
-                        // 恢复类目
-                        if (data.categories) {
-                            categories = data.categories;
-                            await saveCategoriesToCloud();
-                        }
-                        
-                        // 恢复支出
-                        if (data.expenses && data.expenses.length > 0) {
-                            await db.from('expenses').delete().eq('user_id', currentUser);
-                            const expData = data.expenses.map(exp => ({
-                                user_id: currentUser,
-                                date: exp.date,
-                                item: exp.item,
-                                amount: exp.amount,
-                                category_id: exp.categoryId,
-                                category_name: exp.categoryName || '未知',
-                                type: exp.type || '弹性'
-                            }));
-                            await db.from('expenses').insert(expData);
-                        }
-                        
-                        // 恢复收入
-                        if (data.incomes) {
-                            incomes = data.incomes;
+
+                        if (mode === '覆盖') {
+                            const confirmText = prompt(`⚠️⚠️⚠️ 高危操作 ⚠️⚠️⚠️
+
+你即将永久删除云端「${existingExp.length} 条支出记录」，此操作不可恢复！
+
+请输入  DELETE  确认（区分大小写）：`);
+                            if (confirmText !== 'DELETE') {
+                                alert('已取消导入');
+                                return;
+                            }
                         }
 
-                        // 恢复资产
-                        if (data.assets) {
-                            assets = data.assets;
+                        // === 执行导入 ===
+
+                        // 支出
+                        if (mode === '覆盖') {
+                            if (data.expenses) {
+                                await db.from('expenses').delete().eq('user_id', currentUser);
+                                if (data.expenses.length > 0) {
+                                    const expData = data.expenses.map(exp => ({
+                                        user_id: currentUser,
+                                        date: exp.date,
+                                        item: exp.item,
+                                        amount: exp.amount,
+                                        category_id: exp.categoryId,
+                                        category_name: exp.categoryName || '未知',
+                                        type: exp.type || '弹性'
+                                    }));
+                                    await db.from('expenses').insert(expData);
+                                }
+                            }
+                        } else {
+                            if (newExpenses.length > 0) {
+                                const expData = newExpenses.map(exp => ({
+                                    user_id: currentUser,
+                                    date: exp.date,
+                                    item: exp.item,
+                                    amount: exp.amount,
+                                    category_id: exp.categoryId,
+                                    category_name: exp.categoryName || '未知',
+                                    type: exp.type || '弹性'
+                                }));
+                                await db.from('expenses').insert(expData);
+                            }
                         }
 
-                        // 恢复资产历史
-                        if (data.assetHistory) {
-                            assetHistory = data.assetHistory;
+                        // 类目 / 资产 / 资产历史 / 目标 / 月度覆盖 / 资产类目配置：仅覆盖模式替换
+                        if (mode === '覆盖') {
+                            if (data.categories) {
+                                categories = data.categories;
+                                await saveCategoriesToCloud();
+                            }
+                            if (data.incomes) incomes = data.incomes;
+                            if (data.assets) assets = data.assets;
+                            if (data.assetHistory) assetHistory = data.assetHistory;
+                            if (data.goals) goals = data.goals;
+                            if (data.monthlyExpenseOverrides) monthlyExpenseOverrides = data.monthlyExpenseOverrides;
+                            if (data.assetTypes) ASSET_TYPES = data.assetTypes;
+                        } else {
+                            // 追加模式：收入按指纹去重追加；资产历史按 month 去重追加；月度覆盖以现有为准合并；其余不动
+                            if (Array.isArray(data.incomes) && data.incomes.length > 0) {
+                                const incFp = r => `${r.date}|${r.item}|${Number(r.amount)}|${r.type || ''}`;
+                                const existingIncFps = new Set((incomes || []).map(incFp));
+                                const newIncomes = data.incomes.filter(i => !existingIncFps.has(incFp(i)));
+                                if (newIncomes.length > 0) incomes = [...(incomes || []), ...newIncomes];
+                            }
+                            if (Array.isArray(data.assetHistory) && data.assetHistory.length > 0) {
+                                const existingMonths = new Set((assetHistory || []).map(h => h.month));
+                                const newHistory = data.assetHistory.filter(h => !existingMonths.has(h.month));
+                                if (newHistory.length > 0) assetHistory = [...(assetHistory || []), ...newHistory];
+                            }
+                            if (data.monthlyExpenseOverrides) {
+                                monthlyExpenseOverrides = { ...data.monthlyExpenseOverrides, ...monthlyExpenseOverrides };
+                            }
                         }
 
-                        // 恢复目标
-                        if (data.goals) {
-                            goals = data.goals;
-                        }
-
-                        // 恢复月度支出覆盖
-                        if (data.monthlyExpenseOverrides) {
-                            monthlyExpenseOverrides = data.monthlyExpenseOverrides;
-                        }
-
-                        // 恢复资产类目配置
-                        if (data.assetTypes) {
-                            ASSET_TYPES = data.assetTypes;
-                        }
-
-                        // 🔥 恢复后立即同步所有数据到云端
+                        // 同步剩余配置到云端，再从云端拉一遍刷新视图
                         await syncAllToCloud();
-
-                        // 重新加载数据
                         await loadDataFromCloud();
-                        alert('✅ 数据恢复成功！\n\n页面将自动刷新。');
+
+                        const summary = mode === '覆盖'
+                            ? `✅ 覆盖导入完成\n\n支出已替换为备份的 ${data.expenses?.length || 0} 条`
+                            : `✅ 追加导入完成\n\n• 新增支出: ${newExpenses.length} 条\n• 跳过重复: ${dupExpenses} 条\n• 现有数据完整保留`;
+                        alert(summary + '\n\n页面将自动刷新。');
                         location.reload();
-                        
+
                     } catch (err) {
                         console.error('导入错误:', err);
-                        alert('❌ 导入失败：文件格式错误\n\n' + err.message);
+                        alert('❌ 导入失败：' + err.message);
                     }
                 };
                 reader.readAsText(file);
