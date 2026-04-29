@@ -9651,13 +9651,175 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                         <h3 style="margin:0;">📜 完整资产历史 <span style="font-size:13px;color:var(--gray-500);font-weight:normal;">（${sorted.length} 条）</span></h3>
                         <button class="btn btn-outline btn-sm" onclick="closeAssetHistoryModal()">关闭</button>
                     </div>
+                    <div style="background:var(--gray-100);border-radius:10px;padding:10px;margin-bottom:12px;">
+                        <canvas id="assetHistoryChart" style="width:100%;display:block;cursor:pointer;"></canvas>
+                        <div style="font-size:11px;color:var(--gray-500);text-align:center;margin-top:4px;">
+                            X 轴按真实时间比例分布；点击曲线上任意点查看该次更新详情
+                        </div>
+                    </div>
                     <div style="font-size:12px;color:var(--gray-500);margin-bottom:12px;">
-                        每次点「更新」保存都会留一条记录。月度图表显示的是每月最新一条。
+                        每次点「更新」保存都会留一条记录。资产趋势图（外面那张）显示的是每月最新一条。
                     </div>
                     ${rowsHtml}
                 </div>
             `;
             document.body.appendChild(modal);
+            renderAssetHistoryChart();
+        }
+
+        function renderAssetHistoryChart() {
+            const canvas = document.getElementById('assetHistoryChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth - 20;
+            canvas.height = 200;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const sortedAsc = [...assetHistory].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            if (sortedAsc.length === 0) {
+                ctx.fillStyle = '#a0aec0';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('暂无更新记录', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            const padding = { top: 25, right: 15, bottom: 28, left: 50 };
+            const chartWidth = canvas.width - padding.left - padding.right;
+            const chartHeight = canvas.height - padding.top - padding.bottom;
+
+            if (sortedAsc.length === 1) {
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+                ctx.fillStyle = '#667eea';
+                ctx.fill();
+                ctx.fillStyle = '#1a202c';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`¥${Number(sortedAsc[0].total).toLocaleString()}`, cx, cy - 12);
+                ctx.fillStyle = '#718096';
+                ctx.font = '10px sans-serif';
+                const d = new Date(sortedAsc[0].date);
+                ctx.fillText(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`, cx, cy + 22);
+                return;
+            }
+
+            const data = sortedAsc.map(h => h.total);
+            const times = sortedAsc.map(h => new Date(h.date).getTime());
+            const tMin = times[0];
+            const tMax = times[times.length - 1];
+            const tRange = tMax - tMin || 1;
+
+            const dMax = Math.max(...data);
+            const dMin = Math.min(...data);
+            const valPad = (dMax - dMin) * 0.1 || dMax * 0.1 || 1;
+            const maxVal = dMax + valPad;
+            const minVal = Math.max(0, dMin - valPad);
+            const valRange = maxVal - minVal || 1;
+
+            // 网格 + Y 轴标签
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#718096';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= 3; i++) {
+                const y = padding.top + (chartHeight / 3) * i;
+                const value = maxVal - (valRange / 3) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(canvas.width - padding.right, y);
+                ctx.stroke();
+                const label = value >= 10000 ? `${(value / 10000).toFixed(0)}w` : `${Math.round(value / 1000)}k`;
+                ctx.fillText(label, padding.left - 5, y + 3);
+            }
+
+            // 点位置（X 按真实时间比例）
+            const points = sortedAsc.map((h, i) => ({
+                x: padding.left + ((times[i] - tMin) / tRange) * chartWidth,
+                y: padding.top + chartHeight - ((data[i] - minVal) / valRange) * chartHeight,
+                record: h
+            }));
+
+            // 渐变填充
+            const gradient = ctx.createLinearGradient(0, padding.top, 0, canvas.height - padding.bottom);
+            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
+            gradient.addColorStop(1, 'rgba(102, 126, 234, 0.05)');
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, canvas.height - padding.bottom);
+            points.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.lineTo(points[points.length - 1].x, canvas.height - padding.bottom);
+            ctx.closePath();
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // 折线
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            points.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+
+            // 点
+            points.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = '#667eea';
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+            });
+
+            // X 轴时间标签：首、中、尾
+            const fmtDate = ts => {
+                const d = new Date(ts);
+                return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+            };
+            ctx.fillStyle = '#718096';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(fmtDate(tMin), padding.left, canvas.height - 10);
+            ctx.fillText(fmtDate(tMax), canvas.width - padding.right, canvas.height - 10);
+            if (sortedAsc.length > 2) {
+                ctx.fillText(fmtDate((tMin + tMax) / 2), padding.left + chartWidth / 2, canvas.height - 10);
+            }
+
+            // 首尾值标注
+            const valLabel = v => v >= 10000 ? `${(v / 10000).toFixed(1)}w` : `${Math.round(v / 1000)}k`;
+            ctx.fillStyle = '#1a202c';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(valLabel(data[0]), points[0].x, points[0].y - 10);
+            ctx.fillText(valLabel(data[data.length - 1]), points[points.length - 1].x, points[points.length - 1].y - 10);
+
+            // 点击最近的点显示详情
+            canvas.onclick = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+                const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+                let nearest = null, nearestDist = Infinity;
+                points.forEach(p => {
+                    const dist = Math.hypot(p.x - mx, p.y - my);
+                    if (dist < nearestDist) { nearestDist = dist; nearest = p; }
+                });
+                if (nearest && nearestDist < 30) {
+                    const r = nearest.record;
+                    const dt = new Date(r.date);
+                    const pad = n => String(n).padStart(2, '0');
+                    const fmt = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+                    showToast(`${fmt} · ¥${Number(r.total).toLocaleString()}`, 'success');
+                }
+            };
         }
 
         function closeAssetHistoryModal() {
