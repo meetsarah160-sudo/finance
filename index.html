@@ -3192,7 +3192,8 @@
                     <div class="chart-card">
                         <div class="card-header-flex">
                             <h3>📋 资产明细</h3>
-                            <div style="display: flex; gap: 8px;">
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button class="btn btn-secondary btn-sm" onclick="showAssetHistoryModal()">📜 完整历史</button>
                                 <button class="btn btn-secondary btn-sm" onclick="showManageAssetTypes()">⚙️ 管理类目</button>
                                 <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">✏️ 更新</button>
                             </div>
@@ -8875,7 +8876,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
         
         // 渲染增长指标卡片
         function renderGrowthCards(totalAssets) {
-            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
+            const sortedHistory = getMonthlyLatestHistory();
             
             if (sortedHistory.length === 0) {
                 document.getElementById('assetsGrowthCards').innerHTML = `
@@ -8979,7 +8980,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 { target: 2000000, label: '200万', icon: '👑' }
             ];
             
-            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
+            const sortedHistory = getMonthlyLatestHistory();
             
             // 找到每个里程碑的达成时间
             const milestonesHtml = milestones.map(m => {
@@ -9034,7 +9035,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
         
         // 渲染年度对比
         function renderYearlyCompare() {
-            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
+            const sortedHistory = getMonthlyLatestHistory();
             
             if (sortedHistory.length === 0) {
                 document.getElementById('assetsYearlyCompare').innerHTML = 
@@ -9158,7 +9159,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 return;
             }
             
-            const sortedHistory = [...assetHistory].sort((a, b) => a.month.localeCompare(b.month));
+            const sortedHistory = getMonthlyLatestHistory();
             const displayData = sortedHistory.slice(-12);
             
             const data = displayData.map(h => h.total);
@@ -9263,10 +9264,9 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             
             const { ctx, width, height } = setupHiDPICanvas(canvas);
             
-            // 获取有详细数据的历史记录
-            const sortedHistory = [...assetHistory]
+            // 获取有详细数据的历史记录（每月取最新一条，最多最近 12 个月）
+            const sortedHistory = getMonthlyLatestHistory()
                 .filter(h => h.details)
-                .sort((a, b) => a.month.localeCompare(b.month))
                 .slice(-12);
             
             if (sortedHistory.length < 2) {
@@ -9560,9 +9560,21 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             document.body.appendChild(modal);
         }
         
-        // 切换月份时加载该月份的历史数据
+        // 取每月最新一条记录（图表用 —— 保持月度视图）
+        function getMonthlyLatestHistory() {
+            const byMonth = {};
+            assetHistory.forEach(h => {
+                if (!byMonth[h.month] || new Date(h.date) > new Date(byMonth[h.month].date)) {
+                    byMonth[h.month] = h;
+                }
+            });
+            return Object.values(byMonth).sort((a, b) => a.month.localeCompare(b.month));
+        }
+
+        // 切换月份时加载该月最新一条历史数据
         function loadMonthAssetData(monthKey) {
-            const historyRecord = assetHistory.find(h => h.month === monthKey);
+            const monthRecords = assetHistory.filter(h => h.month === monthKey);
+            const historyRecord = monthRecords.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
             
             ASSET_TYPES.forEach(type => {
                 type.items.forEach(item => {
@@ -9581,11 +9593,102 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
         function closeUpdateAssetsModal() {
             document.getElementById('updateAssetsModal')?.remove();
         }
+
+        // ==================== 完整资产历史 ====================
+        function showAssetHistoryModal() {
+            // 按时间倒序（最新在上）
+            const sorted = [...assetHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            const formatDateTime = iso => {
+                const d = new Date(iso);
+                const pad = n => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            };
+
+            // 构造每个 item id → name 的查找表
+            const itemNameMap = {};
+            ASSET_TYPES.forEach(t => t.items.forEach(i => { itemNameMap[i.id] = i.name; }));
+
+            const rowsHtml = sorted.length === 0
+                ? '<div style="text-align:center;padding:40px;color:var(--gray-500);">还没有更新记录</div>'
+                : sorted.map((h, idx) => {
+                    const detailsHtml = h.details
+                        ? Object.entries(h.details).map(([id, v]) =>
+                            `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--gray-700);">
+                                <span>${itemNameMap[id] || id}</span>
+                                <span>¥${Number(v).toLocaleString()}</span>
+                            </div>`).join('')
+                        : '<div style="font-size:13px;color:var(--gray-500);">（无明细数据）</div>';
+
+                    // 用 id 做唯一标识，旧数据没有 id 用 date 兜底
+                    const recId = h.id != null ? h.id : `legacy_${h.date}`;
+
+                    return `
+                        <div style="border:1px solid var(--gray-200);border-radius:10px;padding:12px;margin-bottom:10px;background:white;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                                <div>
+                                    <div style="font-weight:600;color:var(--gray-800);">¥${Number(h.total).toLocaleString()}</div>
+                                    <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">${formatDateTime(h.date)} · ${h.month}</div>
+                                </div>
+                                <div style="display:flex;gap:6px;">
+                                    <button class="btn btn-outline btn-sm" onclick="document.getElementById('histDet_${idx}').classList.toggle('hidden')">明细</button>
+                                    <button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="deleteAssetHistoryEntry('${recId}')">删除</button>
+                                </div>
+                            </div>
+                            <div id="histDet_${idx}" class="hidden" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--gray-200);">
+                                ${detailsHtml}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'assetHistoryModal';
+            modal.innerHTML = `
+                <div class="modal" style="max-width:600px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                        <h3 style="margin:0;">📜 完整资产历史 <span style="font-size:13px;color:var(--gray-500);font-weight:normal;">（${sorted.length} 条）</span></h3>
+                        <button class="btn btn-outline btn-sm" onclick="closeAssetHistoryModal()">关闭</button>
+                    </div>
+                    <div style="font-size:12px;color:var(--gray-500);margin-bottom:12px;">
+                        每次点「更新」保存都会留一条记录。月度图表显示的是每月最新一条。
+                    </div>
+                    ${rowsHtml}
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function closeAssetHistoryModal() {
+            document.getElementById('assetHistoryModal')?.remove();
+        }
+
+        async function deleteAssetHistoryEntry(recId) {
+            if (!confirm('确定删除这条历史记录？')) return;
+
+            const before = assetHistory.length;
+            assetHistory = assetHistory.filter(h => {
+                const thisId = h.id != null ? String(h.id) : `legacy_${h.date}`;
+                return thisId !== String(recId);
+            });
+
+            if (assetHistory.length === before) {
+                showToast('未找到该记录', 'error');
+                return;
+            }
+
+            saveAssets();
+            closeAssetHistoryModal();
+            showAssetHistoryModal();
+            renderAssets();
+            showToast('已删除', 'success');
+        }
         
         function saveUpdatedAssets() {
             const selectedMonth = document.getElementById('assetMonth').value;
             const [year, month] = selectedMonth.split('-').map(Number);
-            const updateTime = new Date(year, month - 1, 15).toISOString();
+            const updateTime = new Date().toISOString();
             
             // 收集该月各资产数据
             let total = 0;
@@ -9613,24 +9716,18 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 });
             });
             
-            // 记录到历史（包含详细数据）
-            const monthKey = selectedMonth;
-            const existingIndex = assetHistory.findIndex(h => h.month === monthKey);
-            const record = { 
-                month: monthKey, 
-                total: total, 
+            // 记录到历史（每次都追加一条，保留完整变化轨迹）
+            const record = {
+                id: Date.now(),
+                month: selectedMonth,
+                total: total,
                 date: updateTime,
-                details: details  // 保存每个资产的详细金额
+                details: details
             };
-            
-            if (existingIndex >= 0) {
-                assetHistory[existingIndex] = record;
-            } else {
-                assetHistory.push(record);
-            }
-            
-            // 按月份排序
-            assetHistory.sort((a, b) => a.month.localeCompare(b.month));
+            assetHistory.push(record);
+
+            // 按真实时间戳排序
+            assetHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
             
             // 保存
             saveAssets();
