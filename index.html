@@ -2799,6 +2799,7 @@
             <div class="header-buttons">
                 <button class="btn btn-outline btn-sm" onclick="exportData()">📤 导出</button>
                 <button class="btn btn-outline btn-sm" onclick="importData()">📥 导入</button>
+                <button class="btn btn-outline btn-sm" onclick="showAutoBackups()">📋 快照</button>
                 <button class="btn btn-outline btn-sm" onclick="syncData()">🔄 同步</button>
                 <button class="btn btn-danger btn-sm" onclick="logout()">退出</button>
             </div>
@@ -3805,11 +3806,12 @@
                 document.getElementById('displayUser').textContent = nickname;
                 
                 await loadDataFromCloud();
-                
+                await autoBackupToIndexedDB('login');
+
                 document.getElementById('loginPage').classList.add('hidden');
                 document.getElementById('registerPage').classList.add('hidden');
                 document.getElementById('mainApp').classList.remove('hidden');
-                
+
                 localStorage.setItem('finance_user', nickname);
                 localStorage.setItem('finance_session', Date.now().toString()); // 保存会话标记
                 
@@ -4113,6 +4115,7 @@
                 localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
 
                 setSyncStatus('synced');
+                autoBackupToIndexedDB('sync'); // 同步成功后留快照（不阻塞）
             } catch (error) {
                 console.error('同步到云端失败:', error);
                 showToast('云端同步失败，数据已保存到本地', 'error');
@@ -4275,6 +4278,136 @@
             alert('📦 数据备份成功！\n\n' + stats + '\n请妥善保管备份文件！');
         }
         
+        // ==================== IndexedDB 自动快照（最多保留7份）====================
+        function openBackupDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open('finance_backups', 1);
+                req.onupgradeneeded = e => {
+                    const idb = e.target.result;
+                    if (!idb.objectStoreNames.contains('snapshots')) {
+                        const store = idb.createObjectStore('snapshots', { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('ts', 'ts');
+                    }
+                };
+                req.onsuccess = e => resolve(e.target.result);
+                req.onerror = e => reject(e.target.error);
+            });
+        }
+
+        async function autoBackupToIndexedDB(label = 'sync') {
+            if (!currentUser) return;
+            try {
+                const snap = {
+                    ts: Date.now(),
+                    label,
+                    user: currentUser,
+                    data: {
+                        version: 'v4',
+                        user: currentUser,
+                        exportTime: new Date().toISOString(),
+                        categories, expenses, incomes, goals, assets,
+                        assetHistory, monthlyExpenseOverrides, assetTypes: ASSET_TYPES
+                    }
+                };
+                const idb = await openBackupDB();
+                await new Promise((res, rej) => {
+                    const tx = idb.transaction('snapshots', 'readwrite');
+                    tx.objectStore('snapshots').add(snap);
+                    tx.oncomplete = res; tx.onerror = rej;
+                });
+                // 只保留最近 7 份（按当前用户）
+                await new Promise((res, rej) => {
+                    const tx = idb.transaction('snapshots', 'readwrite');
+                    const store = tx.objectStore('snapshots');
+                    const req = store.index('ts').getAllKeys();
+                    req.onsuccess = () => {
+                        const keys = req.result;
+                        if (keys.length > 7) keys.slice(0, keys.length - 7).forEach(k => store.delete(k));
+                    };
+                    tx.oncomplete = res; tx.onerror = rej;
+                });
+            } catch (e) {
+                console.error('自动快照写入失败:', e);
+            }
+        }
+
+        async function showAutoBackups() {
+            let snapshots = [];
+            try {
+                const idb = await openBackupDB();
+                snapshots = await new Promise((res, rej) => {
+                    const tx = idb.transaction('snapshots', 'readonly');
+                    const req = tx.objectStore('snapshots').index('ts').getAll();
+                    req.onsuccess = () => res(req.result.reverse());
+                    req.onerror = () => rej(req.error);
+                });
+            } catch (e) {}
+
+            const mine = snapshots.filter(s => s.user === currentUser);
+            if (mine.length === 0) {
+                alert('暂无自动快照，每次同步和覆盖导入前会自动保存。');
+                return;
+            }
+            const list = document.getElementById('autoBackupList');
+            list.innerHTML = mine.map(s => {
+                const d = new Date(s.ts);
+                const fmt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                const labelText = s.label === 'pre-overwrite' ? '⚠️ 覆盖前备份' : s.label === 'login' ? '🔑 登录快照' : '🔄 自动同步';
+                const exp = s.data.expenses?.length || 0;
+                const inc = s.data.incomes?.length || 0;
+                return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:8px;">
+                    <div>
+                        <div style="font-weight:600;">${fmt} <span style="font-size:12px;color:var(--gray-600);margin-left:6px;">${labelText}</span></div>
+                        <div style="font-size:12px;color:var(--gray-600);">支出${exp}条 / 收入${inc}条</div>
+                    </div>
+                    <button class="btn btn-primary" style="font-size:13px;padding:6px 12px;" onclick="restoreAutoBackup(${s.id})">恢复</button>
+                </div>`;
+            }).join('');
+            document.getElementById('autoBackupModal').style.display = 'flex';
+        }
+
+        async function restoreAutoBackup(id) {
+            if (!confirm('确认恢复此快照？当前云端数据会被替换。建议先手动导出一份备份。')) return;
+            try {
+                const idb = await openBackupDB();
+                const snap = await new Promise((res, rej) => {
+                    const req = idb.transaction('snapshots', 'readonly').objectStore('snapshots').get(id);
+                    req.onsuccess = () => res(req.result);
+                    req.onerror = () => rej(req.error);
+                });
+                if (!snap) { alert('快照不存在'); return; }
+                const d = snap.data;
+                if (d.categories) categories = d.categories;
+                if (d.expenses) expenses = d.expenses;
+                if (d.incomes) incomes = d.incomes;
+                if (d.goals) goals = d.goals;
+                if (d.assets) assets = d.assets;
+                if (d.assetHistory) assetHistory = d.assetHistory;
+                if (d.monthlyExpenseOverrides) monthlyExpenseOverrides = d.monthlyExpenseOverrides;
+                if (d.assetTypes) ASSET_TYPES = d.assetTypes;
+                // 支出单独写云端表
+                if (d.expenses && d.expenses.length > 0) {
+                    await db.from('expenses').delete().eq('user_id', currentUser);
+                    const expData = d.expenses.map(exp => ({
+                        user_id: currentUser, date: exp.date, item: exp.item,
+                        amount: exp.amount, category_id: exp.categoryId,
+                        category_name: exp.categoryName || '未知', type: exp.type || '弹性'
+                    }));
+                    await db.from('expenses').insert(expData);
+                }
+                await syncAllToCloud();
+                closeAutoBackupModal();
+                showToast('快照已恢复', 'success');
+                location.reload();
+            } catch (e) {
+                alert('恢复失败：' + e.message);
+            }
+        }
+
+        function closeAutoBackupModal() {
+            document.getElementById('autoBackupModal').style.display = 'none';
+        }
+
         function importData() {
             const input = document.createElement('input');
             input.type = 'file';
@@ -4354,6 +4487,9 @@
 
                         // === 执行导入 ===
 
+                        // 覆盖前先自动快照当前数据，供反悔时恢复
+                        if (mode === '覆盖') await autoBackupToIndexedDB('pre-overwrite');
+
                         // 支出
                         if (mode === '覆盖') {
                             if (data.expenses) {
@@ -4407,12 +4543,30 @@
                                 if (newIncomes.length > 0) incomes = [...(incomes || []), ...newIncomes];
                             }
                             if (Array.isArray(data.assetHistory) && data.assetHistory.length > 0) {
-                                const existingMonths = new Set((assetHistory || []).map(h => h.month));
-                                const newHistory = data.assetHistory.filter(h => !existingMonths.has(h.month));
+                                // 按 id 去重（每次更新都有唯一 Date.now() id），fallback 到 month|date
+                                const histFp = h => h.id != null ? String(h.id) : `${h.month}|${h.date}`;
+                                const existingHistFps = new Set((assetHistory || []).map(histFp));
+                                const newHistory = data.assetHistory.filter(h => !existingHistFps.has(histFp(h)));
                                 if (newHistory.length > 0) assetHistory = [...(assetHistory || []), ...newHistory];
                             }
                             if (data.monthlyExpenseOverrides) {
                                 monthlyExpenseOverrides = { ...data.monthlyExpenseOverrides, ...monthlyExpenseOverrides };
+                            }
+                            // 追加模式：按 id 补回备份中有、本地没有的 goals / assets / categories
+                            if (Array.isArray(data.goals) && data.goals.length > 0) {
+                                const existingGoalIds = new Set((goals || []).map(g => g.id));
+                                const newGoals = data.goals.filter(g => g.id && !existingGoalIds.has(g.id));
+                                if (newGoals.length > 0) goals = [...(goals || []), ...newGoals];
+                            }
+                            if (Array.isArray(data.assets) && data.assets.length > 0) {
+                                const existingAssetIds = new Set((assets || []).map(a => a.id));
+                                const newAssets = data.assets.filter(a => a.id && !existingAssetIds.has(a.id));
+                                if (newAssets.length > 0) assets = [...(assets || []), ...newAssets];
+                            }
+                            if (Array.isArray(data.categories) && data.categories.length > 0) {
+                                const existingCatIds = new Set((categories || []).map(c => c.id));
+                                const newCats = data.categories.filter(c => c.id && !existingCatIds.has(c.id));
+                                if (newCats.length > 0) categories = [...(categories || []), ...newCats];
                             }
                         }
 
@@ -10178,5 +10332,17 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             }
         };
     </script>
+
+    <!-- 自动快照 Modal -->
+    <div id="autoBackupModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+        <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                <h3 style="font-size:18px;">📋 自动快照（最近7份）</h3>
+                <button onclick="closeAutoBackupModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--gray-600);">✕</button>
+            </div>
+            <p style="font-size:13px;color:var(--gray-600);margin-bottom:14px;">每次登录、同步成功、覆盖导入前自动保存。快照仅存本设备浏览器，换设备不共享。</p>
+            <div id="autoBackupList" style="overflow-y:auto;flex:1;"></div>
+        </div>
+    </div>
 </body>
 </html>
