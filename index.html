@@ -1564,6 +1564,7 @@
         .milestone-card {
             background: #fff;
             border: 1px solid var(--gray-200);
+            border-top: 3px solid var(--primary);
             border-radius: var(--r-lg);
             padding: 16px 20px;
             margin-bottom: var(--gap-lg);
@@ -1576,7 +1577,7 @@
         }
         .milestone-card__title { font-size: 14px; font-weight: 500; color: var(--gray-800); }
         .milestone-card__sub   { font-size: 12px; color: var(--gray-500); }
-        .milestone-card__pct   { font-size: 28px; font-weight: 500; color: var(--asset-invest); }
+        .milestone-card__pct   { font-size: 28px; font-weight: 500; color: var(--primary); }
         .milestone-track {
             position: relative;
             height: 28px;
@@ -1595,7 +1596,7 @@
             position: absolute;
             left: 0;
             height: 4px;
-            background: var(--asset-invest);
+            background: var(--primary);
             border-radius: 2px;
             transition: width 0.6s ease;
             max-width: 100%;
@@ -1616,8 +1617,8 @@
             transition: border-color 0.3s, background 0.3s;
         }
         .milestone-node.is-reached {
-            background: var(--asset-invest);
-            border-color: var(--asset-invest);
+            background: var(--primary);
+            border-color: var(--primary);
         }
         .milestone-labels {
             display: flex;
@@ -1630,7 +1631,7 @@
             transform: translateX(-50%);
             white-space: nowrap;
         }
-        .milestone-labels span.is-reached { color: var(--asset-invest); font-weight: 500; }
+        .milestone-labels span.is-reached { color: var(--primary); font-weight: 500; }
 
         /* STEP 5 · 环形图 */
         .alloc-chart-wrap {
@@ -1690,6 +1691,7 @@
         .health-card {
             background: #fff;
             border: 1px solid var(--gray-200);
+            border-top: 3px solid var(--primary);
             border-radius: var(--r-lg);
             padding: 16px 20px;
             margin-bottom: var(--gap-lg);
@@ -1737,6 +1739,7 @@
         .asset-hero {
             background: #fff;
             border: 1px solid var(--gray-200);
+            border-top: 3px solid var(--primary);
             border-radius: var(--r-lg);
             padding: 20px 24px;
             margin-bottom: var(--gap-lg);
@@ -9542,8 +9545,8 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
         }
         
         // ==================== STEP 4 · 里程碑跑道 ====================
-        const MILESTONES       = [100000, 500000, 1000000, 5000000, 10000000];
-        const MILESTONE_LABELS = ['10万', '50万', '100万', '500万', '1000万'];
+        const MILESTONES       = [1000000, 2000000, 5000000, 10000000];
+        const MILESTONE_LABELS = ['100万', '200万', '500万', '1000万'];
 
         function renderMilestones(netWorth) {
             const max = MILESTONES[MILESTONES.length - 1];
@@ -9662,9 +9665,9 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                     labels,
                     datasets: [{
                         data: dataVals,
-                        borderColor: '#1D9E75',
+                        borderColor: '#667eea',
                         borderWidth: 2,
-                        backgroundColor: 'rgba(29,158,117,0.08)',
+                        backgroundColor: 'rgba(102,126,234,0.08)',
                         fill: true,
                         tension: 0.3,
                         pointRadius: 0,
@@ -9697,7 +9700,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 const pct  = start > 0 ? (diff / start * 100) : 0;
                 const el   = document.getElementById('trendDelta');
                 el.textContent = `${diff >= 0 ? '+' : ''}¥${Math.abs(Math.round(diff)).toLocaleString()} (${pct.toFixed(1)}%)`;
-                el.style.color = diff >= 0 ? 'var(--pos)' : 'var(--neg)';
+                el.style.color = diff >= 0 ? 'var(--primary)' : 'var(--neg)';
             }
         }
 
