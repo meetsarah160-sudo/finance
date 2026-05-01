@@ -1560,6 +1560,53 @@
             .kpi-grid { grid-template-columns: repeat(2, 1fr); }
         }
 
+        /* STEP 3 · 财务健康度 */
+        .health-card {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--r-lg);
+            padding: 16px 20px;
+            margin-bottom: var(--gap-lg);
+        }
+        .health-card__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .health-card__title { font-size: 14px; font-weight: 500; color: var(--gray-800); }
+        .health-card__score { display: flex; align-items: baseline; gap: 4px; }
+        #healthScoreNum { font-size: 28px; font-weight: 500; color: var(--gray-800); }
+        .health-card__score-meta { font-size: 12px; color: var(--gray-500); }
+        .health-card__metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 20px;
+        }
+        @media (max-width: 480px) {
+            .health-card__metrics { grid-template-columns: 1fr; }
+        }
+        .metric__row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 5px;
+        }
+        .metric__name { font-size: 12px; color: var(--gray-600); }
+        .metric__value { font-size: 13px; font-weight: 500; color: var(--gray-800); }
+        .metric__bar {
+            height: 4px;
+            background: var(--gray-200);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .metric__bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+        .metric__hint { font-size: 11px; color: var(--gray-500); margin-top: 3px; }
+
         /* STEP 1 · Hero */
         .asset-hero {
             background: #fff;
@@ -3145,7 +3192,19 @@
                 
                 <!-- STEP 2 · 四笔钱 KPI 卡 -->
                 <section class="kpi-grid" id="kpiCards"></section>
-                
+
+                <!-- STEP 3 · 财务健康度 -->
+                <section class="health-card" id="healthCard">
+                    <div class="health-card__header">
+                        <div class="health-card__title">财务健康度</div>
+                        <div class="health-card__score">
+                            <span id="healthScoreNum">—</span>
+                            <span class="health-card__score-meta">/ 100 · <span id="healthScoreLabel">计算中</span></span>
+                        </div>
+                    </div>
+                    <div class="health-card__metrics" id="healthMetrics"></div>
+                </section>
+
                 <!-- 双列图表区域 -->
                 <div class="assets-charts-grid">
                     <!-- 资产趋势折线图 -->
@@ -9019,6 +9078,122 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             `;
         }
 
+        // ==================== 财务健康度评分 ====================
+        function scoreOne(metric, value) {
+            const rules = {
+                emergency: { excellent: 6,   good: 3,   fair: 1,   inverse: false },
+                saving:    { excellent: 0.3, good: 0.2, fair: 0.1, inverse: false },
+                debt:      { excellent: 0.3, good: 0.5, fair: 0.7, inverse: true  },
+                invest:    { excellent: 0.6, good: 0.4, fair: 0.2, inverse: false },
+            };
+            const r = rules[metric];
+            if (!r) return 60;
+            if (r.inverse) {
+                if (value < r.excellent) return 100;
+                if (value < r.good)      return 80;
+                if (value < r.fair)      return 60;
+                return 40;
+            } else {
+                if (value >= r.excellent) return 100;
+                if (value >= r.good)      return 80;
+                if (value >= r.fair)      return 60;
+                return 40;
+            }
+        }
+
+        function totalHealthScore(metrics) {
+            const weights = { emergency: 0.25, saving: 0.30, debt: 0.25, invest: 0.20 };
+            return Math.round(
+                Object.entries(metrics).reduce((sum, [k, v]) => sum + scoreOne(k, v) * (weights[k] || 0), 0)
+            );
+        }
+
+        function renderHealthScore(totalAssets) {
+            const buckets = { liquid: 0, invest: 0, property: 0, debt: 0 };
+            assets.forEach(a => { buckets[bucketOf(a.typeId)] += (a.value || 0); });
+
+            // 近6月平均支出
+            const now = new Date();
+            let totalExp = 0, mCount = 0;
+            for (let i = 0; i < 6; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                const mExp = expenses.filter(e => e.date && e.date.startsWith(key))
+                                     .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+                if (mExp > 0) { totalExp += mExp; mCount++; }
+            }
+            const avgExp = mCount > 0 ? totalExp / mCount : 0;
+
+            // 近6月平均收入
+            let totalInc = 0, iCount = 0;
+            for (let i = 0; i < 6; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                const mInc = incomes.filter(r => r.date && r.date.startsWith(key))
+                                    .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                if (mInc > 0) { totalInc += mInc; iCount++; }
+            }
+            const avgInc = iCount > 0 ? totalInc / iCount : 0;
+
+            const emergencyMonths = avgExp > 0 ? buckets.liquid / avgExp : 0;
+            const savingRate      = avgInc > 0 ? Math.max(0, (avgInc - avgExp) / avgInc) : 0;
+            const debtRatio       = totalAssets > 0 ? buckets.debt / totalAssets : 0;
+            const investRatio     = totalAssets > 0 ? buckets.invest / totalAssets : 0;
+
+            const metrics = { emergency: emergencyMonths, saving: savingRate, debt: debtRatio, invest: investRatio };
+            const score   = totalHealthScore(metrics);
+
+            const scoreLabel = score >= 85 ? '优秀' : score >= 70 ? '良好' : score >= 55 ? '一般' : '需改善';
+            const scoreColor = score >= 85 ? 'var(--asset-invest)' : score >= 70 ? '#5DCAA5' : score >= 55 ? 'var(--asset-property)' : 'var(--neg)';
+
+            document.getElementById('healthScoreNum').textContent  = score;
+            document.getElementById('healthScoreNum').style.color  = scoreColor;
+            document.getElementById('healthScoreLabel').textContent = scoreLabel;
+
+            const barColor = s => s === 100 ? '#1D9E75' : s === 80 ? '#5DCAA5' : s === 60 ? '#EF9F27' : '#E24B4A';
+            const barWidth = s => s + '%';
+
+            const metricDefs = [
+                {
+                    key: 'emergency', label: '应急储备',
+                    value: avgExp > 0 ? `${emergencyMonths.toFixed(1)} 月` : '暂无支出数据',
+                    score: scoreOne('emergency', emergencyMonths),
+                    hint: '建议 ≥ 6 个月开支'
+                },
+                {
+                    key: 'saving', label: '储蓄率',
+                    value: avgInc > 0 ? `${(savingRate * 100).toFixed(1)}%` : '暂无收入数据',
+                    score: scoreOne('saving', savingRate),
+                    hint: '建议 ≥ 30%'
+                },
+                {
+                    key: 'debt', label: '负债率',
+                    value: `${(debtRatio * 100).toFixed(1)}%`,
+                    score: scoreOne('debt', debtRatio),
+                    hint: '建议 < 30%'
+                },
+                {
+                    key: 'invest', label: '投资占比',
+                    value: `${(investRatio * 100).toFixed(1)}%`,
+                    score: scoreOne('invest', investRatio),
+                    hint: '建议 ≥ 60%'
+                },
+            ];
+
+            document.getElementById('healthMetrics').innerHTML = metricDefs.map(m => `
+                <div class="metric">
+                    <div class="metric__row">
+                        <span class="metric__name">${m.label}</span>
+                        <span class="metric__value">${m.value}</span>
+                    </div>
+                    <div class="metric__bar">
+                        <div class="metric__bar-fill" style="width:${barWidth(m.score)};background:${barColor(m.score)};"></div>
+                    </div>
+                    <div class="metric__hint">${m.hint}</div>
+                </div>
+            `).join('');
+        }
+
         // 计算两点净值差，渲染 delta pill
         function renderDelta(curr, prev) {
             if (!prev || prev <= 0) return '';
@@ -9079,9 +9254,10 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 }
             });
             
-            // 渲染四笔钱 KPI 卡
+            // 渲染四笔钱 KPI 卡 + 健康度
             loadBucketMap();
             renderKPICards(totalAssets);
+            renderHealthScore(totalAssets);
             
             // 渲染里程碑
             renderMilestones(totalAssets);
