@@ -1560,6 +1560,132 @@
             .kpi-grid { grid-template-columns: repeat(2, 1fr); }
         }
 
+        /* STEP 4 · 里程碑跑道 */
+        .milestone-card {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--r-lg);
+            padding: 16px 20px;
+            margin-bottom: var(--gap-lg);
+        }
+        .milestone-card__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 6px;
+        }
+        .milestone-card__title { font-size: 14px; font-weight: 500; color: var(--gray-800); }
+        .milestone-card__sub   { font-size: 12px; color: var(--gray-500); }
+        .milestone-card__pct   { font-size: 28px; font-weight: 500; color: var(--asset-invest); }
+        .milestone-track {
+            position: relative;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .milestone-track__bg {
+            position: absolute;
+            left: 0; right: 0;
+            height: 4px;
+            background: var(--gray-200);
+            border-radius: 2px;
+        }
+        .milestone-track__fill {
+            position: absolute;
+            left: 0;
+            height: 4px;
+            background: var(--asset-invest);
+            border-radius: 2px;
+            transition: width 0.6s ease;
+            max-width: 100%;
+        }
+        .milestone-track__nodes {
+            position: absolute;
+            left: 0; right: 0;
+            display: flex;
+            pointer-events: none;
+        }
+        .milestone-node {
+            position: absolute;
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid var(--gray-300);
+            transform: translateX(-50%);
+            transition: border-color 0.3s, background 0.3s;
+        }
+        .milestone-node.is-reached {
+            background: var(--asset-invest);
+            border-color: var(--asset-invest);
+        }
+        .milestone-labels {
+            display: flex;
+            position: relative;
+        }
+        .milestone-labels span {
+            position: absolute;
+            font-size: 11px;
+            color: var(--gray-500);
+            transform: translateX(-50%);
+            white-space: nowrap;
+        }
+        .milestone-labels span.is-reached { color: var(--asset-invest); font-weight: 500; }
+
+        /* STEP 5 · 环形图 */
+        .alloc-chart-wrap {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 12px;
+        }
+        .alloc-chart-wrap canvas { width: 160px !important; height: 160px !important; }
+        .alloc-chart-center {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+        }
+        .alloc-chart-center__label { font-size: 11px; color: var(--gray-500); }
+        .alloc-chart-center__value { font-size: 13px; font-weight: 500; color: var(--gray-800); margin-top: 2px; }
+
+        /* STEP 6 · 趋势图 + range tabs */
+        .trend-card__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .trend-card__title { font-size: 14px; font-weight: 500; color: var(--gray-800); }
+        .trend-card__chart { height: 180px; position: relative; }
+        .trend-card__chart canvas { width: 100% !important; height: 100% !important; }
+        .trend-card__summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--gray-200);
+        }
+        .range-tabs { display: flex; gap: 4px; }
+        .range-tabs button {
+            font-size: 12px;
+            padding: 3px 8px;
+            border-radius: var(--r-md);
+            border: 1px solid var(--gray-200);
+            background: #fff;
+            color: var(--gray-600);
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .range-tabs button:hover { background: var(--gray-100); }
+        .range-tabs button.is-active {
+            background: var(--gray-800);
+            color: #fff;
+            border-color: var(--gray-800);
+        }
+
         /* STEP 3 · 财务健康度 */
         .health-card {
             background: #fff;
@@ -3205,29 +3331,58 @@
                     <div class="health-card__metrics" id="healthMetrics"></div>
                 </section>
 
-                <!-- 双列图表区域 -->
+                <!-- STEP 4 · 百万目标里程碑跑道 -->
+                <section class="milestone-card" id="assetsMilestonesCard">
+                    <div class="milestone-card__header">
+                        <div class="milestone-card__title">百万目标</div>
+                        <div class="milestone-card__sub" id="milestoneSub">—</div>
+                    </div>
+                    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:14px;">
+                        <span class="milestone-card__pct" id="milestonePct">0%</span>
+                        <span style="font-size:12px;color:var(--gray-500);" id="milestonePctMeta"></span>
+                    </div>
+                    <div class="milestone-track">
+                        <div class="milestone-track__bg"></div>
+                        <div class="milestone-track__fill" id="milestoneFill" style="width:0%"></div>
+                        <div class="milestone-track__nodes" id="milestoneNodes"></div>
+                    </div>
+                    <div class="milestone-labels" id="milestoneLabels"></div>
+                </section>
+
+                <!-- STEP 5+6 · 环形图 + 趋势图 -->
                 <div class="assets-charts-grid">
-                    <!-- 资产趋势折线图 -->
+                    <!-- STEP 6 · 净值趋势（Chart.js + 时间切换） -->
                     <div class="chart-card">
-                        <h3>📈 资产增长趋势</h3>
-                        <div class="chart-wrapper">
-                            <canvas id="assetsTrendChart"></canvas>
+                        <div class="trend-card__header">
+                            <div class="trend-card__title">净值趋势</div>
+                            <div class="range-tabs" id="rangeTabs">
+                                <button data-range="3M">3M</button>
+                                <button data-range="6M">6M</button>
+                                <button data-range="1Y" class="is-active">1Y</button>
+                                <button data-range="ALL">全部</button>
+                            </div>
+                        </div>
+                        <div class="trend-card__chart">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                        <div class="trend-card__summary">
+                            <span style="font-size:12px;color:var(--gray-600);">本周期增长</span>
+                            <span id="trendDelta" style="font-size:13px;font-weight:500;">—</span>
                         </div>
                     </div>
-                    
-                    <!-- 资产配置饼图 -->
+
+                    <!-- STEP 5 · 资产配置环形图（Chart.js doughnut） -->
                     <div class="chart-card">
-                        <h3>🥧 资产配置</h3>
-                        <div class="chart-wrapper">
-                            <canvas id="assetsChart" width="280" height="200"></canvas>
+                        <div class="trend-card__title" style="margin-bottom:12px;">资产配置</div>
+                        <div class="alloc-chart-wrap">
+                            <canvas id="allocChart"></canvas>
+                            <div class="alloc-chart-center">
+                                <div class="alloc-chart-center__label">合计</div>
+                                <div class="alloc-chart-center__value" id="allocTotal">¥0</div>
+                            </div>
                         </div>
                         <div id="assetsLegend" class="assets-legend"></div>
                     </div>
-                </div>
-                
-                <!-- 里程碑进度（只显示上一个+下一个） -->
-                <div class="chart-card full-width" id="assetsMilestonesCard">
-                    <div id="assetsMilestones"></div>
                 </div>
                 
                 <!-- 分类趋势 + 资产明细（左右布局） -->
@@ -8944,8 +9099,9 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
         }
         
         // ==================== 存量资产管理 ====================
-        let assetsChart = null;
-        let assetsTrendChart = null;
+        let allocChartInst = null;   // Chart.js 环形图实例
+        let trendChartInst = null;   // Chart.js 趋势线图实例
+        let currentTrendRange = '1Y';
         
         function initAssets() {
             // 从本地存储加载资产数据
@@ -9259,67 +9415,42 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             renderKPICards(totalAssets);
             renderHealthScore(totalAssets);
             
-            // 渲染里程碑
+            // STEP 4 · 里程碑跑道
             renderMilestones(totalAssets);
-            
-            // 渲染年度对比
-            // 年度对比已并入趋势折线图
-            
-            // 渲染饼图
-            renderAssetsChart(typeValues, totalAssets);
-            
-            // 渲染图例
-            document.getElementById('assetsLegend').innerHTML = Object.entries(typeValues)
-                .filter(([_, data]) => data.value > 0)
-                .sort((a, b) => b[1].value - a[1].value)
-                .map(([_, data]) => {
-                    const percent = totalAssets > 0 ? (data.value / totalAssets * 100).toFixed(1) : 0;
-                    const amtStr = data.value >= 10000
-                        ? `${(data.value / 10000).toFixed(1)}万`
-                        : `¥${data.value.toLocaleString()}`;
-                    return `
-                        <div class="assets-legend-item">
-                            <div class="assets-legend-color" style="background: ${data.color};"></div>
-                            <span style="flex:1;">${data.name}</span>
-                            <span style="color:var(--gray-800);font-weight:600;margin-right:4px;">${amtStr}</span>
-                            <span style="color:var(--gray-500);font-size:12px;">${percent}%</span>
-                        </div>
-                    `;
-                }).join('') || '<div style="color: var(--gray-500); font-size: 13px;">暂无数据</div>';
-            
-            // 渲染资产明细（新结构）
+
+            // STEP 5 · 环形配置图（新）
+            renderAllocChart(totalAssets);
+
+            // STEP 6 · 趋势图（新）+ range tabs
+            bindRangeTabs();
+            renderTrendChart(currentTrendRange);
+
+            // 资产明细列表（STEP 7 前的过渡版）
             let detailHtml = '';
             ASSET_TYPES.forEach(type => {
                 const typeAssets = assets.filter(a => a.typeId === type.id);
-                if (typeAssets.length > 0) {
-                    typeAssets.forEach(asset => {
-                        const percent = totalAssets > 0 ? (asset.value / totalAssets * 100).toFixed(1) : 0;
-                        detailHtml += `
-                            <div class="asset-row">
-                                <div class="asset-row-left">
-                                    <div class="asset-icon ${type.id}">${asset.icon}</div>
-                                    <div class="asset-info">
-                                        <div class="asset-name">${asset.name}</div>
-                                        <div class="asset-type">${type.name}</div>
-                                    </div>
-                                </div>
-                                <div class="asset-row-right">
-                                    <div class="asset-value">¥${(asset.value || 0).toLocaleString()}</div>
-                                    <div class="asset-pct">${percent}%</div>
+                typeAssets.forEach(asset => {
+                    const percent = totalAssets > 0 ? Math.round(asset.value / totalAssets * 100) : 0;
+                    detailHtml += `
+                        <div class="asset-row">
+                            <div class="asset-row-left">
+                                <div class="asset-icon ${type.id}">${asset.icon}</div>
+                                <div class="asset-info">
+                                    <div class="asset-name">${asset.name}</div>
+                                    <div class="asset-type">${type.name}</div>
                                 </div>
                             </div>
-                        `;
-                    });
-                }
+                            <div class="asset-row-right">
+                                <div class="asset-value">¥${(asset.value || 0).toLocaleString()}</div>
+                                <div class="asset-pct">${percent}%</div>
+                            </div>
+                        </div>`;
+                });
             });
-            
-            document.getElementById('assetsList').innerHTML = detailHtml || 
-                '<div style="text-align: center; padding: 30px; color: var(--gray-500);">暂无资产数据<br><small>点击上方更新按钮录入</small></div>';
-            
-            // 渲染趋势折线图
-            renderAssetsTrendChart();
-            
-            // 渲染分类趋势图
+            document.getElementById('assetsList').innerHTML = detailHtml ||
+                '<div style="text-align:center;padding:30px;color:var(--gray-500);">暂无资产数据<br><small>点击月度快照录入</small></div>';
+
+            // 分类趋势图（原有，保留）
             renderCategoryTrendChart();
         }
         
@@ -9410,278 +9541,186 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             `;
         }
         
-        // 渲染里程碑：只显示上一个达成 + 下一个目标
-        function renderMilestones(totalAssets) {
-            const milestones = [
-                { target: 100000,  label: '10万',  icon: '🎯' },
-                { target: 300000,  label: '30万',  icon: '🎯' },
-                { target: 500000,  label: '50万',  icon: '⭐' },
-                { target: 800000,  label: '80万',  icon: '⭐' },
-                { target: 1000000, label: '100万', icon: '🏆' },
-                { target: 1500000, label: '150万', icon: '💎' },
-                { target: 2000000, label: '200万', icon: '👑' },
-                { target: 3000000, label: '300万', icon: '🚀' },
-                { target: 5000000, label: '500万', icon: '🌟' }
-            ];
-            const sortedHistory = getMonthlyLatestHistory();
+        // ==================== STEP 4 · 里程碑跑道 ====================
+        const MILESTONES       = [100000, 500000, 1000000, 5000000, 10000000];
+        const MILESTONE_LABELS = ['10万', '50万', '100万', '500万', '1000万'];
 
-            const achieved = milestones.filter(m => totalAssets >= m.target);
-            const pending  = milestones.filter(m => totalAssets < m.target);
-            const prev = achieved[achieved.length - 1] || null;
-            const next = pending[0] || null;
+        function renderMilestones(netWorth) {
+            const max = MILESTONES[MILESTONES.length - 1];
+            const fillPct = Math.min(100, (netWorth / max) * 100);
 
-            const makeAchievedDate = m => {
-                for (const h of sortedHistory) {
-                    if (h.total >= m.target) {
-                        const [y, mon] = h.month.split('-');
-                        return `${y}.${mon} 达成`;
+            document.getElementById('milestoneFill').style.width = fillPct + '%';
+
+            // 节点
+            document.getElementById('milestoneNodes').innerHTML = MILESTONES.map((m, i) => {
+                const pos = (m / max) * 100;
+                const reached = netWorth >= m;
+                return `<div class="milestone-node ${reached ? 'is-reached' : ''}" style="left:${pos}%"></div>`;
+            }).join('');
+
+            // 标签（高度占位让标签有空间）
+            document.getElementById('milestoneLabels').style.height = '18px';
+            document.getElementById('milestoneLabels').innerHTML = MILESTONES.map((m, i) => {
+                const pos = (m / max) * 100;
+                const reached = netWorth >= m;
+                return `<span class="${reached ? 'is-reached' : ''}" style="left:${pos}%">${MILESTONE_LABELS[i]}${reached ? ' ✓' : ''}</span>`;
+            }).join('');
+
+            // 当前主目标
+            const nextTarget = MILESTONES.find(m => netWorth < m) || MILESTONES[MILESTONES.length - 1];
+            const targetPct  = Math.min(100, (netWorth / nextTarget) * 100);
+            document.getElementById('milestonePct').textContent = targetPct.toFixed(1) + '%';
+            document.getElementById('milestoneSub').textContent = netWorth >= nextTarget
+                ? `已超越 ¥${(netWorth - nextTarget).toLocaleString()}`
+                : `距 ¥${nextTarget.toLocaleString()} 还差 ¥${Math.round(nextTarget - netWorth).toLocaleString()}`;
+
+        }
+
+        // ==================== STEP 5 · 资产配置环形图（Chart.js）====================
+        function renderAllocChart(totalAssets) {
+            const buckets = { liquid: 0, invest: 0, property: 0, debt: 0 };
+            assets.forEach(a => { buckets[bucketOf(a.typeId)] += (a.value || 0); });
+
+            const labels = ['流动资产', '投资资产', '不动产', '负债'];
+            const dataVals = [buckets.liquid, buckets.invest, buckets.property, buckets.debt];
+            const colors = ['#378ADD', '#1D9E75', '#EF9F27', '#B4B2A9'];
+
+            const canvas = document.getElementById('allocChart');
+            if (!canvas) return;
+
+            if (allocChartInst) { allocChartInst.destroy(); allocChartInst = null; }
+
+            // 中心总额
+            const fmtTotal = totalAssets >= 10000
+                ? `${(totalAssets/10000).toFixed(1)}万`
+                : `¥${Math.round(totalAssets).toLocaleString()}`;
+            document.getElementById('allocTotal').textContent = fmtTotal;
+
+            allocChartInst = new Chart(canvas.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{ data: dataVals, backgroundColor: colors, borderWidth: 0 }]
+                },
+                options: {
+                    cutout: '68%',
+                    responsive: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: c => {
+                                    const v = c.parsed;
+                                    const pct = totalAssets > 0 ? (v / totalAssets * 100).toFixed(1) : 0;
+                                    return ` ¥${Math.round(v).toLocaleString()} (${pct}%)`;
+                                }
+                            }
+                        }
                     }
                 }
-                return '已达成';
-            };
-
-            const makePredictDate = m => {
-                if (sortedHistory.length < 2) return '努力中...';
-                const recent = sortedHistory.slice(-3);
-                const avgGrowth = (recent[recent.length-1].total - recent[0].total) / recent.length;
-                if (avgGrowth <= 0) return '努力中...';
-                const months = Math.ceil((m.target - totalAssets) / avgGrowth);
-                const d = new Date();
-                d.setMonth(d.getMonth() + months);
-                return `预计 ${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}`;
-            };
-
-            const card = document.getElementById('assetsMilestonesCard');
-
-            // 全部达成
-            if (!next) {
-                card.style.display = 'none';
-                return;
-            }
-            card.style.display = '';
-
-            const nextProgress = Math.min((totalAssets / next.target) * 100, 100);
-            const remaining = next.target - totalAssets;
-            const remainStr = remaining >= 10000 ? `还差 ${(remaining/10000).toFixed(1)}万` : `还差 ¥${remaining.toLocaleString()}`;
-
-            let html = `<div style="display:flex;flex-direction:column;gap:12px;">`;
-
-            if (prev) {
-                html += `
-                <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--green-100);border-radius:10px;">
-                    <span style="font-size:20px;">✅</span>
-                    <div style="flex:1;">
-                        <div style="font-weight:600;color:var(--gray-800);">${prev.label} <span style="font-size:12px;font-weight:400;color:var(--gray-500);">${makeAchievedDate(prev)}</span></div>
-                        <div style="font-size:12px;color:var(--gray-500);">上一个里程碑</div>
-                    </div>
-                </div>`;
-            }
-
-            html += `
-                <div style="padding:10px 14px;background:var(--gray-100);border-radius:10px;">
-                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-                        <span style="font-size:20px;">${next.icon}</span>
-                        <div style="flex:1;">
-                            <div style="font-weight:600;color:var(--gray-800);">${next.label}</div>
-                            <div style="font-size:12px;color:var(--gray-500);">${makePredictDate(next)} · ${remainStr}</div>
-                        </div>
-                        <div style="font-weight:700;font-size:16px;color:var(--primary);">${nextProgress.toFixed(0)}%</div>
-                    </div>
-                    <div style="height:8px;background:var(--gray-200);border-radius:4px;overflow:hidden;">
-                        <div style="height:100%;width:${nextProgress}%;background:var(--primary);border-radius:4px;transition:width 0.5s;"></div>
-                    </div>
-                </div>
-            </div>`;
-
-            document.getElementById('assetsMilestones').innerHTML = html;
-        }
-        
-        function renderAssetsChart(typeValues, total) {
-            const canvas = document.getElementById('assetsChart');
-            const ctx = canvas.getContext('2d');
-            
-            // 清除画布
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (total <= 0) {
-                ctx.fillStyle = '#e2e8f0';
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('暂无数据', canvas.width / 2, canvas.height / 2);
-                return;
-            }
-            
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const radius = Math.min(centerX, centerY) - 20;
-            
-            let startAngle = -Math.PI / 2;
-            
-            Object.entries(typeValues).forEach(([_, data]) => {
-                if (data.value > 0) {
-                    const sliceAngle = (data.value / total) * 2 * Math.PI;
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(centerX, centerY);
-                    ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
-                    ctx.closePath();
-                    ctx.fillStyle = data.color;
-                    ctx.fill();
-                    
-                    startAngle += sliceAngle;
-                }
             });
-            
-            // 中心圆（甜甜圈效果）
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
-            ctx.fillStyle = 'white';
-            ctx.fill();
-            
-            // 中心文字
-            ctx.fillStyle = '#1a202c';
-            ctx.font = 'bold 16px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(`¥${total.toLocaleString()}`, centerX, centerY);
+
+            // 自定义图例
+            document.getElementById('assetsLegend').innerHTML = labels.map((l, i) => {
+                const v = dataVals[i];
+                if (v <= 0) return '';
+                const pct = totalAssets > 0 ? Math.round(v / totalAssets * 100) : 0;
+                const amt = v >= 10000 ? `${(v/10000).toFixed(1)}万` : `¥${Math.round(v).toLocaleString()}`;
+                return `<div class="assets-legend-item">
+                    <div class="assets-legend-color" style="background:${colors[i]};"></div>
+                    <span style="flex:1;">${l}</span>
+                    <span style="color:var(--gray-800);font-weight:500;margin-right:4px;">${amt}</span>
+                    <span style="color:var(--gray-500);font-size:12px;">${pct}%</span>
+                </div>`;
+            }).join('');
         }
-        
-        // 渲染资产趋势折线图
-        function renderAssetsTrendChart() {
-            const canvas = document.getElementById('assetsTrendChart');
-            const ctx = canvas.getContext('2d');
-            
-            // 设置canvas尺寸
-            const container = canvas.parentElement;
-            canvas.width = container.clientWidth - 30;
-            canvas.height = 220;
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (assetHistory.length === 0) {
-                ctx.fillStyle = '#a0aec0';
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('更新资产后将自动记录趋势', canvas.width / 2, canvas.height / 2);
-                return;
-            }
-            
-            const sortedHistory = getMonthlyLatestHistory();
-            const displayData = sortedHistory.slice(-12);
-            
-            const data = displayData.map(h => h.total);
-            const labels = displayData.map(h => {
-                const [y, m] = h.month.split('-');
+
+        // ==================== STEP 6 · 净值趋势（Chart.js + 时间切换）====================
+        const rangeMonths = { '3M': 3, '6M': 6, '1Y': 12, 'ALL': Infinity };
+
+        function renderTrendChart(range) {
+            const months = rangeMonths[range] || 12;
+            const all    = getMonthlyLatestHistory();
+            const sliced = months === Infinity ? all : all.slice(-months);
+
+            if (sliced.length === 0) return;
+
+            const dataVals = sliced.map(d => d.total);
+            const labels   = sliced.map(d => {
+                const [y, m] = d.month.split('-');
                 return `${y.slice(2)}/${m}`;
             });
-            
-            const maxVal = Math.max(...data) * 1.1;
-            const minVal = Math.min(...data) * 0.9;
-            const range = maxVal - minVal || 1;
-            
-            const padding = { top: 30, right: 20, bottom: 35, left: 50 };
-            const chartWidth = canvas.width - padding.left - padding.right;
-            const chartHeight = canvas.height - padding.top - padding.bottom;
-            
-            // 绘制年份背景色带
-            const yearColors = ['rgba(102,126,234,0.06)', 'rgba(118,75,162,0.06)', 'rgba(72,187,120,0.06)', 'rgba(237,137,54,0.06)'];
-            const yearBands = {};
-            displayData.forEach((h, i) => {
-                const yr = h.month.split('-')[0];
-                if (!yearBands[yr]) yearBands[yr] = { start: i, end: i };
-                yearBands[yr].end = i;
-            });
-            const yearKeys = Object.keys(yearBands).sort();
-            yearKeys.forEach((yr, ci) => {
-                const band = yearBands[yr];
-                const xStart = padding.left + (chartWidth / (data.length - 1 || 1)) * band.start;
-                const xEnd   = padding.left + (chartWidth / (data.length - 1 || 1)) * band.end;
-                ctx.fillStyle = yearColors[ci % yearColors.length];
-                ctx.fillRect(xStart, padding.top, xEnd - xStart + (ci < yearKeys.length - 1 ? chartWidth / (data.length - 1 || 1) / 2 : 0), chartHeight);
-                // 年份标注
-                ctx.fillStyle = 'rgba(100,100,120,0.4)';
-                ctx.font = 'bold 11px sans-serif';
-                ctx.textAlign = 'left';
-                ctx.fillText(yr, xStart + 4, padding.top + 12);
-            });
 
-            // 绘制网格线和Y轴标签
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 1;
-            ctx.fillStyle = '#718096';
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'right';
+            const canvas = document.getElementById('trendChart');
+            if (!canvas) return;
 
-            for (let i = 0; i <= 4; i++) {
-                const y = padding.top + (chartHeight / 4) * i;
-                const value = maxVal - (range / 4) * i + minVal * (i / 4);
+            if (trendChartInst) { trendChartInst.destroy(); trendChartInst = null; }
 
-                ctx.beginPath();
-                ctx.moveTo(padding.left, y);
-                ctx.lineTo(canvas.width - padding.right, y);
-                ctx.stroke();
-
-                const label = value >= 10000 ? `${(value / 10000).toFixed(0)}w` : `${(value / 1000).toFixed(0)}k`;
-                ctx.fillText(label, padding.left - 5, y + 3);
-            }
-
-            // 计算点的位置
-            const points = data.map((val, i) => ({
-                x: padding.left + (chartWidth / (data.length - 1 || 1)) * i,
-                y: padding.top + chartHeight - ((val - minVal) / range) * chartHeight
-            }));
-            
-            // 绘制渐变填充区域
-            const gradient = ctx.createLinearGradient(0, padding.top, 0, canvas.height - padding.bottom);
-            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
-            gradient.addColorStop(1, 'rgba(102, 126, 234, 0.05)');
-            
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, canvas.height - padding.bottom);
-            points.forEach(p => ctx.lineTo(p.x, p.y));
-            ctx.lineTo(points[points.length - 1].x, canvas.height - padding.bottom);
-            ctx.closePath();
-            ctx.fillStyle = gradient;
-            ctx.fill();
-            
-            // 绘制折线
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            points.forEach(p => ctx.lineTo(p.x, p.y));
-            ctx.strokeStyle = '#667eea';
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.stroke();
-            
-            // 绘制数据点和标签
-            points.forEach((p, i) => {
-                // 数据点
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-                ctx.fillStyle = '#667eea';
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-                ctx.fillStyle = 'white';
-                ctx.fill();
-                
-                // X轴标签
-                ctx.fillStyle = '#718096';
-                ctx.font = '10px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(labels[i], p.x, canvas.height - 10);
-                
-                // 数值标签（只显示首尾和最高点）
-                if (i === 0 || i === points.length - 1 || data[i] === Math.max(...data)) {
-                    ctx.fillStyle = '#1a202c';
-                    ctx.font = 'bold 10px sans-serif';
-                    const valLabel = data[i] >= 10000 ? `${(data[i] / 10000).toFixed(1)}w` : `${(data[i] / 1000).toFixed(0)}k`;
-                    ctx.fillText(valLabel, p.x, p.y - 10);
+            trendChartInst = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        data: dataVals,
+                        borderColor: '#1D9E75',
+                        borderWidth: 2,
+                        backgroundColor: 'rgba(29,158,117,0.08)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: {
+                        callbacks: { label: c => ` ¥${Math.round(c.parsed.y).toLocaleString()}` }
+                    }},
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11 }, maxTicksLimit: 6 } },
+                        y: {
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            ticks: {
+                                font: { size: 11 },
+                                callback: v => v >= 10000 ? `${(v/10000).toFixed(0)}万` : v
+                            }
+                        }
+                    }
                 }
             });
+
+            // 增长摘要
+            if (sliced.length >= 2) {
+                const start = sliced[0].total, end = sliced[sliced.length-1].total;
+                const diff = end - start;
+                const pct  = start > 0 ? (diff / start * 100) : 0;
+                const el   = document.getElementById('trendDelta');
+                el.textContent = `${diff >= 0 ? '+' : ''}¥${Math.abs(Math.round(diff)).toLocaleString()} (${pct.toFixed(1)}%)`;
+                el.style.color = diff >= 0 ? 'var(--pos)' : 'var(--neg)';
+            }
         }
-        
+
+        // range tabs 事件绑定（只绑一次）
+        let rangeTabsBound = false;
+        function bindRangeTabs() {
+            if (rangeTabsBound) return;
+            const tabs = document.getElementById('rangeTabs');
+            if (!tabs) return;
+            tabs.addEventListener('click', e => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                tabs.querySelectorAll('button').forEach(b => b.classList.remove('is-active'));
+                btn.classList.add('is-active');
+                currentTrendRange = btn.dataset.range;
+                renderTrendChart(currentTrendRange);
+            });
+            rangeTabsBound = true;
+        }
+
+        // 旧函数空壳（已被新函数替换，保留以防历史引用）
+        function renderAssetsChart() {}
+        function renderAssetsTrendChart() {}
         // 渲染分类资产趋势图
         function renderCategoryTrendChart() {
             const canvas = document.getElementById('assetsCategoryChart');
