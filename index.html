@@ -1832,24 +1832,21 @@
         /* 资产图例 */
         .assets-legend {
             display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
+            flex-direction: column;
+            gap: 6px;
             margin-top: 16px;
             padding-top: 16px;
             border-top: 1px solid var(--gray-200);
         }
-        
+
         .assets-legend-item {
             display: flex;
             align-items: center;
-            gap: 6px;
-            font-size: 12px;
+            gap: 8px;
+            font-size: 13px;
             font-weight: 500;
             color: var(--gray-700);
-            background: white;
-            padding: 6px 12px;
-            border-radius: 20px;
+            padding: 4px 0;
         }
         
         .assets-legend-color {
@@ -3167,16 +3164,9 @@
                     </div>
                 </div>
                 
-                <!-- 里程碑进度 -->
-                <div class="chart-card full-width">
-                    <h3>🎯 百万目标里程碑</h3>
-                    <div class="milestones-track" id="assetsMilestones"></div>
-                </div>
-                
-                <!-- 年度对比 -->
-                <div class="chart-card full-width">
-                    <h3>📅 年度增长对比</h3>
-                    <div id="assetsYearlyCompare"></div>
+                <!-- 里程碑进度（只显示上一个+下一个） -->
+                <div class="chart-card full-width" id="assetsMilestonesCard">
+                    <div id="assetsMilestones"></div>
                 </div>
                 
                 <!-- 分类趋势 + 资产明细（左右布局） -->
@@ -8936,20 +8926,34 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 ? `更新于 ${latestUpdate.toLocaleDateString()}` 
                 : '点击更新按钮录入数据';
             
-            // 更新百万目标环形进度
-            const targetMillion = 1000000;
-            const progress = Math.min((totalAssets / targetMillion) * 100, 100);
+            // 过期警告：超过30天未更新
+            const updateEl = document.getElementById('assetsUpdateTime');
+            if (latestUpdate) {
+                const daysSince = Math.floor((Date.now() - latestUpdate) / 86400000);
+                if (daysSince > 30) {
+                    updateEl.innerHTML = `更新于 ${latestUpdate.toLocaleDateString()} <span style="color:#ed8936;font-weight:600;">⚠️ 已${daysSince}天未更新</span>`;
+                } else {
+                    updateEl.textContent = `更新于 ${latestUpdate.toLocaleDateString()}`;
+                }
+            } else {
+                updateEl.textContent = '点击更新按钮录入数据';
+            }
+
+            // 环形进度：优先读最近未完成的自定义目标，无目标则用100万
+            const activeGoal = goals.find(g => g.targetAmount > 0 && g.currentAmount < g.targetAmount)
+                || goals.slice().sort((a, b) => b.targetAmount - a.targetAmount)[0];
+            const ringTarget = activeGoal ? activeGoal.targetAmount : 1000000;
+            const ringLabel = activeGoal ? activeGoal.name : '百万目标';
+            const progress = Math.min((totalAssets / ringTarget) * 100, 100);
             const circumference = 2 * Math.PI * 45; // r=45
             const offset = circumference - (progress / 100) * circumference;
-            
+
             const progressCircle = document.getElementById('targetProgress');
             const percentText = document.getElementById('targetPercent');
-            if (progressCircle) {
-                progressCircle.style.strokeDashoffset = offset;
-            }
-            if (percentText) {
-                percentText.textContent = `${progress.toFixed(0)}%`;
-            }
+            const ringLabelEl = document.querySelector('.target-label');
+            if (progressCircle) progressCircle.style.strokeDashoffset = offset;
+            if (percentText) percentText.textContent = `${progress.toFixed(0)}%`;
+            if (ringLabelEl) ringLabelEl.textContent = ringLabel;
             
             // 按类型分组计算
             const typeValues = {};
@@ -8974,7 +8978,7 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             renderMilestones(totalAssets);
             
             // 渲染年度对比
-            renderYearlyCompare();
+            // 年度对比已并入趋势折线图
             
             // 渲染饼图
             renderAssetsChart(typeValues, totalAssets);
@@ -8982,12 +8986,18 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             // 渲染图例
             document.getElementById('assetsLegend').innerHTML = Object.entries(typeValues)
                 .filter(([_, data]) => data.value > 0)
+                .sort((a, b) => b[1].value - a[1].value)
                 .map(([_, data]) => {
                     const percent = totalAssets > 0 ? (data.value / totalAssets * 100).toFixed(1) : 0;
+                    const amtStr = data.value >= 10000
+                        ? `${(data.value / 10000).toFixed(1)}万`
+                        : `¥${data.value.toLocaleString()}`;
                     return `
                         <div class="assets-legend-item">
                             <div class="assets-legend-color" style="background: ${data.color};"></div>
-                            <span>${data.name} ${percent}%</span>
+                            <span style="flex:1;">${data.name}</span>
+                            <span style="color:var(--gray-800);font-weight:600;margin-right:4px;">${amtStr}</span>
+                            <span style="color:var(--gray-500);font-size:12px;">${percent}%</span>
                         </div>
                     `;
                 }).join('') || '<div style="color: var(--gray-500); font-size: 13px;">暂无数据</div>';
@@ -9106,141 +9116,99 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                     </div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">累计增长</div>
-                    <div class="stat-value" style="color: ${totalGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                        ${totalGrowth >= 0 ? '+' : ''}${(totalGrowth/10000).toFixed(1)}w
-                    </div>
-                    <div class="stat-change">vs ${firstRecord ? firstRecord.month.slice(2).replace('-', '/') : '--'}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">总增幅</div>
+                    <div class="stat-label">累计增幅</div>
                     <div class="stat-value" style="color: ${totalGrowthPct >= 0 ? 'var(--success)' : 'var(--danger)'}">
                         ${totalGrowthPct >= 0 ? '+' : ''}${totalGrowthPct.toFixed(0)}%
                     </div>
-                    <div class="stat-change">${sortedHistory.length}月记录</div>
+                    <div class="stat-change">${totalGrowth >= 0 ? '+' : ''}${(totalGrowth/10000).toFixed(1)}w · ${sortedHistory.length}月</div>
                 </div>
             `;
         }
         
-        // 渲染资产里程碑
+        // 渲染里程碑：只显示上一个达成 + 下一个目标
         function renderMilestones(totalAssets) {
             const milestones = [
-                { target: 100000, label: '10万', icon: '🎯' },
-                { target: 300000, label: '30万', icon: '🎯' },
-                { target: 500000, label: '50万', icon: '⭐' },
-                { target: 800000, label: '80万', icon: '⭐' },
+                { target: 100000,  label: '10万',  icon: '🎯' },
+                { target: 300000,  label: '30万',  icon: '🎯' },
+                { target: 500000,  label: '50万',  icon: '⭐' },
+                { target: 800000,  label: '80万',  icon: '⭐' },
                 { target: 1000000, label: '100万', icon: '🏆' },
                 { target: 1500000, label: '150万', icon: '💎' },
-                { target: 2000000, label: '200万', icon: '👑' }
+                { target: 2000000, label: '200万', icon: '👑' },
+                { target: 3000000, label: '300万', icon: '🚀' },
+                { target: 5000000, label: '500万', icon: '🌟' }
             ];
-            
             const sortedHistory = getMonthlyLatestHistory();
-            
-            // 找到每个里程碑的达成时间
-            const milestonesHtml = milestones.map(m => {
-                const achieved = totalAssets >= m.target;
-                let achievedDate = null;
-                
-                if (achieved) {
-                    // 找到首次达成的月份
-                    for (const h of sortedHistory) {
-                        if (h.total >= m.target) {
-                            const [y, mon] = h.month.split('-');
-                            achievedDate = `${y}.${mon} 达成`;
-                            break;
-                        }
+
+            const achieved = milestones.filter(m => totalAssets >= m.target);
+            const pending  = milestones.filter(m => totalAssets < m.target);
+            const prev = achieved[achieved.length - 1] || null;
+            const next = pending[0] || null;
+
+            const makeAchievedDate = m => {
+                for (const h of sortedHistory) {
+                    if (h.total >= m.target) {
+                        const [y, mon] = h.month.split('-');
+                        return `${y}.${mon} 达成`;
                     }
                 }
-                
-                // 预测达成时间
-                let predictDate = null;
-                if (!achieved && sortedHistory.length >= 2) {
-                    const recent = sortedHistory.slice(-3);
-                    if (recent.length >= 2) {
-                        const avgGrowth = (recent[recent.length - 1].total - recent[0].total) / recent.length;
-                        if (avgGrowth > 0) {
-                            const monthsNeeded = Math.ceil((m.target - totalAssets) / avgGrowth);
-                            const predictMonth = new Date();
-                            predictMonth.setMonth(predictMonth.getMonth() + monthsNeeded);
-                            predictDate = `预计 ${predictMonth.getFullYear()}.${String(predictMonth.getMonth() + 1).padStart(2, '0')}`;
-                        }
-                    }
-                }
-                
-                const progress = Math.min((totalAssets / m.target * 100), 100);
-                
-                return `
-                    <div class="milestone-row ${achieved ? 'achieved' : ''}">
-                        <div class="milestone-badge">${achieved ? '✓' : m.icon}</div>
-                        <div class="milestone-content">
-                            <div class="milestone-title">${m.label}</div>
-                            <div class="milestone-desc">${achieved ? achievedDate : (predictDate || '努力中...')}</div>
-                        </div>
-                        <div class="milestone-bar">
-                            <div class="milestone-bar-fill" style="width: ${progress}%"></div>
-                        </div>
-                        <div class="milestone-pct">${achieved ? '100%' : progress.toFixed(0) + '%'}</div>
-                    </div>
-                `;
-            }).join('');
-            
-            document.getElementById('assetsMilestones').innerHTML = milestonesHtml;
-        }
-        
-        // 渲染年度对比
-        function renderYearlyCompare() {
-            const sortedHistory = getMonthlyLatestHistory();
-            
-            if (sortedHistory.length === 0) {
-                document.getElementById('assetsYearlyCompare').innerHTML = 
-                    '<div style="text-align: center; padding: 30px; color: var(--gray-500);">暂无数据</div>';
+                return '已达成';
+            };
+
+            const makePredictDate = m => {
+                if (sortedHistory.length < 2) return '努力中...';
+                const recent = sortedHistory.slice(-3);
+                const avgGrowth = (recent[recent.length-1].total - recent[0].total) / recent.length;
+                if (avgGrowth <= 0) return '努力中...';
+                const months = Math.ceil((m.target - totalAssets) / avgGrowth);
+                const d = new Date();
+                d.setMonth(d.getMonth() + months);
+                return `预计 ${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}`;
+            };
+
+            const card = document.getElementById('assetsMilestonesCard');
+
+            // 全部达成
+            if (!next) {
+                card.style.display = 'none';
                 return;
             }
-            
-            // 按年分组
-            const yearlyData = {};
-            sortedHistory.forEach(h => {
-                const year = h.month.split('-')[0];
-                if (!yearlyData[year]) {
-                    yearlyData[year] = { start: null, end: null };
-                }
-                if (!yearlyData[year].start || h.month < yearlyData[year].startMonth) {
-                    yearlyData[year].start = h.total;
-                    yearlyData[year].startMonth = h.month;
-                }
-                if (!yearlyData[year].end || h.month > yearlyData[year].endMonth) {
-                    yearlyData[year].end = h.total;
-                    yearlyData[year].endMonth = h.month;
-                }
-            });
-            
-            // 计算每年增长
-            const years = Object.keys(yearlyData).sort();
-            let prevYearEnd = null;
-            
-            const yearlyHtml = years.map(year => {
-                const data = yearlyData[year];
-                const startValue = prevYearEnd || data.start;
-                const growth = data.end - startValue;
-                const growthPct = startValue > 0 ? (growth / startValue * 100) : 0;
-                
-                prevYearEnd = data.end;
-                
-                return `
-                    <div class="yearly-row">
-                        <div class="year-label">${year}年</div>
-                        <div class="year-data">
-                            <div class="year-amount ${growth >= 0 ? 'positive' : 'negative'}">
-                                ${growth >= 0 ? '+' : ''}${(growth/10000).toFixed(1)}万
-                            </div>
-                            <div class="year-pct">${growth >= 0 ? '↑' : '↓'} ${Math.abs(growthPct).toFixed(1)}%</div>
-                        </div>
+            card.style.display = '';
+
+            const nextProgress = Math.min((totalAssets / next.target) * 100, 100);
+            const remaining = next.target - totalAssets;
+            const remainStr = remaining >= 10000 ? `还差 ${(remaining/10000).toFixed(1)}万` : `还差 ¥${remaining.toLocaleString()}`;
+
+            let html = `<div style="display:flex;flex-direction:column;gap:12px;">`;
+
+            if (prev) {
+                html += `
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--green-100);border-radius:10px;">
+                    <span style="font-size:20px;">✅</span>
+                    <div style="flex:1;">
+                        <div style="font-weight:600;color:var(--gray-800);">${prev.label} <span style="font-size:12px;font-weight:400;color:var(--gray-500);">${makeAchievedDate(prev)}</span></div>
+                        <div style="font-size:12px;color:var(--gray-500);">上一个里程碑</div>
                     </div>
-                `;
-            }).join('');
-            
-            document.getElementById('assetsYearlyCompare').innerHTML = yearlyHtml || 
-                '<div style="text-align: center; padding: 30px; color: var(--gray-500);">暂无数据</div>';
+                </div>`;
+            }
+
+            html += `
+                <div style="padding:10px 14px;background:var(--gray-100);border-radius:10px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+                        <span style="font-size:20px;">${next.icon}</span>
+                        <div style="flex:1;">
+                            <div style="font-weight:600;color:var(--gray-800);">${next.label}</div>
+                            <div style="font-size:12px;color:var(--gray-500);">${makePredictDate(next)} · ${remainStr}</div>
+                        </div>
+                        <div style="font-weight:700;font-size:16px;color:var(--primary);">${nextProgress.toFixed(0)}%</div>
+                    </div>
+                    <div style="height:8px;background:var(--gray-200);border-radius:4px;overflow:hidden;">
+                        <div style="height:100%;width:${nextProgress}%;background:var(--primary);border-radius:4px;transition:width 0.5s;"></div>
+                    </div>
+                </div>
+            </div>`;
+
+            document.getElementById('assetsMilestones').innerHTML = html;
         }
         
         function renderAssetsChart(typeValues, total) {
@@ -9330,26 +9298,48 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             const chartWidth = canvas.width - padding.left - padding.right;
             const chartHeight = canvas.height - padding.top - padding.bottom;
             
+            // 绘制年份背景色带
+            const yearColors = ['rgba(102,126,234,0.06)', 'rgba(118,75,162,0.06)', 'rgba(72,187,120,0.06)', 'rgba(237,137,54,0.06)'];
+            const yearBands = {};
+            displayData.forEach((h, i) => {
+                const yr = h.month.split('-')[0];
+                if (!yearBands[yr]) yearBands[yr] = { start: i, end: i };
+                yearBands[yr].end = i;
+            });
+            const yearKeys = Object.keys(yearBands).sort();
+            yearKeys.forEach((yr, ci) => {
+                const band = yearBands[yr];
+                const xStart = padding.left + (chartWidth / (data.length - 1 || 1)) * band.start;
+                const xEnd   = padding.left + (chartWidth / (data.length - 1 || 1)) * band.end;
+                ctx.fillStyle = yearColors[ci % yearColors.length];
+                ctx.fillRect(xStart, padding.top, xEnd - xStart + (ci < yearKeys.length - 1 ? chartWidth / (data.length - 1 || 1) / 2 : 0), chartHeight);
+                // 年份标注
+                ctx.fillStyle = 'rgba(100,100,120,0.4)';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(yr, xStart + 4, padding.top + 12);
+            });
+
             // 绘制网格线和Y轴标签
             ctx.strokeStyle = '#e2e8f0';
             ctx.lineWidth = 1;
             ctx.fillStyle = '#718096';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'right';
-            
+
             for (let i = 0; i <= 4; i++) {
                 const y = padding.top + (chartHeight / 4) * i;
                 const value = maxVal - (range / 4) * i + minVal * (i / 4);
-                
+
                 ctx.beginPath();
                 ctx.moveTo(padding.left, y);
                 ctx.lineTo(canvas.width - padding.right, y);
                 ctx.stroke();
-                
+
                 const label = value >= 10000 ? `${(value / 10000).toFixed(0)}w` : `${(value / 1000).toFixed(0)}k`;
                 ctx.fillText(label, padding.left - 5, y + 3);
             }
-            
+
             // 计算点的位置
             const points = data.map((val, i) => ({
                 x: padding.left + (chartWidth / (data.length - 1 || 1)) * i,
