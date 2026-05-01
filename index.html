@@ -1539,6 +1539,27 @@
         
         /* ===== 资产管理页重构样式 ===== */
 
+        /* STEP 2 · KPI 卡片 */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--gap-md);
+            margin-bottom: var(--gap-lg);
+        }
+        .kpi-card {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--r-md);
+            padding: 12px 14px;
+            border-top-width: 3px;
+        }
+        .kpi-card__label { font-size: 12px; color: var(--gray-600); margin-bottom: 4px; }
+        .kpi-card__value { font-size: 18px; font-weight: 500; color: var(--gray-800); }
+        .kpi-card__hint  { font-size: 11px; color: var(--gray-500); margin-top: 3px; }
+        @media (max-width: 480px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
         /* STEP 1 · Hero */
         .asset-hero {
             background: #fff;
@@ -3122,8 +3143,8 @@
                     </div>
                 </section>
                 
-                <!-- 增长指标卡片 -->
-                <div class="assets-stats" id="assetsGrowthCards"></div>
+                <!-- STEP 2 · 四笔钱 KPI 卡 -->
+                <section class="kpi-grid" id="kpiCards"></section>
                 
                 <!-- 双列图表区域 -->
                 <div class="assets-charts-grid">
@@ -3318,6 +3339,16 @@
                     <button class="btn btn-outline" onclick="checkMissingCategories()">🔍 检测缺失类目</button>
                 </div>
                 
+                <!-- 资产分组配置（四笔钱 bucket mapping）-->
+                <div style="margin-top: 25px; border-top: 2px solid var(--gray-200); padding-top: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 8px;">🗂️ 资产分组配置</h3>
+                    <p style="font-size: 13px; color: var(--gray-600); margin-bottom: 14px;">
+                        指定每个资产大类属于哪个分析维度（影响 KPI 卡片和健康度评分）。
+                    </p>
+                    <div id="bucketSettingsList"></div>
+                    <button class="btn btn-primary" style="margin-top: 12px;" onclick="saveBucketMapFromUI()">保存分组配置</button>
+                </div>
+
                 <!-- 数据迁移工具 -->
                 <div style="margin-top: 25px; border-top: 2px solid var(--gray-200); padding-top: 20px;">
                     <h3 style="font-size: 16px; margin-bottom: 15px;">🔄 数据迁移工具</h3>
@@ -3463,6 +3494,7 @@
         let goals = [];
         let assets = [];
         let assetHistory = []; // 资产历史记录
+        let BUCKET_MAP = {}; // { typeId: 'liquid'|'invest'|'property'|'debt' }
         let selectedCategory = null;
         let expandedCategories = new Set();
         let currentRecordType = 'expense';
@@ -5815,6 +5847,8 @@
         
         // ==================== 设置页面 ====================
         function renderSettings() {
+            loadBucketMap();
+            renderBucketSettings();
             document.getElementById('settingsList').innerHTML = categories.map((cat, index) => `
                 <div class="category-setting-item" style="background: ${cat.type === '刚性' ? 'var(--pink-100)' : cat.type === '日常' ? '#fefcbf' : 'var(--green-100)'}">
                     <span style="font-weight: 600;">${cat.id}</span>
@@ -8893,6 +8927,98 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
             saveAssetsToCloud();
         }
         
+        // ==================== 资产分组（四笔钱 bucket）====================
+        const BUCKET_DEFAULTS = { liquid: 'liquid', invest: 'invest', protect: 'invest', other: 'liquid', pending: 'liquid' };
+        const BUCKET_LABELS   = { liquid: '流动资产', invest: '投资资产', property: '不动产', debt: '负债' };
+        const BUCKET_COLORS   = { liquid: 'var(--asset-liquid)', invest: 'var(--asset-invest)', property: 'var(--asset-property)', debt: 'var(--asset-debt)' };
+
+        function loadBucketMap() {
+            BUCKET_MAP = safeParse('finance_bucket_map_' + (currentUser || 'default'), { ...BUCKET_DEFAULTS });
+        }
+
+        function saveBucketMap() {
+            localStorage.setItem('finance_bucket_map_' + currentUser, JSON.stringify(BUCKET_MAP));
+        }
+
+        function bucketOf(typeId) {
+            return BUCKET_MAP[typeId] || 'liquid';
+        }
+
+        // 渲染设置页里的分组配置 UI
+        function renderBucketSettings() {
+            const el = document.getElementById('bucketSettingsList');
+            if (!el) return;
+            el.innerHTML = ASSET_TYPES.map(t => `
+                <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--gray-200);">
+                    <span style="flex:1;font-size:13px;font-weight:500;">${t.icon || ''} ${t.name}</span>
+                    <select data-typeid="${t.id}" style="padding:4px 8px;border-radius:var(--r-md);border:1px solid var(--gray-300);font-size:13px;color:var(--gray-800);">
+                        ${['liquid','invest','property','debt'].map(b =>
+                            `<option value="${b}" ${bucketOf(t.id) === b ? 'selected' : ''}>${BUCKET_LABELS[b]}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+            `).join('');
+        }
+
+        function saveBucketMapFromUI() {
+            document.querySelectorAll('#bucketSettingsList select').forEach(sel => {
+                BUCKET_MAP[sel.dataset.typeid] = sel.value;
+            });
+            saveBucketMap();
+            showToast('分组配置已保存', 'success');
+            renderAssets(); // 立即刷新 KPI
+        }
+
+        // 渲染 KPI 四笔钱卡片
+        function renderKPICards(totalAssets) {
+            const buckets = { liquid: 0, invest: 0, property: 0, debt: 0 };
+            assets.forEach(a => { buckets[bucketOf(a.typeId)] += (a.value || 0); });
+
+            // 近6个月平均支出
+            const now = new Date();
+            let totalExp = 0, mCount = 0;
+            for (let i = 0; i < 6; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                const mExp = expenses.filter(e => e.date && e.date.startsWith(key))
+                                     .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+                if (mExp > 0) { totalExp += mExp; mCount++; }
+            }
+            const avgExp = mCount > 0 ? totalExp / mCount : 0;
+
+            const fmt = v => v >= 10000
+                ? `${(v / 10000).toFixed(1)}万`
+                : (v > 0 ? `¥${Math.round(v).toLocaleString()}` : '—');
+
+            const liquidMonths = avgExp > 0 ? (buckets.liquid / avgExp).toFixed(1) : '—';
+            const investPct    = totalAssets > 0 ? Math.round(buckets.invest   / totalAssets * 100) : '—';
+            const propertyPct  = totalAssets > 0 ? Math.round(buckets.property / totalAssets * 100) : '—';
+            const debtRate     = totalAssets > 0 ? Math.round(buckets.debt     / totalAssets * 100) : '—';
+
+            document.getElementById('kpiCards').innerHTML = `
+                <div class="kpi-card" style="border-top-color:var(--asset-liquid);">
+                    <div class="kpi-card__label">流动资产</div>
+                    <div class="kpi-card__value">${fmt(buckets.liquid)}</div>
+                    <div class="kpi-card__hint">${liquidMonths === '—' ? '—' : liquidMonths + ' 个月开支储备'}</div>
+                </div>
+                <div class="kpi-card" style="border-top-color:var(--asset-invest);">
+                    <div class="kpi-card__label">投资资产</div>
+                    <div class="kpi-card__value">${fmt(buckets.invest)}</div>
+                    <div class="kpi-card__hint">占总资产 ${investPct}%</div>
+                </div>
+                <div class="kpi-card" style="border-top-color:var(--asset-property);">
+                    <div class="kpi-card__label">不动产</div>
+                    <div class="kpi-card__value">${fmt(buckets.property)}</div>
+                    <div class="kpi-card__hint">占总资产 ${propertyPct}%</div>
+                </div>
+                <div class="kpi-card" style="border-top-color:var(--asset-debt);">
+                    <div class="kpi-card__label">负债</div>
+                    <div class="kpi-card__value">${fmt(buckets.debt)}</div>
+                    <div class="kpi-card__hint">负债率 ${debtRate}%</div>
+                </div>
+            `;
+        }
+
         // 计算两点净值差，渲染 delta pill
         function renderDelta(curr, prev) {
             if (!prev || prev <= 0) return '';
@@ -8953,8 +9079,9 @@ ${travelSpent > 0 ? `旅行支出：¥${travelSpent}（占总支出${(travelSpen
                 }
             });
             
-            // 渲染增长指标卡片
-            renderGrowthCards(totalAssets);
+            // 渲染四笔钱 KPI 卡
+            loadBucketMap();
+            renderKPICards(totalAssets);
             
             // 渲染里程碑
             renderMilestones(totalAssets);
