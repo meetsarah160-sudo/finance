@@ -1617,6 +1617,82 @@
             border-color: var(--gray-800);
         }
 
+        /* STEP 7 · 分组明细 */
+        .detail-group { margin-bottom: 14px; }
+        .detail-group__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0 6px;
+            margin-bottom: 4px;
+        }
+        .detail-group__label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--gray-600);
+        }
+        .detail-group__dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .detail-group__subtotal {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-800);
+        }
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px;
+            border-radius: var(--r-md);
+            background: var(--gray-100);
+            margin-bottom: 4px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .detail-item:hover { background: var(--gray-200); }
+        .detail-item__name { font-size: 13px; color: var(--gray-800); font-weight: 500; }
+        .detail-item__sub  { font-size: 11px; color: var(--gray-500); margin-top: 1px; }
+        .detail-item__value { font-size: 13px; font-weight: 500; color: var(--gray-800); text-align: right; }
+        .detail-item__pct  { font-size: 11px; color: var(--gray-500); text-align: right; margin-top: 1px; }
+
+        /* STEP 8 · 快照弹窗优化 */
+        .snapshot-group-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: var(--r-md);
+            margin: 12px 0 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .snapshot-input-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: var(--r-md);
+            background: var(--gray-100);
+            margin-bottom: 4px;
+        }
+        .snapshot-input-row label { flex: 1; font-size: 13px; color: var(--gray-700); }
+        .snapshot-input-row input {
+            width: 130px;
+            padding: 6px 10px;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--r-md);
+            font-size: 13px;
+            text-align: right;
+            color: var(--gray-800);
+        }
+        .snapshot-input-row input:focus { outline: none; border-color: var(--primary); }
+
         /* STEP 3 · 财务健康度 */
         .health-card {
             background: #fff;
@@ -3328,17 +3404,17 @@
                         </div>
                     </div>
                     
-                    <!-- 右侧：资产明细 -->
+                    <!-- STEP 7 · 资产明细分组卡片 -->
                     <div class="chart-card">
                         <div class="card-header-flex">
-                            <h3>📋 资产明细</h3>
-                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                <button class="btn btn-secondary btn-sm" onclick="showAssetHistoryModal()">📜 完整历史</button>
-                                <button class="btn btn-secondary btn-sm" onclick="showManageAssetTypes()">⚙️ 管理类目</button>
-                                <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">✏️ 更新</button>
+                            <div class="trend-card__title">资产明细</div>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                <button class="btn btn-secondary btn-sm" onclick="showAssetHistoryModal()">📜 历史</button>
+                                <button class="btn btn-secondary btn-sm" onclick="showManageAssetTypes()">⚙️ 管理</button>
+                                <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">⟳ 快照</button>
                             </div>
                         </div>
-                        <div id="assetsList" class="assets-list"></div>
+                        <div id="detailGroups" style="margin-top:12px;"></div>
                     </div>
                 </div>
             </div>
@@ -8740,30 +8816,8 @@
             bindRangeTabs();
             renderTrendChart(currentTrendRange);
 
-            // 资产明细列表（STEP 7 前的过渡版）
-            let detailHtml = '';
-            ASSET_TYPES.forEach(type => {
-                const typeAssets = assets.filter(a => a.typeId === type.id);
-                typeAssets.forEach(asset => {
-                    const percent = totalAssets > 0 ? Math.round(asset.value / totalAssets * 100) : 0;
-                    detailHtml += `
-                        <div class="asset-row">
-                            <div class="asset-row-left">
-                                <div class="asset-icon ${type.id}">${asset.icon}</div>
-                                <div class="asset-info">
-                                    <div class="asset-name">${asset.name}</div>
-                                    <div class="asset-type">${type.name}</div>
-                                </div>
-                            </div>
-                            <div class="asset-row-right">
-                                <div class="asset-value">¥${(asset.value || 0).toLocaleString()}</div>
-                                <div class="asset-pct">${percent}%</div>
-                            </div>
-                        </div>`;
-                });
-            });
-            document.getElementById('assetsList').innerHTML = detailHtml ||
-                '<div style="text-align:center;padding:30px;color:var(--gray-500);">暂无资产数据<br><small>点击月度快照录入</small></div>';
+            // STEP 7 · 分组明细卡片
+            renderDetailGroups(totalAssets);
 
             // 分类趋势图（原有，保留）
             renderCategoryTrendChart();
@@ -9033,6 +9087,59 @@
             rangeTabsBound = true;
         }
 
+        // ==================== STEP 7 · 资产明细分组卡片 ====================
+        function renderDetailGroups(totalAssets) {
+            const groups = {
+                liquid:   { label: '流动资产', color: '#378ADD', items: [] },
+                invest:   { label: '投资资产', color: '#1D9E75', items: [] },
+                property: { label: '不动产',   color: '#EF9F27', items: [] },
+                debt:     { label: '负债',     color: '#B4B2A9', items: [] },
+            };
+
+            assets.forEach(a => {
+                const b = bucketOf(a.typeId);
+                const typeName = ASSET_TYPES.find(t => t.id === a.typeId)?.name || '';
+                groups[b].items.push({ ...a, typeName });
+            });
+
+            const fmt = v => v >= 10000
+                ? `${(v / 10000).toFixed(1)}万`
+                : `¥${Math.round(v).toLocaleString()}`;
+
+            const html = Object.entries(groups)
+                .filter(([, g]) => g.items.length > 0)
+                .map(([, g]) => {
+                    const subtotal = g.items.reduce((s, a) => s + (a.value || 0), 0);
+                    const itemsHtml = g.items.map(a => {
+                        const pct = totalAssets > 0 ? Math.round(a.value / totalAssets * 100) : 0;
+                        return `<div class="detail-item" onclick="showUpdateAssets()">
+                            <div>
+                                <div class="detail-item__name">${a.icon || ''} ${a.name}</div>
+                                <div class="detail-item__sub">${a.typeName}</div>
+                            </div>
+                            <div>
+                                <div class="detail-item__value">${fmt(a.value || 0)}</div>
+                                <div class="detail-item__pct">${pct}%</div>
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                    return `<div class="detail-group">
+                        <div class="detail-group__header">
+                            <span class="detail-group__label">
+                                <span class="detail-group__dot" style="background:${g.color}"></span>
+                                ${g.label} · ${g.items.length} 项
+                            </span>
+                            <span class="detail-group__subtotal">${fmt(subtotal)}</span>
+                        </div>
+                        ${itemsHtml}
+                    </div>`;
+                }).join('');
+
+            document.getElementById('detailGroups').innerHTML = html ||
+                '<div style="text-align:center;padding:24px;color:var(--gray-500);font-size:13px;">暂无资产数据<br>点击「⟳ 快照」录入</div>';
+        }
+
         // 旧函数空壳（已被新函数替换，保留以防历史引用）
         function renderAssetsChart() {}
         function renderAssetsTrendChart() {}
@@ -9285,61 +9392,71 @@
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
             modal.id = 'updateAssetsModal';
-            
-            // 生成月份选项（从2024年1月到当前月份）
-            let monthOptions = '';
+
+            // 月份选项
             const now = new Date();
-            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-            
+            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            let monthOptions = '';
             for (let y = 2024; y <= now.getFullYear(); y++) {
-                const maxMonth = (y === now.getFullYear()) ? now.getMonth() + 1 : 12;
-                for (let m = 1; m <= maxMonth; m++) {
-                    const monthKey = `${y}-${String(m).padStart(2, '0')}`;
-                    const selected = monthKey === currentMonthKey ? 'selected' : '';
-                    monthOptions += `<option value="${monthKey}" ${selected}>${y}年${m}月</option>`;
+                const maxM = y === now.getFullYear() ? now.getMonth()+1 : 12;
+                for (let m = 1; m <= maxM; m++) {
+                    const key = `${y}-${String(m).padStart(2,'0')}`;
+                    monthOptions += `<option value="${key}" ${key===currentMonthKey?'selected':''}>${y}年${m}月</option>`;
                 }
             }
-            
-            let formHtml = '';
+
+            // 按 bucket 分组表单
+            const bucketMeta = {
+                liquid:   { label: '流动资产', color: '#378ADD' },
+                invest:   { label: '投资资产', color: '#1D9E75' },
+                property: { label: '不动产',   color: '#EF9F27' },
+                debt:     { label: '负债',     color: '#B4B2A9' },
+            };
+            const grouped = { liquid:[], invest:[], property:[], debt:[] };
             ASSET_TYPES.forEach(type => {
-                formHtml += `<div class="asset-category-header">${type.icon} ${type.name}</div>`;
-                type.items.forEach(item => {
+                const b = bucketOf(type.id);
+                type.items.forEach(item => grouped[b].push({ type, item }));
+            });
+
+            let formHtml = '';
+            Object.entries(grouped).forEach(([bk, rows]) => {
+                if (!rows.length) return;
+                const meta = bucketMeta[bk];
+                formHtml += `<div class="snapshot-group-header" style="background:${meta.color}18;color:${meta.color};">
+                    <span style="width:8px;height:8px;border-radius:50%;background:${meta.color};display:inline-block;"></span>
+                    ${meta.label}
+                </div>`;
+                rows.forEach(({ type, item }) => {
                     const asset = assets.find(a => a.id === item.id);
-                    formHtml += `
-                        <div class="asset-form-group">
-                            <label>${item.icon} ${item.name}</label>
-                            <input type="number" id="asset_${item.id}" value="${asset ? asset.value : 0}" 
-                                   placeholder="输入金额" step="0.01" min="0">
-                        </div>
-                    `;
+                    const val = asset ? (asset.value || 0) : 0;
+                    formHtml += `<div class="snapshot-input-row">
+                        <label>${item.icon || ''} ${item.name}<span style="font-size:11px;color:var(--gray-500);margin-left:4px;">${type.name}</span></label>
+                        <input type="number" id="asset_${item.id}" value="${val}" placeholder="0" step="0.01" min="0"
+                               onfocus="this.select()"
+                               onblur="if(this.value==='')this.value=0;">
+                    </div>`;
                 });
             });
-            
+
             modal.innerHTML = `
-                <div class="modal" style="max-width: 450px;">
-                    <h3 style="margin-bottom: 20px;">💰 更新存量资产</h3>
-                    
-                    <!-- 月份选择器 -->
-                    <div class="asset-form-group" style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 10px;">
-                        <label style="color: var(--primary);">📅 选择月份</label>
-                        <select id="assetMonth" onchange="loadMonthAssetData(this.value)" style="width: 100%; padding: 12px; border: 2px solid var(--primary); border-radius: 8px; font-size: 16px; font-weight: 600;">
+                <div class="modal" style="max-width:440px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <div style="font-size:15px;font-weight:500;color:var(--gray-800);">月度资产快照</div>
+                        <select id="assetMonth" onchange="loadMonthAssetData(this.value)"
+                            style="padding:6px 10px;border:1px solid var(--gray-300);border-radius:var(--r-md);font-size:13px;color:var(--gray-800);">
                             ${monthOptions}
                         </select>
-                        <div style="font-size: 12px; color: var(--gray-600); margin-top: 8px;">
-                            💡 可选择2024年1月至今的任意月份录入数据
-                        </div>
                     </div>
-                    
-                    <div style="max-height: 350px; overflow-y: auto;">
-                        ${formHtml}
+                    <div style="max-height:400px;overflow-y:auto;margin-bottom:16px;">${formHtml}</div>
+                    <div style="font-size:11px;color:var(--gray-500);margin-bottom:12px;">
+                        每次保存都会追加一条历史记录，可在「📜 历史」中查看。
                     </div>
-                    <div style="display: flex; gap: 10px; margin-top: 20px;">
-                        <button class="btn btn-outline" style="flex: 1;" onclick="closeUpdateAssetsModal()">取消</button>
-                        <button class="btn btn-primary" style="flex: 1;" onclick="saveUpdatedAssets()">💾 保存</button>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-outline" style="flex:1;" onclick="closeUpdateAssetsModal()">取消</button>
+                        <button class="btn btn-primary" style="flex:1;" onclick="saveUpdatedAssets()">保存快照</button>
                     </div>
-                </div>
-            `;
-            
+                </div>`;
+
             document.body.appendChild(modal);
         }
         
