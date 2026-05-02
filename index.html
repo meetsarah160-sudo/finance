@@ -4459,7 +4459,8 @@
                 assets: assets,
                 assetHistory: assetHistory,
                 monthlyExpenseOverrides: monthlyExpenseOverrides,
-                assetTypes: ASSET_TYPES
+                assetTypes: ASSET_TYPES,
+                bucketMap: BUCKET_MAP
             };
             
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -4510,7 +4511,7 @@
                         user: currentUser,
                         exportTime: new Date().toISOString(),
                         categories, expenses, incomes, goals, assets,
-                        assetHistory, monthlyExpenseOverrides, assetTypes: ASSET_TYPES
+                        assetHistory, monthlyExpenseOverrides, assetTypes: ASSET_TYPES, bucketMap: BUCKET_MAP
                     }
                 };
                 const idb = await openBackupDB();
@@ -4738,6 +4739,7 @@
                             if (data.goals) goals = data.goals;
                             if (data.monthlyExpenseOverrides) monthlyExpenseOverrides = data.monthlyExpenseOverrides;
                             if (data.assetTypes) ASSET_TYPES = data.assetTypes;
+                            if (data.bucketMap) { BUCKET_MAP = data.bucketMap; saveBucketMap(); }
                         } else {
                             // 追加模式：收入按指纹去重追加；资产历史按 month 去重追加；月度覆盖以现有为准合并；其余不动
                             if (Array.isArray(data.incomes) && data.incomes.length > 0) {
@@ -8737,7 +8739,9 @@
                 },
             ];
 
-            document.getElementById('healthMetrics').innerHTML = metricDefs.map(m => `
+            const healthMetricsEl = document.getElementById('healthMetrics');
+            if (!healthMetricsEl) return;
+            healthMetricsEl.innerHTML = metricDefs.map(m => `
                 <div class="metric">
                     <div class="metric__row">
                         <span class="metric__name">${m.label}</span>
@@ -8973,7 +8977,9 @@
             const fmtTotal = totalAssets >= 10000
                 ? `${(totalAssets/10000).toFixed(1)}万`
                 : `¥${Math.round(totalAssets).toLocaleString()}`;
-            document.getElementById('allocTotal').textContent = fmtTotal;
+            const allocTotalEl = document.getElementById('allocTotal');
+            if (!allocTotalEl) return;
+            allocTotalEl.textContent = fmtTotal;
 
             allocChartInst = new Chart(canvas.getContext('2d'), {
                 type: 'doughnut',
@@ -9074,9 +9080,11 @@
                 const start = sliced[0].total, end = sliced[sliced.length-1].total;
                 const diff = end - start;
                 const pct  = start > 0 ? (diff / start * 100) : 0;
-                const el   = document.getElementById('trendDelta');
-                el.textContent = `${diff >= 0 ? '+' : ''}¥${Math.abs(Math.round(diff)).toLocaleString()} (${pct.toFixed(1)}%)`;
-                el.style.color = diff >= 0 ? 'var(--primary)' : 'var(--neg)';
+                const el = document.getElementById('trendDelta');
+                if (el) {
+                    el.textContent = `${diff >= 0 ? '+' : ''}¥${Math.abs(Math.round(diff)).toLocaleString()} (${pct.toFixed(1)}%)`;
+                    el.style.color = diff >= 0 ? 'var(--primary)' : 'var(--neg)';
+                }
             }
         }
 
@@ -9146,7 +9154,8 @@
                     </div>`;
                 }).join('');
 
-            document.getElementById('detailGroups').innerHTML = html ||
+            const detailGroupsEl = document.getElementById('detailGroups');
+            if (detailGroupsEl) detailGroupsEl.innerHTML = html ||
                 '<div style="text-align:center;padding:24px;color:var(--gray-500);font-size:13px;">暂无资产数据<br>点击「⟳ 快照」录入</div>';
         }
 
@@ -9156,6 +9165,7 @@
         // 渲染分类资产趋势图
         function renderCategoryTrendChart() {
             const canvas = document.getElementById('assetsCategoryChart');
+            if (!canvas) return;
             const container = canvas.parentElement;
             
             // 设置CSS尺寸
