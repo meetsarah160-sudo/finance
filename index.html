@@ -4105,6 +4105,15 @@
                     } else {
                         monthlyExpenseOverrides = safeParse('finance_expense_overrides_' + currentUser, {});
                     }
+
+                    // 🔥 加载云端四笔钱分组配置
+                    if (configData.bucket_map && Object.keys(configData.bucket_map).length > 0) {
+                        BUCKET_MAP = configData.bucket_map;
+                        localStorage.setItem('finance_bucket_map_' + currentUser, JSON.stringify(BUCKET_MAP));
+                        console.log('✅ 从云端加载资产分组配置');
+                    } else {
+                        BUCKET_MAP = safeParse('finance_bucket_map_' + currentUser, { ...BUCKET_DEFAULTS });
+                    }
                 } else {
                     // 云端没有配置，优先使用本地备份
                     console.log('⚠️ 云端无user_configs数据');
@@ -4296,7 +4305,8 @@
                     asset_types: ASSET_TYPES,
                     expense_overrides: monthlyExpenseOverrides,
                     incomes_data: incomes,
-                    goals_data: goals
+                    goals_data: goals,
+                    bucket_map: BUCKET_MAP
                 }, { onConflict: 'user_id' });
 
                 // 同时保存到本地作为备份
