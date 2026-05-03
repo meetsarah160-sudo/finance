@@ -3891,6 +3891,12 @@
                 return;
             }
 
+            // 只有 1 个 profile，直接进，不打扰用户
+            if (availableProfiles.length === 1) {
+                await selectProfile(availableProfiles[0]);
+                return;
+            }
+
             // 有上次记忆的 profile 就直接进
             const last = localStorage.getItem('finance_last_profile');
             if (last && availableProfiles.includes(last)) {
