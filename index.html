@@ -2953,28 +2953,29 @@
     <div id="loginPage" class="login-container">
         <h1>💰 财务管理</h1>
         <p class="subtitle">云同步 · 多设备 · 数据分析</p>
-        <input type="text" id="loginNickname" placeholder="输入你的昵称（如：小王）">
-        <input type="password" id="loginPassword" placeholder="输入密码">
+        <input type="email" id="loginEmail" placeholder="邮箱" autocomplete="email">
+        <input type="password" id="loginPassword" placeholder="密码" autocomplete="current-password">
         <button class="login-btn" id="loginBtn" onclick="login()">🚀 登录</button>
-        <button class="login-btn" id="registerBtn" style="margin-top: 10px; background: var(--success);" onclick="showRegister()">✨ 新用户注册</button>
         <div class="tip">
-            🔒 密码保护，防止他人查看你的数据<br>
-            <small style="color: #718096;">⚠️ 密码存在本地，换设备需重新设置</small>
+            🔒 服务器端身份验证 · 数据按 owner 隔离
         </div>
     </div>
-    
-    <!-- 注册页面 -->
-    <div id="registerPage" class="login-container hidden">
-        <h1>✨ 新用户注册</h1>
-        <p class="subtitle">设置你的专属账号</p>
-        <input type="text" id="regNickname" placeholder="设置昵称（如：小王）">
-        <input type="password" id="regPassword" placeholder="设置密码（至少4位）">
-        <input type="password" id="regPassword2" placeholder="再次确认密码">
-        <button class="login-btn" id="regBtn" onclick="register()">✅ 完成注册</button>
-        <button class="login-btn" style="margin-top: 10px; background: var(--gray-600);" onclick="showLogin()">← 返回登录</button>
-        <div class="tip">
-            💡 记住你的昵称和密码，下次登录需要用到
-        </div>
+
+    <!-- 选择 profile 页面（登录后显示）-->
+    <div id="profilePage" class="login-container hidden">
+        <h1>👤 选择 Profile</h1>
+        <p class="subtitle">选一个要查看/记账的对象</p>
+        <div id="profileList" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;"></div>
+        <input type="text" id="newProfileName" placeholder="新建 profile 名称（如：弟弟）" style="margin-top: 8px;">
+        <button class="login-btn" onclick="createProfile()" style="background: var(--success);">+ 新建 profile</button>
+        <button class="login-btn" onclick="logoutFromProfilePage()" style="margin-top: 10px; background: var(--gray-600);">退出登录</button>
+    </div>
+
+    <!-- 注册页面（保留 DOM 但永久隐藏，保持向前兼容）-->
+    <div id="registerPage" class="login-container hidden" style="display:none;">
+        <input type="text" id="regNickname" style="display:none;">
+        <input type="password" id="regPassword" style="display:none;">
+        <input type="password" id="regPassword2" style="display:none;">
     </div>
     
     <!-- 主应用 -->
@@ -3678,7 +3679,9 @@
         };
         
         // ==================== 状态 ====================
-        let currentUser = null;
+        let authUserId = null;       // Supabase Auth UID（用作 owner_id）
+        let availableProfiles = [];  // 当前 owner 下的所有 profile 名（即原 user_id）
+        let currentUser = null;      // 当前选中的 profile 名（向后兼容，语义=profile）
         let categories = [];
         let expenses = [];
         let incomes = [];
@@ -3809,225 +3812,187 @@
         }
         
         // ==================== 登录/登出 ====================
-        function showRegister() {
-            document.getElementById('loginPage').classList.add('hidden');
-            document.getElementById('registerPage').classList.remove('hidden');
-        }
-        
+        // 兼容旧调用：showRegister/showLogin/hashPassword/getLocalPassword/setLocalPassword
+        // 新架构下注册流程不暴露给用户（只有 1 个 Auth 账号 = owner），保留 no-op 防 console.error
+        function showRegister() { /* deprecated: profiles created via createProfile() */ }
         function showLogin() {
-            document.getElementById('registerPage').classList.add('hidden');
+            document.getElementById('profilePage').classList.add('hidden');
             document.getElementById('loginPage').classList.remove('hidden');
         }
-        
-        // 简单的密码哈希
-        async function hashPassword(password) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(password + 'finance_salt_2026');
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        }
-        
-        // 获取本地存储的密码
-        function getLocalPassword(nickname) {
-            const passwords = safeParse('finance_passwords', {});
-            return passwords[nickname];
+
+        // 给 insert/upsert 包一层 owner_id —— RLS 要求 owner_id = auth.uid()
+        function withOwner(rowOrRows) {
+            if (!authUserId) {
+                console.error('withOwner called before auth: ' + new Error().stack);
+                throw new Error('未登录，无法写入数据');
+            }
+            if (Array.isArray(rowOrRows)) {
+                return rowOrRows.map(r => ({ ...r, owner_id: authUserId }));
+            }
+            return { ...rowOrRows, owner_id: authUserId };
         }
 
-        // 设置本地密码
-        function setLocalPassword(nickname, hashedPwd) {
-            const passwords = safeParse('finance_passwords', {});
-            passwords[nickname] = hashedPwd;
-            localStorage.setItem('finance_passwords', JSON.stringify(passwords));
-        }
-        
-        async function register() {
-            const nickname = document.getElementById('regNickname').value.trim();
-            const password = document.getElementById('regPassword').value;
-            const password2 = document.getElementById('regPassword2').value;
-            
-            if (!nickname) {
-                showToast('请输入昵称', 'error');
-                return;
-            }
-            
-            if (password.length < 4) {
-                showToast('密码至少4位', 'error');
-                return;
-            }
-            
-            if (password !== password2) {
-                showToast('两次密码不一致', 'error');
-                return;
-            }
-            
-            const btn = document.getElementById('regBtn');
-            btn.disabled = true;
-            btn.textContent = '⏳ 注册中...';
-            
-            try {
-                // 检查昵称是否已存在
-                const { data: existing } = await db
-                    .from('user_configs')
-                    .select('user_id')
-                    .eq('user_id', nickname)
-                    .maybeSingle();
-                
-                const { data: expenseData } = await db
-                    .from('expenses')
-                    .select('id')
-                    .eq('user_id', nickname)
-                    .limit(1);
-                
-                if (existing || (expenseData && expenseData.length > 0)) {
-                    showToast('该昵称已被使用，请直接登录', 'warning');
-                    btn.disabled = false;
-                    btn.textContent = '✅ 完成注册';
-                    showLogin();
-                    document.getElementById('loginNickname').value = nickname;
-                    return;
-                }
-                
-                // 创建新用户
-                const hashedPwd = await hashPassword(password);
-                setLocalPassword(nickname, hashedPwd);
+        // —— 登录 / Profile 选择 ——
 
-                await db.from('user_configs').insert({
-                    user_id: nickname,
-                    categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
-                    password_hash: hashedPwd
-                });
-                
-                showToast('注册成功！请登录', 'success');
-                showLogin();
-                document.getElementById('loginNickname').value = nickname;
-                document.getElementById('loginPassword').value = '';
-                
-            } catch (error) {
-                console.error('注册失败:', error);
-                showToast('注册失败，请重试', 'error');
-            }
-            
-            btn.disabled = false;
-            btn.textContent = '✅ 完成注册';
-        }
-        
         async function login() {
-            const nickname = document.getElementById('loginNickname').value.trim();
+            const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
-            
-            if (!nickname) {
-                showToast('请输入昵称', 'error');
-                return;
-            }
-            
-            if (!password) {
-                showToast('请输入密码', 'error');
-                return;
-            }
-            
+
+            if (!email) { showToast('请输入邮箱', 'error'); return; }
+            if (!password) { showToast('请输入密码', 'error'); return; }
+
             const btn = document.getElementById('loginBtn');
             btn.disabled = true;
             btn.textContent = '⏳ 登录中...';
-            
+
             try {
-                // 检查用户是否存在
-                const { data: userData } = await db
-                    .from('user_configs')
-                    .select('user_id, categories')
-                    .eq('user_id', nickname)
-                    .maybeSingle();
-                
-                const { data: expenseData } = await db
-                    .from('expenses')
-                    .select('id')
-                    .eq('user_id', nickname)
-                    .limit(1);
-                
-                const isExistingUser = userData || (expenseData && expenseData.length > 0);
-                
-                if (!isExistingUser) {
-                    showToast('用户不存在，请先注册', 'error');
+                const { data, error } = await db.auth.signInWithPassword({ email, password });
+                if (error) {
+                    showToast('登录失败：' + error.message, 'error');
                     btn.disabled = false;
                     btn.textContent = '🚀 登录';
                     return;
                 }
-                
-                const hashedPwd = await hashPassword(password);
+                authUserId = data.user.id;
+                await afterAuthEnterProfilePicker();
+            } catch (e) {
+                console.error('登录异常:', e);
+                showToast('登录失败：' + (e.message || '未知错误'), 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 登录';
+            }
+        }
 
-                // 优先从云端验证密码
-                const { data: authData } = await db
-                    .from('user_configs')
-                    .select('password_hash')
-                    .eq('user_id', nickname)
-                    .maybeSingle();
+        async function afterAuthEnterProfilePicker() {
+            // 加载当前 owner 下所有 profile（user_id 字段的 distinct 值）
+            const { data: cfgData, error: cfgErr } = await db
+                .from('user_configs')
+                .select('user_id');
+            if (cfgErr) {
+                console.error('加载 profile 列表失败:', cfgErr);
+                showToast('加载 profile 失败：' + cfgErr.message, 'error');
+                return;
+            }
+            const profilesFromCfg = (cfgData || []).map(r => r.user_id).filter(Boolean);
 
-                if (authData && authData.password_hash) {
-                    // 云端有密码记录，验证密码
-                    if (authData.password_hash !== hashedPwd) {
-                        showToast('密码错误', 'error');
-                        btn.disabled = false;
-                        btn.textContent = '🚀 登录';
-                        return;
-                    }
-                    // 验证通过，缓存到本地
-                    setLocalPassword(nickname, hashedPwd);
-                } else {
-                    // 老用户没有云端密码，用本地验证并迁移到云端
-                    const storedPwd = getLocalPassword(nickname);
-                    if (storedPwd) {
-                        if (storedPwd !== hashedPwd) {
-                            showToast('密码错误', 'error');
-                            btn.disabled = false;
-                            btn.textContent = '🚀 登录';
-                            return;
-                        }
-                        // 迁移密码到云端
-                        try {
-                            await db.from('user_configs').update({ password_hash: hashedPwd }).eq('user_id', nickname);
-                        } catch (e) { console.log('密码迁移到云端失败:', e); }
-                    } else {
-                        // 全新设备且云端无密码记录 — 拒绝自动设密码，防止账号接管
-                        showToast('请在原设备登录后设置密码，或联系支持', 'error');
-                        btn.disabled = false;
-                        btn.textContent = '🚀 登录';
-                        return;
-                    }
-                }
-                
-                // 登录成功
-                currentUser = nickname;
-                document.getElementById('displayUser').textContent = nickname;
-                
+            // 兜底：从 expenses 里也扫一遍（万一 user_configs 缺行）
+            const { data: expData } = await db.from('expenses').select('user_id').limit(2000);
+            const profilesFromExp = (expData || []).map(r => r.user_id).filter(Boolean);
+
+            availableProfiles = Array.from(new Set([...profilesFromCfg, ...profilesFromExp])).sort();
+
+            document.getElementById('loginPage').classList.add('hidden');
+
+            if (availableProfiles.length === 0) {
+                // 全新账号，没有任何 profile，直接进入 profile picker 让用户新建
+                renderProfileList();
+                document.getElementById('profilePage').classList.remove('hidden');
+                return;
+            }
+
+            // 有上次记忆的 profile 就直接进
+            const last = localStorage.getItem('finance_last_profile');
+            if (last && availableProfiles.includes(last)) {
+                await selectProfile(last);
+                return;
+            }
+
+            renderProfileList();
+            document.getElementById('profilePage').classList.remove('hidden');
+        }
+
+        function renderProfileList() {
+            const list = document.getElementById('profileList');
+            if (!list) return;
+            list.innerHTML = availableProfiles.map(p => {
+                const safe = String(p).replace(/"/g, '&quot;');
+                return `<button class="login-btn" style="background: var(--primary);" onclick="selectProfile('${safe.replace(/'/g, "\\'")}')">👤 ${safe}</button>`;
+            }).join('');
+        }
+
+        async function selectProfile(profile) {
+            currentUser = profile;
+            localStorage.setItem('finance_last_profile', profile);
+            const display = document.getElementById('displayUser');
+            if (display) display.textContent = profile;
+
+            try {
                 await loadDataFromCloud();
                 await autoBackupToIndexedDB('login');
-
-                document.getElementById('loginPage').classList.add('hidden');
-                document.getElementById('registerPage').classList.add('hidden');
-                document.getElementById('mainApp').classList.remove('hidden');
-
-                localStorage.setItem('finance_user', nickname);
-                localStorage.setItem('finance_session', Date.now().toString()); // 保存会话标记
-                
-            } catch (error) {
-                console.error('登录失败:', error);
-                showToast('登录失败，请重试', 'error');
+            } catch (e) {
+                console.error('加载数据失败:', e);
+                showToast('数据加载失败：' + (e.message || ''), 'error');
+                return;
             }
-            
-            btn.disabled = false;
-            btn.textContent = '🚀 登录';
+
+            document.getElementById('profilePage').classList.add('hidden');
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
         }
-        
-        function logout() {
+
+        async function createProfile() {
+            const input = document.getElementById('newProfileName');
+            const name = (input?.value || '').trim();
+            if (!name) { showToast('请输入 profile 名称', 'error'); return; }
+            if (availableProfiles.includes(name)) {
+                showToast('该 profile 已存在，请直接选择', 'warning');
+                return;
+            }
+            try {
+                // 在 user_configs 创建一行（带 owner_id），后续插入会沿用此 profile
+                await db.from('user_configs').insert(withOwner({
+                    user_id: name,
+                    categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES))
+                }));
+                availableProfiles.push(name);
+                availableProfiles.sort();
+                input.value = '';
+                renderProfileList();
+                await selectProfile(name);
+            } catch (e) {
+                console.error('新建 profile 失败:', e);
+                showToast('新建失败：' + (e.message || ''), 'error');
+            }
+        }
+
+        async function logoutFromProfilePage() {
+            try { await db.auth.signOut(); } catch {}
+            authUserId = null;
             currentUser = null;
+            availableProfiles = [];
+            localStorage.removeItem('finance_last_profile');
+            document.getElementById('profilePage').classList.add('hidden');
+            document.getElementById('loginPage').classList.remove('hidden');
+        }
+
+        // 切换 profile（在主应用里使用，不需要重新输密码）
+        async function switchProfile() {
+            const choices = availableProfiles.map(p => `${p === currentUser ? '✓ ' : '  '}${p}`).join('\n');
+            const target = window.prompt('当前 profile：' + currentUser + '\n\n可选 profile：\n' + choices + '\n\n输入要切换到的 profile 名称（留空取消）:');
+            if (!target) return;
+            const trimmed = target.trim();
+            if (!availableProfiles.includes(trimmed)) {
+                showToast('profile 不存在', 'error');
+                return;
+            }
+            if (trimmed === currentUser) return;
+            await selectProfile(trimmed);
+        }
+
+        async function logout() {
+            try { await db.auth.signOut(); } catch {}
+            authUserId = null;
+            currentUser = null;
+            availableProfiles = [];
             categories = [];
             expenses = [];
-            localStorage.removeItem('finance_user');
-            localStorage.removeItem('finance_session'); // 清除会话标记
+            localStorage.removeItem('finance_last_profile');
             document.getElementById('loginPage').classList.remove('hidden');
-            document.getElementById('registerPage').classList.add('hidden');
+            document.getElementById('profilePage').classList.add('hidden');
             document.getElementById('mainApp').classList.add('hidden');
-            document.getElementById('loginPassword').value = '';
+            const pwd = document.getElementById('loginPassword');
+            if (pwd) pwd.value = '';
         }
         
         // ==================== 数据加载/保存 ====================
@@ -4179,7 +4144,7 @@
                         type: e.type || '弹性'
                     }));
                     try {
-                        const { data: inserted } = await db.from('expenses').insert(uploadData).select();
+                        const { data: inserted } = await db.from('expenses').insert(withOwner(uploadData)).select();
                         if (inserted && inserted.length > 0) {
                             const newRecords = inserted.map(e => ({
                                 id: e.id,
@@ -4297,7 +4262,7 @@
         // 统一的云端同步函数 - 把所有数据保存到 user_configs 表
         async function syncAllToCloud() {
             try {
-                await db.from('user_configs').upsert({
+                await db.from('user_configs').upsert(withOwner({
                     user_id: currentUser,
                     categories: categories,
                     assets_data: assets,
@@ -4307,7 +4272,7 @@
                     incomes_data: incomes,
                     goals_data: goals,
                     bucket_map: BUCKET_MAP
-                }, { onConflict: 'user_id' });
+                }), { onConflict: 'user_id' });
 
                 // 同时保存到本地作为备份
                 localStorage.setItem('finance_categories_' + currentUser, JSON.stringify(categories));
@@ -4345,7 +4310,7 @@
         
         async function saveExpenseToCloud(expense) {
             try {
-                const { data, error } = await db.from('expenses').insert({
+                const { data, error } = await db.from('expenses').insert(withOwner({
                     user_id: currentUser,
                     date: expense.date,
                     item: expense.item,
@@ -4353,7 +4318,7 @@
                     category_id: expense.categoryId,
                     category_name: expense.categoryName,
                     type: expense.type
-                }).select().single();
+                })).select().single();
                 
                 if (data) expense.id = data.id;
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
@@ -4375,13 +4340,13 @@
         
         async function saveIncomeToCloud(income) {
             try {
-                const { data, error } = await db.from('incomes').insert({
+                const { data, error } = await db.from('incomes').insert(withOwner({
                     user_id: currentUser,
                     date: income.date,
                     item: income.item,
                     amount: income.amount,
                     type: income.type
-                }).select().single();
+                })).select().single();
 
                 if (data) income.id = data.id;
             } catch (error) {
@@ -4402,13 +4367,13 @@
 
         async function saveGoalToCloud(goal) {
             try {
-                const { data, error } = await db.from('goals').insert({
+                const { data, error } = await db.from('goals').insert(withOwner({
                     user_id: currentUser,
                     name: goal.name,
                     target_amount: goal.targetAmount,
                     current_amount: goal.currentAmount,
                     deadline: goal.deadline
-                }).select().single();
+                })).select().single();
 
                 if (data) goal.id = data.id;
             } catch (error) {
@@ -4598,7 +4563,7 @@
                         amount: exp.amount, category_id: exp.categoryId,
                         category_name: exp.categoryName || '未知', type: exp.type || '弹性'
                     }));
-                    await db.from('expenses').insert(expData);
+                    await db.from('expenses').insert(withOwner(expData));
                 }
                 await syncAllToCloud();
                 closeAutoBackupModal();
@@ -4709,7 +4674,7 @@
                                         category_name: exp.categoryName || '未知',
                                         type: exp.type || '弹性'
                                     }));
-                                    await db.from('expenses').insert(expData);
+                                    await db.from('expenses').insert(withOwner(expData));
                                 }
                             }
                         } else {
@@ -4723,7 +4688,7 @@
                                     category_name: exp.categoryName || '未知',
                                     type: exp.type || '弹性'
                                 }));
-                                await db.from('expenses').insert(expData);
+                                await db.from('expenses').insert(withOwner(expData));
                             }
                         }
 
@@ -6458,47 +6423,34 @@
         }
         
         async function changePassword() {
+            // 旧密码字段不再使用（Supabase Auth 不要求原密码即可改）
+            // 但用户已熟悉这个 UI，保留 oldPassword 作为简单确认
             const oldPwd = document.getElementById('oldPassword').value;
             const newPwd = document.getElementById('newPassword').value;
             const newPwd2 = document.getElementById('newPassword2').value;
-            
-            if (!oldPwd) {
-                showToast('请输入当前密码', 'error');
-                return;
-            }
-            
-            if (newPwd.length < 4) {
-                showToast('新密码至少4位', 'error');
-                return;
-            }
-            
-            if (newPwd !== newPwd2) {
-                showToast('两次新密码不一致', 'error');
-                return;
-            }
-            
+
+            if (!oldPwd) { showToast('请输入当前密码', 'error'); return; }
+            if (newPwd.length < 6) { showToast('新密码至少 6 位（Supabase 要求）', 'error'); return; }
+            if (newPwd !== newPwd2) { showToast('两次新密码不一致', 'error'); return; }
+
             try {
-                const oldHash = await hashPassword(oldPwd);
-                const storedPwd = getLocalPassword(currentUser);
-                
-                if (storedPwd !== oldHash) {
-                    showToast('当前密码错误', 'error');
-                    return;
-                }
-                
-                const newHash = await hashPassword(newPwd);
-                setLocalPassword(currentUser, newHash);
-                // 同步新密码到云端
-                try {
-                    await db.from('user_configs').update({ password_hash: newHash }).eq('user_id', currentUser);
-                } catch (e) { console.error('密码同步到云端失败:', e); }
+                // 用旧密码重新签一次，验证身份
+                const { data: sessData } = await db.auth.getSession();
+                const email = sessData?.session?.user?.email;
+                if (!email) { showToast('未登录', 'error'); return; }
+
+                const { error: signErr } = await db.auth.signInWithPassword({ email, password: oldPwd });
+                if (signErr) { showToast('当前密码错误', 'error'); return; }
+
+                // 改密码
+                const { error: updErr } = await db.auth.updateUser({ password: newPwd });
+                if (updErr) { showToast('修改失败：' + updErr.message, 'error'); return; }
 
                 closePasswordModal();
                 showToast('密码修改成功', 'success');
-                
             } catch (error) {
                 console.error('修改密码失败:', error);
-                showToast('修改失败，请重试', 'error');
+                showToast('修改失败：' + (error.message || ''), 'error');
             }
         }
         
@@ -6508,17 +6460,17 @@
             modal.id = 'deleteAccountModal';
             modal.innerHTML = `
                 <div class="modal">
-                    <h3 style="color: var(--danger);">⚠️ 注销账户</h3>
+                    <h3 style="color: var(--danger);">⚠️ 删除当前 Profile 数据</h3>
                     <p style="margin-bottom: 15px; color: var(--gray-600);">
-                        此操作将永久删除你的所有数据，包括：<br>
+                        此操作将永久删除 <strong>${currentUser}</strong> 这个 profile 的所有数据：<br>
                         • 所有消费记录<br>
-                        • 所有类目设置<br>
-                        • 账户信息<br><br>
-                        <strong style="color: var(--danger);">此操作不可撤销！</strong>
+                        • 所有收入/目标记录<br>
+                        • 类目/资产/快照配置<br><br>
+                        <strong style="color: var(--danger);">不可撤销！其他 profile 不受影响，Auth 账号保留。</strong>
                     </p>
                     <div class="form-group">
-                        <label>输入密码确认</label>
-                        <input type="password" id="deleteConfirmPassword" placeholder="输入密码">
+                        <label>输入登录密码确认</label>
+                        <input type="password" id="deleteConfirmPassword" placeholder="登录密码">
                     </div>
                     <div class="form-group">
                         <label>输入 "DELETE" 确认</label>
@@ -6526,56 +6478,55 @@
                     </div>
                     <div class="modal-buttons">
                         <button class="btn btn-outline" onclick="closeDeleteAccountModal()">取消</button>
-                        <button class="btn btn-danger" onclick="deleteAccount()">确认注销</button>
+                        <button class="btn btn-danger" onclick="deleteAccount()">确认删除</button>
                     </div>
                 </div>
             `;
             document.body.appendChild(modal);
         }
-        
+
         function closeDeleteAccountModal() {
             document.getElementById('deleteAccountModal')?.remove();
         }
-        
+
         async function deleteAccount() {
             const password = document.getElementById('deleteConfirmPassword').value;
             const confirmText = document.getElementById('deleteConfirmText').value;
-            
-            if (confirmText !== 'DELETE') {
-                showToast('请输入 DELETE 确认', 'error');
-                return;
-            }
-            
-            if (!password) {
-                showToast('请输入密码', 'error');
-                return;
-            }
-            
+
+            if (confirmText !== 'DELETE') { showToast('请输入 DELETE 确认', 'error'); return; }
+            if (!password) { showToast('请输入登录密码', 'error'); return; }
+
             try {
-                const hash = await hashPassword(password);
-                const storedPwd = getLocalPassword(currentUser);
-                
-                if (storedPwd !== hash) {
-                    showToast('密码错误', 'error');
-                    return;
-                }
-                
-                // 删除所有数据
+                // 用密码重新签一次，验证身份
+                const { data: sessData } = await db.auth.getSession();
+                const email = sessData?.session?.user?.email;
+                if (!email) { showToast('未登录', 'error'); return; }
+                const { error: signErr } = await db.auth.signInWithPassword({ email, password });
+                if (signErr) { showToast('密码错误', 'error'); return; }
+
+                // 删除当前 profile 的所有云端数据（RLS 会自动限制只能删自己的）
                 await db.from('expenses').delete().eq('user_id', currentUser);
+                await db.from('incomes').delete().eq('user_id', currentUser);
+                await db.from('goals').delete().eq('user_id', currentUser);
                 await db.from('user_configs').delete().eq('user_id', currentUser);
-                
-                // 删除本地密码
-                const passwords = safeParse('finance_passwords', {});
-                delete passwords[currentUser];
-                localStorage.setItem('finance_passwords', JSON.stringify(passwords));
-                
+
                 closeDeleteAccountModal();
-                showToast('账户已注销', 'success');
-                logout();
-                
+                showToast(`Profile「${currentUser}」已删除`, 'success');
+
+                // 删完后回到 profile 选择页（如果还有别的 profile）或登录页
+                availableProfiles = availableProfiles.filter(p => p !== currentUser);
+                localStorage.removeItem('finance_last_profile');
+                if (availableProfiles.length > 0) {
+                    currentUser = null;
+                    document.getElementById('mainApp').classList.add('hidden');
+                    renderProfileList();
+                    document.getElementById('profilePage').classList.remove('hidden');
+                } else {
+                    await logout();
+                }
             } catch (error) {
-                console.error('注销失败:', error);
-                showToast('注销失败，请重试', 'error');
+                console.error('删除失败:', error);
+                showToast('删除失败：' + (error.message || ''), 'error');
             }
         }
         
@@ -10057,44 +10008,26 @@
             `;
         }
         
-        // ==================== 自动登录 ====================
+        // ==================== 自动登录（基于 Supabase Auth 会话）====================
         window.onload = async function() {
-            const savedUser = localStorage.getItem('finance_user');
-            const savedSession = localStorage.getItem('finance_session');
-            const SESSION_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7天过期
+            // 清理旧的本地会话/密码痕迹（一次性迁移）
+            localStorage.removeItem('finance_user');
+            localStorage.removeItem('finance_session');
+            localStorage.removeItem('finance_passwords');
 
-            if (savedUser && savedSession) {
-                // 检查会话是否过期
-                const sessionAge = Date.now() - parseInt(savedSession, 10);
-                if (sessionAge > SESSION_MAX_AGE) {
-                    localStorage.removeItem('finance_session');
-                    document.getElementById('loginNickname').value = savedUser;
-                    showToast('登录已过期，请重新登录', 'warning');
-                    return;
+            try {
+                const { data: sessData, error: sessErr } = await db.auth.getSession();
+                if (sessErr) throw sessErr;
+                const session = sessData?.session;
+
+                if (session && session.user?.id) {
+                    authUserId = session.user.id;
+                    await afterAuthEnterProfilePicker();
+                    console.log('自动登录成功:', session.user.email);
                 }
-
-                // 有保存的会话，自动登录
-                currentUser = savedUser;
-                document.getElementById('displayUser').textContent = savedUser;
-
-                try {
-                    await loadDataFromCloud();
-
-                    document.getElementById('loginPage').classList.add('hidden');
-                    document.getElementById('registerPage').classList.add('hidden');
-                    document.getElementById('mainApp').classList.remove('hidden');
-
-                    console.log('自动登录成功:', savedUser);
-                } catch (error) {
-                    console.error('自动登录失败:', error);
-                    showToast('自动登录失败，请重新登录', 'error');
-                    localStorage.removeItem('finance_session');
-                    currentUser = null;
-                    document.getElementById('loginNickname').value = savedUser;
-                }
-            } else if (savedUser) {
-                // 只有用户名，填充输入框
-                document.getElementById('loginNickname').value = savedUser;
+                // 没有 session 就停在登录页（默认状态）
+            } catch (e) {
+                console.error('恢复会话失败:', e);
             }
         };
     </script>
