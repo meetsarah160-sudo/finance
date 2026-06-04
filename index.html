@@ -3478,6 +3478,9 @@
                 <div id="analysis-content"></div>
             </div>
             
+            <!-- 预算体检子页（由 switchWealthTab 移入 wealth-content） -->
+            <div id="page-checkup" style="display:none"></div>
+
             <!-- ==================== 💰 财富页面 ==================== -->
             <div id="page-wealth" class="page">
                 <!-- 二级导航 -->
@@ -3485,6 +3488,7 @@
                     <button class="sub-tab active" onclick="switchWealthTab('assets')">💰 资产管理</button>
                     <button class="sub-tab" onclick="switchWealthTab('income')">💵 收支总览</button>
                     <button class="sub-tab" onclick="switchWealthTab('budget')">📊 预算管理</button>
+                    <button class="sub-tab" onclick="switchWealthTab('checkup')">🩺 预算体检</button>
                     <button class="sub-tab" onclick="switchWealthTab('goals')">🎯 储蓄目标</button>
                 </div>
                 
@@ -5250,12 +5254,12 @@
             // 更新Tab样式
             document.querySelectorAll('#page-wealth .sub-tab').forEach((t, i) => {
                 t.classList.remove('active');
-                const tabs = ['assets', 'income', 'budget', 'goals'];
+                const tabs = ['assets', 'income', 'budget', 'checkup', 'goals'];
                 if (tabs[i] === tab) t.classList.add('active');
             });
             
             // 所有子页面ID
-            const subPages = ['page-assets', 'page-income', 'page-budget', 'page-goals'];
+            const subPages = ['page-assets', 'page-income', 'page-budget', 'page-checkup', 'page-goals'];
             const container = document.getElementById('wealth-content');
             
             // 确保所有子页面都在容器内，并隐藏它们
@@ -5273,7 +5277,7 @@
             });
             
             // 显示目标页面并初始化
-            const targetId = 'page-' + (tab === 'assets' ? 'assets' : tab === 'income' ? 'income' : tab === 'budget' ? 'budget' : 'goals');
+            const targetId = 'page-' + tab;
             const targetPage = document.getElementById(targetId);
             
             if (targetPage) {
@@ -5288,6 +5292,8 @@
                         renderIncomeTable();
                     } else if (tab === 'budget') {
                         renderBudgetStatus();
+                    } else if (tab === 'checkup') {
+                        renderBudgetCheckup();
                     } else if (tab === 'goals') {
                         renderGoals();
                     }
@@ -5579,6 +5585,98 @@
         }
         
         // ==================== 预算页面 ====================
+function renderBudgetCheckup() {
+  try {
+    var host = document.getElementById('page-checkup');
+    if (!host) return;
+    var fmt = function (n) { return (n < 0 ? '-¥' : '¥') + Math.abs(Math.round(n)).toLocaleString(); };
+    var EX = (typeof expenses !== 'undefined' && Array.isArray(expenses)) ? expenses : [];
+    var IN = (typeof incomes !== 'undefined' && Array.isArray(incomes)) ? incomes : [];
+    var CA = (typeof categories !== 'undefined' && Array.isArray(categories)) ? categories : [];
+    // 以数据最新年份为准（不依赖系统时钟）
+    var years = EX.map(function (r) { return (r.date || '').slice(0, 4); }).filter(Boolean).sort();
+    var Y = years.length ? years[years.length - 1] : String(new Date().getFullYear());
+    var ex = EX.filter(function (r) { return (r.date || '').slice(0, 4) === Y; });
+    var inc = IN.filter(function (r) { return (r.date || '').slice(0, 4) === Y; });
+    var months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    var expM = {}, incM = {}; months.forEach(function (m) { expM[m] = 0; incM[m] = 0; });
+    ex.forEach(function (r) { var m = (r.date || '').slice(5, 7); if (expM[m] != null) expM[m] += Number(r.amount) || 0; });
+    inc.forEach(function (r) { var m = (r.date || '').slice(5, 7); if (incM[m] != null) incM[m] += Number(r.amount) || 0; });
+    // 时间进度：以该年最新一笔的日期为“今天”
+    var latest = ex.map(function (r) { return r.date; }).filter(Boolean).sort();
+    latest = latest.length ? latest[latest.length - 1] : (Y + '-01-01');
+    var lm = parseInt(latest.slice(5, 7), 10), ld = parseInt(latest.slice(8, 10), 10);
+    var cum = [0,31,59,90,120,151,181,212,243,273,304,334];
+    var dayOfYear = cum[lm - 1] + ld;
+    var elapsedPct = dayOfYear / 365 * 100;
+    var byCat = {}; ex.forEach(function (r) { var c = r.category_name || r.categoryName || '未知'; byCat[c] = (byCat[c] || 0) + (Number(r.amount) || 0); });
+    var budgetTotal = CA.reduce(function (s, c) { return s + Number(c.yearly || 0); }, 0);
+    var ytdTotal = ex.reduce(function (s, r) { return s + (Number(r.amount) || 0); }, 0);
+    var remaining = budgetTotal - ytdTotal;
+    var usedPct = budgetTotal ? ytdTotal / budgetTotal * 100 : 0;
+    var incTotal = inc.reduce(function (s, r) { return s + (Number(r.amount) || 0); }, 0);
+    var c0 = incTotal - ytdTotal;
+    var rows = CA.map(function (c) { var a = byCat[c.name] || 0; return { name: c.name, ytd: a, yearly: c.yearly, pct: c.yearly ? a / c.yearly * 100 : 0 }; }).sort(function (a, b) { return b.pct - a.pct; });
+    var over = rows.filter(function (c) { return c.pct > 100; });
+    var ahead = rows.filter(function (c) { return c.pct > elapsedPct + 15 && c.pct <= 100; });
+    var normal = rows.filter(function (c) { return c.pct <= elapsedPct + 15; });
+    var top = over[0] || rows[0] || { name: '—', pct: 0, ytd: 0, yearly: 0 };
+    // 摊销
+    var LUMP = { '房租': 3, '保险_基础': 12, '保险_中端': 12, '公司代账费': 12 };
+    var rawM = {}, amoM = {}; months.forEach(function (m) { rawM[m] = 0; amoM[m] = 0; });
+    ex.forEach(function (r) { var mm = parseInt((r.date || '0-00').slice(5, 7), 10), amt = Number(r.amount) || 0, w = LUMP[r.category_name || r.categoryName] || 1; var k0 = (r.date || '').slice(5, 7); if (rawM[k0] != null) rawM[k0] += amt; for (var k = 0; k < w; k++) { var tm = mm + k; if (tm >= 1 && tm <= 12) amoM[('0' + tm).slice(-2)] += amt / w; } });
+    // 月均口径
+    var doneM = months.filter(function (m) { return m < latest.slice(5, 7) && (expM[m] > 0); });
+    var nMon = doneM.length || 1;
+    var rawAvg = doneM.reduce(function (s, m) { return s + rawM[m]; }, 0) / nMon;
+    var amoAvg = doneM.reduce(function (s, m) { return s + amoM[m]; }, 0) / nMon;
+    var last2 = doneM.slice(-2); var normAvg = last2.length ? last2.reduce(function (s, m) { return s + expM[m]; }, 0) / last2.length : rawAvg;
+    // 顶部洞察：支出最高的两个月
+    var sortedM = months.filter(function (m) { return expM[m] > 0; }).sort(function (a, b) { return expM[b] - expM[a]; });
+    var topMon = sortedM.slice(0, 2);
+    var topMonShare = topMon.reduce(function (s, m) { return s + expM[m]; }, 0) / (ytdTotal || 1) * 100;
+    var topMonTxt = topMon.map(function (m) { return parseInt(m, 10) + '月'; }).join('、');
+    var C = 2 * Math.PI * 64, off = C * (1 - usedPct / 100);
+    var tone = function (p) { return p > 100 ? { txt: '#dc2626', grad: 'linear-gradient(90deg,#fca5a5,#ef4444)' } : p > elapsedPct + 15 ? { txt: '#d97706', grad: 'linear-gradient(90deg,#fcd34d,#f59e0b)' } : { txt: '#16a34a', grad: 'linear-gradient(90deg,#86efac,#22c55e)' }; };
+    var catRow = function (c) { var t = tone(c.pct); return '<div class="bcRow"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:13px;font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">' + c.name + '</span><span style="font-size:11.5px;color:#94a3b8;white-space:nowrap">' + fmt(c.ytd) + ' / ' + fmt(c.yearly) + '</span></div><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;width:' + Math.min(c.pct, 100) + '%;background:' + t.grad + ';border-radius:4px"></div></div><span style="width:44px;text-align:right;font-size:12px;font-weight:800;color:' + t.txt + '">' + c.pct.toFixed(0) + '%</span></div></div>'; };
+    var grp = function (t, arr) { var s = '<div style="font-size:12px;font-weight:700;color:#94a3b8;margin:4px 0 14px;letter-spacing:.3px">' + t + '</div>'; arr.forEach(function (c) { s += catRow(c); }); return s; };
+    var gauge = function (label, val, desc, color, big) { return '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f5f9"><div><div style="font-size:' + (big ? 13 : 12) + 'px;font-weight:' + (big ? 700 : 600) + ';color:' + (big ? '#1e293b' : '#475569') + '">' + label + '</div><div style="font-size:10.5px;color:#94a3b8;margin-top:1px">' + desc + '</div></div><div style="font-size:' + (big ? 22 : 15) + 'px;font-weight:800;color:' + color + '">' + fmt(val) + '</div></div>'; };
+
+    var h = '';
+    // HERO
+    h += '<div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border-radius:24px;padding:30px 32px;margin-bottom:16px;color:#fff;box-shadow:0 14px 40px rgba(118,75,162,.35)"><div class="bcHero"><svg width="148" height="148" viewBox="0 0 148 148" style="flex-shrink:0"><circle cx="74" cy="74" r="64" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="12"/><circle cx="74" cy="74" r="64" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 74 74)"/><text x="74" y="68" text-anchor="middle" font-size="30" font-weight="800" fill="#fff">' + usedPct.toFixed(0) + '%</text><text x="74" y="90" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.85)">预算已用</text></svg><div style="flex:1"><div style="display:inline-block;background:rgba(255,200,80,.25);border:1px solid rgba(255,210,90,.5);color:#ffe9b8;font-size:12.5px;font-weight:700;padding:4px 12px;border-radius:20px;margin-bottom:12px">' + (usedPct > elapsedPct + 5 ? '⚠️ 预算偏快' : '✅ 节奏正常') + '</div><div style="font-size:25px;font-weight:800;line-height:1.3;margin-bottom:8px">时间过 ' + elapsedPct.toFixed(0) + '%，预算已花掉 ' + usedPct.toFixed(0) + '%</div><div style="font-size:13.5px;opacity:.9">已用 ' + fmt(ytdTotal) + ' / 全年 ' + fmt(budgetTotal) + ' · 剩 ' + fmt(remaining) + ' · 超前 ' + (usedPct - elapsedPct).toFixed(0) + ' 个百分点</div><div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.2);font-size:13px;line-height:1.6;opacity:.95">💡 支出集中在 <b>' + topMonTxt + '</b>（占已花的 ' + topMonShare.toFixed(0) + '%），多为阶段性大额。剔除后日常其实克制——近月常态约 ' + fmt(normAvg) + '/月。</div></div></div></div>';
+    // TILES
+    var otherOver = over.slice(1).map(function (c) { return c.name; }).join('·');
+    h += '<div class="bcT3">';
+    h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:10px">🔴 超支重灾区</div><div style="font-size:25px;font-weight:800;color:#dc2626;line-height:1">' + top.name + ' ' + (top.pct / 100).toFixed(1) + '倍</div><div style="font-size:12.5px;color:#64748b;margin-top:9px">已花 ' + fmt(top.ytd) + ' · 预算 ' + fmt(top.yearly) + '</div><div style="font-size:11.5px;color:#94a3b8;margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9">' + (over.length > 1 ? '另有 ' + otherOver + ' 共 ' + (over.length - 1) + ' 类超支' : '其余类目尚在预算内') + '</div></div>';
+    h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:6px">📅 月度支出 · 三个口径</div>' + gauge('摊销月均', amoAvg, '周期支出摊平后', '#5a4bb8', true) + gauge('原始月均', rawAvg, '实际每月花掉', '#475569') + '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:9px 0"><div><div style="font-size:12px;font-weight:600;color:#475569">常态月均</div><div style="font-size:10.5px;color:#94a3b8;margin-top:1px">近月日常（剔除一次性）</div></div><div style="font-size:15px;font-weight:800;color:#16a34a">' + fmt(normAvg) + '</div></div></div>';
+    h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:10px">💰 现金流</div><div style="font-size:25px;font-weight:800;color:' + (c0 >= 0 ? '#16a34a' : '#dc2626') + ';line-height:1">' + (c0 >= 0 ? '+' : '') + fmt(c0) + '</div><div style="font-size:12.5px;color:#64748b;margin-top:9px">收 ' + fmt(incTotal) + ' · 支 ' + fmt(ytdTotal) + '</div><div style="font-size:11.5px;color:#d97706;margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9">' + (incTotal < ytdTotal * 0.6 ? '⚠️ 收入或未记全，缺口仅供参考' : '收入 − 支出') + '</div></div>';
+    h += '</div>';
+    // DETAIL
+    h += '<div class="bcTile" style="margin-bottom:16px"><div class="bcH">📊 预算执行明细<span class="bcSub">全部 ' + rows.length + ' 类目 · 已花 / 预算</span></div><div class="bcCols">' + grp('🔴 已超支 (' + over.length + ')', over) + grp('🟡 进度偏快 (' + ahead.length + ')', ahead) + grp('🟢 正常 (' + normal.length + ')', normal) + '</div></div>';
+    // AMORT
+    var maxR = Math.max.apply(null, months.map(function (m) { return Math.max(rawM[m], amoM[m]); }).concat([1]));
+    var am = '';
+    months.forEach(function (m) { if (rawM[m] === 0 && amoM[m] === 0) return; var lower = amoM[m] < rawM[m]; am += '<div class="bcAm"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:12.5px;font-weight:700;color:#334155">' + Y + '-' + m + '</span><span style="font-size:12px;color:#94a3b8">' + (rawM[m] ? fmt(rawM[m]) : '—') + ' <span style="color:#cbd5e0">→</span> <b style="color:' + (lower ? '#16a34a' : '#475569') + '">' + fmt(amoM[m]) + '</b></span></div><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:30px;font-size:10px;color:#cbd5e0">原始</span><div class="bcAmb"><div style="height:100%;width:' + (rawM[m] / maxR * 100) + '%;background:#fca5a5;border-radius:3px"></div></div></div><div style="display:flex;align-items:center;gap:8px"><span style="width:30px;font-size:10px;color:#cbd5e0">摊销</span><div class="bcAmb"><div style="height:100%;width:' + (amoM[m] / maxR * 100) + '%;background:linear-gradient(90deg,#86efac,#22c55e);border-radius:3px"></div></div></div></div>'; });
+    h += '<div class="bcTile"><div class="bcH">📈 周期支出摊销<span class="bcSub">原始 vs 摊销 · 房租按3月、保险/年费按12月</span></div><div class="bcAm2">' + am + '</div></div>';
+
+    var css = '<style>'
+      + '#page-checkup .bcHero{display:flex;align-items:center;gap:34px}'
+      + '#page-checkup .bcT3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}'
+      + '#page-checkup .bcTile{background:#fff;border-radius:18px;padding:22px;border:1px solid #eef0f6;box-shadow:0 4px 18px rgba(15,23,42,.05)}'
+      + '#page-checkup .bcH{font-size:16px;font-weight:700;color:#1e293b;margin:0 0 18px}'
+      + '#page-checkup .bcSub{font-size:12px;color:#94a3b8;font-weight:500;margin-left:7px}'
+      + '#page-checkup .bcCols{columns:2;column-gap:40px}'
+      + '#page-checkup .bcRow{margin-bottom:15px;break-inside:avoid;-webkit-column-break-inside:avoid}'
+      + '#page-checkup .bcAm2{columns:2;column-gap:36px}'
+      + '#page-checkup .bcAm{margin-bottom:16px;break-inside:avoid;-webkit-column-break-inside:avoid}'
+      + '#page-checkup .bcAmb{height:6px;border-radius:3px;background:#f1f5f9;overflow:hidden;flex:1}'
+      + '@media(max-width:820px){#page-checkup .bcT3{grid-template-columns:1fr}#page-checkup .bcCols,#page-checkup .bcAm2{columns:1}#page-checkup .bcHero{flex-direction:column;gap:20px;text-align:center}}'
+      + '</style>';
+    host.innerHTML = css + '<div style="background:#eef1f8;border-radius:16px;padding:22px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif">' + h + '</div>';
+  } catch (e) { var hh = document.getElementById('page-checkup'); if (hh) hh.innerHTML = '<div style="padding:20px;color:#dc2626">预算体检加载失败：' + (e && e.message || e) + '</div>'; }
+}
+
         function renderBudgetStatus() {
             const now = new Date();
             const year = now.getFullYear();
