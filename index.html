@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>💰 财务管理系统</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="assets/vendor/supabase-js-2.75.0.min.js"></script>
+    <script src="assets/vendor/chart-4.5.0.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -3735,6 +3735,179 @@
             }
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[ch]));
+        }
+
+        function safeInlineStyleColor(value, fallback = '#48bb78') {
+            const color = String(value || '').trim();
+            if (/^#[0-9a-fA-F]{3,8}$/.test(color)) return color;
+            if (/^var\(--[a-zA-Z0-9_-]+\)$/.test(color)) return color;
+            return fallback;
+        }
+
+        function cleanText(value, maxLength = 200) {
+            return String(value ?? '')
+                .replace(/[\u0000-\u001F\u007F]/g, '')
+                .replace(/[<>"'`]/g, ch => ({
+                    '<': '‹',
+                    '>': '›',
+                    '"': '“',
+                    "'": '’',
+                    '`': '’'
+                }[ch]))
+                .slice(0, maxLength);
+        }
+
+        function cleanId(value) {
+            return String(value ?? '').replace(/[^a-zA-Z0-9_.:-]/g, '_').slice(0, 120);
+        }
+
+        function normalizeFinanceData() {
+            categories = (categories || []).map(c => ({
+                ...c,
+                id: Number.isFinite(Number(c.id)) ? Number(c.id) : cleanId(c.id),
+                name: cleanText(c.name, 80),
+                type: cleanText(c.type, 20),
+                yearly: Number(c.yearly) || 0
+            }));
+            expenses = (expenses || []).map(e => ({
+                ...e,
+                id: e.id,
+                date: cleanText(e.date, 20),
+                item: cleanText(e.item, 160),
+                amount: Number(e.amount) || 0,
+                categoryId: Number.isFinite(Number(e.categoryId)) ? Number(e.categoryId) : e.categoryId,
+                categoryName: cleanText(e.categoryName || '', 80),
+                type: cleanText(e.type || '', 20)
+            }));
+            incomes = (incomes || []).map(i => ({
+                ...i,
+                id: cleanId(i.id),
+                date: cleanText(i.date, 20),
+                item: cleanText(i.item || '', 160),
+                amount: Number(i.amount) || 0,
+                type: cleanText(i.type || '其他', 40)
+            }));
+            goals = (goals || []).map(g => ({
+                ...g,
+                id: cleanId(g.id),
+                name: cleanText(g.name, 100),
+                targetAmount: Number(g.targetAmount ?? g.target) || 0,
+                currentAmount: Number(g.currentAmount ?? g.current) || 0,
+                deadline: cleanText(g.deadline || '', 20)
+            }));
+            assets = (assets || []).map(a => ({
+                ...a,
+                id: cleanId(a.id),
+                name: cleanText(a.name, 80),
+                typeId: cleanId(a.typeId),
+                icon: cleanText(a.icon || '', 8),
+                value: Number(a.value) || 0
+            }));
+            ASSET_TYPES = (ASSET_TYPES || []).map(t => ({
+                ...t,
+                id: cleanId(t.id),
+                name: cleanText(t.name, 80),
+                icon: cleanText(t.icon || '', 8),
+                color: safeInlineStyleColor(t.color),
+                items: (t.items || []).map(item => ({
+                    ...item,
+                    id: cleanId(item.id),
+                    name: cleanText(item.name, 80),
+                    icon: cleanText(item.icon || '', 8)
+                }))
+            }));
+        }
+
+        function saveConfigLocalBackup() {
+            if (!currentUser) return;
+            normalizeFinanceData();
+            localStorage.setItem('finance_categories_' + currentUser, JSON.stringify(categories));
+            localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
+            localStorage.setItem('finance_asset_history_' + currentUser, JSON.stringify(assetHistory));
+            localStorage.setItem('finance_asset_types_' + currentUser, JSON.stringify(ASSET_TYPES));
+            localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
+            localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
+            localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+            localStorage.setItem('finance_bucket_map_' + currentUser, JSON.stringify(BUCKET_MAP));
+        }
+
+        function assertSupabaseOk(result, action) {
+            if (result?.error) {
+                throw new Error(`${action}失败：${result.error.message || result.error}`);
+            }
+            return result || {};
+        }
+
+        async function checkedSupabase(query, action) {
+            return assertSupabaseOk(await query, action);
+        }
+
+        async function fetchAllRows(buildQuery, action, pageSize = 1000) {
+            const rows = [];
+            for (let from = 0; ; from += pageSize) {
+                const to = from + pageSize - 1;
+                const { data } = await checkedSupabase(buildQuery().range(from, to), `${action}（${from + 1}-${to + 1}）`);
+                const batch = data || [];
+                rows.push(...batch);
+                if (batch.length < pageSize) break;
+            }
+            return rows;
+        }
+
+        async function insertRowsInChunks(table, rows, action, { chunkSize = 500, selectInserted = false } = {}) {
+            const inserted = [];
+            for (let i = 0; i < rows.length; i += chunkSize) {
+                const chunk = rows.slice(i, i + chunkSize);
+                let query = db.from(table).insert(withOwner(chunk));
+                if (selectInserted) query = query.select();
+                const { data } = await checkedSupabase(query, `${action}（${i + 1}-${i + chunk.length}）`);
+                if (Array.isArray(data)) inserted.push(...data);
+            }
+            return inserted;
+        }
+
+        async function deleteRowsByIds(table, ids, action, chunkSize = 500) {
+            for (let i = 0; i < ids.length; i += chunkSize) {
+                const chunk = ids.slice(i, i + chunkSize);
+                await checkedSupabase(db.from(table).delete().in('id', chunk), `${action}（${i + 1}-${i + chunk.length}）`);
+            }
+        }
+
+        function expenseToCloudRow(exp) {
+            return {
+                user_id: currentUser,
+                date: cleanText(exp.date, 20),
+                item: cleanText(exp.item, 160),
+                amount: Number(exp.amount) || 0,
+                category_id: Number.isFinite(Number(exp.categoryId)) ? Number(exp.categoryId) : cleanId(exp.categoryId),
+                category_name: cleanText(exp.categoryName || '未知', 80),
+                type: cleanText(exp.type || '弹性', 20)
+            };
+        }
+
+        async function replaceCloudExpenses(expensesToWrite, action = '替换云端支出') {
+            const oldRows = await fetchAllRows(
+                () => db.from('expenses').select('id').eq('user_id', currentUser),
+                `${action}前读取旧支出`
+            );
+            const newRows = (expensesToWrite || []).map(expenseToCloudRow);
+            if (newRows.length > 0) {
+                await insertRowsInChunks('expenses', newRows, `${action}写入新支出`);
+            }
+            const oldIds = oldRows.map(r => r.id).filter(id => id !== undefined && id !== null);
+            if (oldIds.length > 0) {
+                await deleteRowsByIds('expenses', oldIds, `${action}删除旧支出`);
+            }
+        }
+
         // 可自定义的资产类型（从localStorage加载或使用默认值）
         let ASSET_TYPES = safeParse('finance_asset_types_' + (localStorage.getItem('finance_current_user') || 'default'), JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
         
@@ -3870,10 +4043,13 @@
 
         async function afterAuthEnterProfilePicker() {
             // 加载当前 owner 下所有 profile（user_id 字段的 distinct 值）
-            const { data: cfgData, error: cfgErr } = await db
-                .from('user_configs')
-                .select('user_id');
-            if (cfgErr) {
+            let cfgData = [];
+            try {
+                cfgData = await fetchAllRows(
+                    () => db.from('user_configs').select('user_id'),
+                    '加载 profile 列表'
+                );
+            } catch (cfgErr) {
                 console.error('加载 profile 列表失败:', cfgErr);
                 showToast('加载 profile 失败：' + cfgErr.message, 'error');
                 return;
@@ -3881,7 +4057,10 @@
             const profilesFromCfg = (cfgData || []).map(r => r.user_id).filter(Boolean);
 
             // 兜底：从 expenses 里也扫一遍（万一 user_configs 缺行）
-            const { data: expData } = await db.from('expenses').select('user_id').limit(2000);
+            const expData = await fetchAllRows(
+                () => db.from('expenses').select('user_id'),
+                '扫描支出 profile'
+            );
             const profilesFromExp = (expData || []).map(r => r.user_id).filter(Boolean);
 
             availableProfiles = Array.from(new Set([...profilesFromCfg, ...profilesFromExp])).sort();
@@ -3915,9 +4094,8 @@
         function renderProfileList() {
             const list = document.getElementById('profileList');
             if (!list) return;
-            list.innerHTML = availableProfiles.map(p => {
-                const safe = String(p).replace(/"/g, '&quot;');
-                return `<button class="login-btn" style="background: var(--primary);" onclick="selectProfile('${safe.replace(/'/g, "\\'")}')">👤 ${safe}</button>`;
+            list.innerHTML = availableProfiles.map((p, index) => {
+                return `<button class="login-btn" style="background: var(--primary);" data-profile-index="${index}" onclick="selectProfile(availableProfiles[Number(this.dataset.profileIndex)])">👤 ${escapeHtml(p)}</button>`;
             }).join('');
         }
 
@@ -3943,7 +4121,7 @@
 
         async function createProfile() {
             const input = document.getElementById('newProfileName');
-            const name = (input?.value || '').trim();
+            const name = cleanText((input?.value || '').trim(), 80);
             if (!name) { showToast('请输入 profile 名称', 'error'); return; }
             if (availableProfiles.includes(name)) {
                 showToast('该 profile 已存在，请直接选择', 'warning');
@@ -3951,10 +4129,10 @@
             }
             try {
                 // 在 user_configs 创建一行（带 owner_id），后续插入会沿用此 profile
-                await db.from('user_configs').insert(withOwner({
+                await checkedSupabase(db.from('user_configs').insert(withOwner({
                     user_id: name,
                     categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES))
-                }));
+                })), '新建 profile');
                 availableProfiles.push(name);
                 availableProfiles.sort();
                 input.value = '';
@@ -4011,11 +4189,11 @@
             
             try {
                 // 加载用户配置（包含类目、资产等所有数据）
-                const { data: configData } = await db
+                const { data: configData } = await checkedSupabase(db
                     .from('user_configs')
                     .select('*')  // 获取所有字段
                     .eq('user_id', currentUser)
-                    .maybeSingle();
+                    .maybeSingle(), '加载用户配置');
                 
                 if (configData) {
                     // 加载类目 - 优先云端，其次本地，最后默认
@@ -4026,7 +4204,7 @@
                         // 云端为空，尝试本地备份
                         const localCat = localStorage.getItem('finance_categories_' + currentUser);
                         if (localCat) {
-                            const parsedCat = JSON.parse(localCat);
+                            const parsedCat = safeParse(localCat, null);
                             if (parsedCat && parsedCat.length > 0) {
                                 categories = parsedCat;
                                 console.log('⚠️ 云端类目为空，使用本地备份:', categories.length, '个');
@@ -4118,11 +4296,14 @@
                 }
                 
                 // 加载支出
-                const { data: expenseData } = await db
-                    .from('expenses')
-                    .select('*')
-                    .eq('user_id', currentUser)
-                    .order('date', { ascending: false });
+                const expenseData = await fetchAllRows(
+                    () => db
+                        .from('expenses')
+                        .select('*')
+                        .eq('user_id', currentUser)
+                        .order('date', { ascending: false }),
+                    '加载支出记录'
+                );
 
                 if (expenseData && expenseData.length > 0) {
                     expenses = expenseData.map(e => ({
@@ -4144,17 +4325,9 @@
                 const unsynced = localExpenses.filter(e => !cloudIds.has(String(e.id)) && typeof e.id === 'number');
                 if (unsynced.length > 0) {
                     console.log(`🔄 发现 ${unsynced.length} 条本地未同步记录，正在上传...`);
-                    const uploadData = unsynced.map(e => ({
-                        user_id: currentUser,
-                        date: e.date,
-                        item: e.item,
-                        amount: e.amount,
-                        category_id: e.categoryId,
-                        category_name: e.categoryName || '未知',
-                        type: e.type || '弹性'
-                    }));
+                    const uploadData = unsynced.map(expenseToCloudRow);
                     try {
-                        const { data: inserted } = await db.from('expenses').insert(withOwner(uploadData)).select();
+                        const inserted = await insertRowsInChunks('expenses', uploadData, '上传本地未同步记录', { selectInserted: true });
                         if (inserted && inserted.length > 0) {
                             const newRecords = inserted.map(e => ({
                                 id: e.id,
@@ -4180,13 +4353,16 @@
                 // 加载收入：优先 incomes 表，其次 user_configs.incomes_data，最后 localStorage
                 let incomesLoaded = false;
                 try {
-                    const { data: incomeData, error: incomeError } = await db
-                        .from('incomes')
-                        .select('*')
-                        .eq('user_id', currentUser)
-                        .order('date', { ascending: false });
+                    const incomeData = await fetchAllRows(
+                        () => db
+                            .from('incomes')
+                            .select('*')
+                            .eq('user_id', currentUser)
+                            .order('date', { ascending: false }),
+                        '加载收入记录'
+                    );
 
-                    if (!incomeError && incomeData && incomeData.length > 0) {
+                    if (incomeData && incomeData.length > 0) {
                         incomes = incomeData.map(i => ({
                             id: i.id,
                             date: i.date,
@@ -4217,10 +4393,13 @@
                 // 加载目标：优先 goals 表，其次 user_configs.goals_data，最后 localStorage
                 let goalsLoaded = false;
                 try {
-                    const { data: goalsData } = await db
-                        .from('goals')
-                        .select('*')
-                        .eq('user_id', currentUser);
+                    const goalsData = await fetchAllRows(
+                        () => db
+                            .from('goals')
+                            .select('*')
+                            .eq('user_id', currentUser),
+                        '加载目标记录'
+                    );
 
                     if (goalsData && goalsData.length > 0) {
                         goals = goalsData.map(g => ({
@@ -4246,33 +4425,37 @@
                 }
                 
                 // 加载月度支出覆盖值（本地存储）
-                monthlyExpenseOverrides = JSON.parse(localStorage.getItem('finance_expense_overrides_' + currentUser) || '{}');
+                monthlyExpenseOverrides = safeParse('finance_expense_overrides_' + currentUser, {});
                 
                 // 加载资产类型配置
                 const savedAssetTypes = localStorage.getItem('finance_asset_types_' + currentUser);
                 if (savedAssetTypes) {
-                    ASSET_TYPES = JSON.parse(savedAssetTypes);
+                    ASSET_TYPES = safeParse(savedAssetTypes, JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
                 }
                 
+                normalizeFinanceData();
                 setSyncStatus('synced');
                 init();
                 
             } catch (error) {
                 console.error('加载数据:', error);
                 showToast('云端数据加载失败，使用本地数据', 'warning');
-                setSyncStatus('synced');
+                setSyncStatus('error');
                 categories = safeParse('finance_categories_' + currentUser, null) || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
                 expenses = safeParse('finance_expenses_' + currentUser, []);
                 incomes = safeParse('finance_incomes_' + currentUser, []);
                 goals = safeParse('finance_goals_' + currentUser, []);
+                normalizeFinanceData();
                 init();
             }
         }
         
         // 统一的云端同步函数 - 把所有数据保存到 user_configs 表
         async function syncAllToCloud() {
+            setSyncStatus('syncing');
+            normalizeFinanceData();
             try {
-                await db.from('user_configs').upsert(withOwner({
+                await checkedSupabase(db.from('user_configs').upsert(withOwner({
                     user_id: currentUser,
                     categories: categories,
                     assets_data: assets,
@@ -4282,30 +4465,21 @@
                     incomes_data: incomes,
                     goals_data: goals,
                     bucket_map: BUCKET_MAP
-                }), { onConflict: 'user_id' });
+                }), { onConflict: 'user_id' }), '同步配置到云端');
 
                 // 同时保存到本地作为备份
-                localStorage.setItem('finance_categories_' + currentUser, JSON.stringify(categories));
-                localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
-                localStorage.setItem('finance_asset_history_' + currentUser, JSON.stringify(assetHistory));
-                localStorage.setItem('finance_asset_types_' + currentUser, JSON.stringify(ASSET_TYPES));
-                localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
-                localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
-                localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+                saveConfigLocalBackup();
 
                 setSyncStatus('synced');
-                autoBackupToIndexedDB('sync'); // 同步成功后留快照（不阻塞）
+                await autoBackupToIndexedDB('sync');
+                return true;
             } catch (error) {
                 console.error('同步到云端失败:', error);
                 showToast('云端同步失败，数据已保存到本地', 'error');
+                setSyncStatus('error');
                 // 云端失败也保存到本地
-                localStorage.setItem('finance_categories_' + currentUser, JSON.stringify(categories));
-                localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
-                localStorage.setItem('finance_asset_history_' + currentUser, JSON.stringify(assetHistory));
-                localStorage.setItem('finance_asset_types_' + currentUser, JSON.stringify(ASSET_TYPES));
-                localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
-                localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
-                localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+                saveConfigLocalBackup();
+                return false;
             }
         }
 
@@ -4319,8 +4493,11 @@
         }
         
         async function saveExpenseToCloud(expense) {
+            expense.item = cleanText(expense.item, 160);
+            expense.categoryName = cleanText(expense.categoryName || '', 80);
+            expense.type = cleanText(expense.type || '', 20);
             try {
-                const { data, error } = await db.from('expenses').insert(withOwner({
+                const { data } = await checkedSupabase(db.from('expenses').insert(withOwner({
                     user_id: currentUser,
                     date: expense.date,
                     item: expense.item,
@@ -4328,39 +4505,50 @@
                     category_id: expense.categoryId,
                     category_name: expense.categoryName,
                     type: expense.type
-                })).select().single();
+                })).select().single(), '保存消费记录');
                 
                 if (data) expense.id = data.id;
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
+                setSyncStatus('synced');
+                return true;
             } catch (error) {
                 console.error('保存消费记录:', error);
                 showToast('消费记录同步失败，已保存本地', 'error');
+                setSyncStatus('error');
+                localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
+                return false;
             }
         }
 
         async function deleteExpenseFromCloud(id) {
             try {
-                await db.from('expenses').delete().eq('id', id);
+                await checkedSupabase(db.from('expenses').delete().eq('id', id), '删除消费记录');
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
+                setSyncStatus('synced');
+                return true;
             } catch (error) {
                 console.error('删除失败:', error);
                 showToast('删除同步失败', 'error');
+                setSyncStatus('error');
+                return false;
             }
         }
         
         async function saveIncomeToCloud(income) {
+            income.item = cleanText(income.item || '', 160);
+            income.type = cleanText(income.type || '其他', 40);
             try {
-                const { data, error } = await db.from('incomes').insert(withOwner({
+                const { data } = await checkedSupabase(db.from('incomes').insert(withOwner({
                     user_id: currentUser,
                     date: income.date,
                     item: income.item,
                     amount: income.amount,
                     type: income.type
-                })).select().single();
+                })).select().single(), '保存收入记录');
 
                 if (data) income.id = data.id;
             } catch (error) {
-                console.log('收入表可能不存在，使用user_configs保存');
+                console.warn('收入表保存失败，使用 user_configs 保存:', error);
             }
             // 同时保存到 user_configs（确保云端一定有数据）
             await syncAllToCloud();
@@ -4368,49 +4556,51 @@
 
         async function deleteIncomeFromCloud(id) {
             try {
-                await db.from('incomes').delete().eq('id', id);
+                await checkedSupabase(db.from('incomes').delete().eq('id', id), '删除收入记录');
             } catch (error) {
-                console.log('删除收入失败');
+                console.warn('收入表删除失败，继续同步 user_configs:', error);
             }
             await syncAllToCloud();
         }
 
         async function saveGoalToCloud(goal) {
+            goal.name = cleanText(goal.name, 100);
+            goal.deadline = cleanText(goal.deadline || '', 20);
             try {
-                const { data, error } = await db.from('goals').insert(withOwner({
+                const { data } = await checkedSupabase(db.from('goals').insert(withOwner({
                     user_id: currentUser,
                     name: goal.name,
                     target_amount: goal.targetAmount,
                     current_amount: goal.currentAmount,
                     deadline: goal.deadline
-                })).select().single();
+                })).select().single(), '保存目标');
 
                 if (data) goal.id = data.id;
             } catch (error) {
-                console.log('目标表可能不存在，使用user_configs保存');
+                console.warn('目标表保存失败，使用 user_configs 保存:', error);
             }
             await syncAllToCloud();
         }
 
         async function updateGoalInCloud(goal) {
             try {
-                await db.from('goals').update({
+                await checkedSupabase(db.from('goals').update({
                     name: goal.name,
                     target_amount: goal.targetAmount,
                     current_amount: goal.currentAmount,
                     deadline: goal.deadline
-                }).eq('id', goal.id);
+                }).eq('id', goal.id), '更新目标');
             } catch (error) {
-                console.log('更新目标失败');
+                console.warn('目标表更新失败，继续同步 user_configs:', error);
             }
             await syncAllToCloud();
         }
 
         async function deleteGoalFromCloud(id) {
             try {
-                await db.from('goals').delete().eq('id', id);
+                await checkedSupabase(db.from('goals').delete().eq('id', id), '删除目标');
             } catch (error) {
-                console.log('删除目标失败');
+                console.warn('目标表删除失败，继续同步 user_configs:', error);
             }
             await syncAllToCloud();
         }
@@ -4442,7 +4632,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `财务完整备份_${currentUser}_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `财务完整备份_${cleanText(currentUser, 80)}_${new Date().toISOString().split('T')[0]}.json`;
             a.click();
             URL.revokeObjectURL(url);
             
@@ -4565,16 +4755,8 @@
                 if (d.assetHistory) assetHistory = d.assetHistory;
                 if (d.monthlyExpenseOverrides) monthlyExpenseOverrides = d.monthlyExpenseOverrides;
                 if (d.assetTypes) ASSET_TYPES = d.assetTypes;
-                // 支出单独写云端表
-                if (d.expenses && d.expenses.length > 0) {
-                    await db.from('expenses').delete().eq('user_id', currentUser);
-                    const expData = d.expenses.map(exp => ({
-                        user_id: currentUser, date: exp.date, item: exp.item,
-                        amount: exp.amount, category_id: exp.categoryId,
-                        category_name: exp.categoryName || '未知', type: exp.type || '弹性'
-                    }));
-                    await db.from('expenses').insert(withOwner(expData));
-                }
+                // 支出单独写云端表：先写新数据成功，再删除旧数据，避免失败时清空云端
+                if (d.expenses) await replaceCloudExpenses(d.expenses, '恢复快照');
                 await syncAllToCloud();
                 closeAutoBackupModal();
                 showToast('快照已恢复', 'success');
@@ -4619,10 +4801,10 @@
                         }
 
                         // 拉取云端现有支出，用于差异比对（追加模式去重）
-                        const { data: existingExpRows, error: fetchErr } = await db.from('expenses')
-                            .select('date,item,amount').eq('user_id', currentUser);
-                        if (fetchErr) throw new Error('读取云端支出失败：' + fetchErr.message);
-                        const existingExp = existingExpRows || [];
+                        const existingExp = await fetchAllRows(
+                            () => db.from('expenses').select('date,item,amount').eq('user_id', currentUser),
+                            '读取云端支出'
+                        );
                         const expFp = r => `${r.date}|${r.item}|${Number(r.amount)}`;
                         const existingExpFps = new Set(existingExp.map(expFp));
                         const backupExpenses = data.expenses || [];
@@ -4673,32 +4855,12 @@
                         // 支出
                         if (mode === '覆盖') {
                             if (data.expenses) {
-                                await db.from('expenses').delete().eq('user_id', currentUser);
-                                if (data.expenses.length > 0) {
-                                    const expData = data.expenses.map(exp => ({
-                                        user_id: currentUser,
-                                        date: exp.date,
-                                        item: exp.item,
-                                        amount: exp.amount,
-                                        category_id: exp.categoryId,
-                                        category_name: exp.categoryName || '未知',
-                                        type: exp.type || '弹性'
-                                    }));
-                                    await db.from('expenses').insert(withOwner(expData));
-                                }
+                                await replaceCloudExpenses(data.expenses, '覆盖导入');
                             }
                         } else {
                             if (newExpenses.length > 0) {
-                                const expData = newExpenses.map(exp => ({
-                                    user_id: currentUser,
-                                    date: exp.date,
-                                    item: exp.item,
-                                    amount: exp.amount,
-                                    category_id: exp.categoryId,
-                                    category_name: exp.categoryName || '未知',
-                                    type: exp.type || '弹性'
-                                }));
-                                await db.from('expenses').insert(withOwner(expData));
+                                const expData = newExpenses.map(expenseToCloudRow);
+                                await insertRowsInChunks('expenses', expData, '追加导入支出');
                             }
                         }
 
@@ -5123,7 +5285,7 @@
             document.getElementById('dashboardBudgetProgress').innerHTML = budgetData.map(item => `
                 <div class="progress-item">
                     <div class="progress-label">
-                        <span>${item.name}</span>
+                        <span>${escapeHtml(item.name)}</span>
                         <span>¥${item.spent.toLocaleString()} / ¥${item.budget.toLocaleString()}</span>
                     </div>
                     <div class="progress-bar">
@@ -5148,7 +5310,7 @@
                 return `
                     <div class="progress-item">
                         <div class="progress-label">
-                            <span>${goal.name}</span>
+                            <span>${escapeHtml(goal.name)}</span>
                             <span>${percent.toFixed(0)}%</span>
                         </div>
                         <div class="progress-bar">
@@ -5183,8 +5345,8 @@
                     <div class="recent-tx-item">
                         <div class="recent-tx-icon ${tx.txType}">${icon}</div>
                         <div class="recent-tx-info">
-                            <div class="tx-name">${name}</div>
-                            <div class="tx-date">${dateStr}</div>
+                            <div class="tx-name">${escapeHtml(name)}</div>
+                            <div class="tx-date">${escapeHtml(dateStr)}</div>
                         </div>
                         <div class="recent-tx-amount ${tx.txType}">
                             ${isExpense ? '-' : '+'}¥${tx.amount.toLocaleString()}
@@ -5348,8 +5510,8 @@
                 <div class="recent-tx-item" style="position: relative;">
                     <div class="recent-tx-icon expense">💸</div>
                     <div class="recent-tx-info" style="flex: 1; min-width: 0;">
-                        <div class="tx-name">${e.item || '未命名'}</div>
-                        <div class="tx-date">${e.date} · ${e.categoryName || '未分类'}</div>
+                        <div class="tx-name">${escapeHtml(e.item || '未命名')}</div>
+                        <div class="tx-date">${escapeHtml(e.date)} · ${escapeHtml(e.categoryName || '未分类')}</div>
                     </div>
                     <div class="recent-tx-amount expense" style="margin-right: 8px;">-¥${e.amount.toLocaleString()}</div>
                     <div style="display: flex; gap: 4px; flex-shrink: 0;">
@@ -5366,8 +5528,13 @@
         
         async function deleteExpenseFromHistory(id) {
             if (!confirm('确定要删除这条记录吗？')) return;
+            const oldExpenses = expenses;
             expenses = expenses.filter(e => String(e.id) !== String(id));
-            await deleteExpenseFromCloud(id);
+            const deleted = await deleteExpenseFromCloud(id);
+            if (!deleted) {
+                expenses = oldExpenses;
+                return;
+            }
             renderHistoryInModal(); // 刷新弹窗列表
             renderHistory(); // 刷新历史页面
             renderBudgetStatus(); // 刷新预算
@@ -5398,7 +5565,7 @@
         function renderQuickButtons() {
             const container = document.getElementById('quickButtons');
             container.innerHTML = QUICK_ITEMS.map((item, index) => `
-                <button class="quick-btn" onclick="quickRecord(${index})">${item.name} ¥${item.amount}</button>
+                <button class="quick-btn" onclick="quickRecord(${index})">${escapeHtml(item.name)} ¥${item.amount}</button>
             `).join('');
         }
         
@@ -5446,9 +5613,9 @@
                     <div class="category-grid">
                         ${recentCats.map(cat => `
                             <button class="category-btn ${selectedCategory === cat.id ? 'selected' : ''}" 
-                                    onclick="selectCategory(${cat.id})"
+                                    onclick="selectCategory(${Number(cat.id)})"
                                     style="border: 2px solid var(--primary); background: #f0f4ff;">
-                                <div class="name">${cat.id}. ${cat.name}</div>
+                                <div class="name">${escapeHtml(cat.id)}. ${escapeHtml(cat.name)}</div>
                                 <div class="budget">¥${getMonthly(cat)}/月</div>
                             </button>
                         `).join('')}
@@ -5476,8 +5643,8 @@
                     <div class="category-grid ${collapsed ? 'collapsed' : ''}">
                         ${cats.map(cat => `
                             <button class="category-btn ${type === '刚性' ? 'rigid' : ''} ${selectedCategory === cat.id ? 'selected' : ''}" 
-                                    onclick="selectCategory(${cat.id})">
-                                <div class="name">${cat.id}. ${cat.name}</div>
+                                    onclick="selectCategory(${Number(cat.id)})">
+                                <div class="name">${escapeHtml(cat.id)}. ${escapeHtml(cat.name)}</div>
                                 <div class="budget">¥${getMonthly(cat)}/月</div>
                             </button>
                         `).join('')}
@@ -5638,7 +5805,7 @@ function renderBudgetCheckup() {
     var topMonTxt = topMon.map(function (m) { return parseInt(m, 10) + '月'; }).join('、');
     var C = 2 * Math.PI * 64, off = C * (1 - usedPct / 100);
     var tone = function (p) { return p > 100 ? { txt: '#dc2626', grad: 'linear-gradient(90deg,#fca5a5,#ef4444)' } : p > elapsedPct + 15 ? { txt: '#d97706', grad: 'linear-gradient(90deg,#fcd34d,#f59e0b)' } : { txt: '#16a34a', grad: 'linear-gradient(90deg,#86efac,#22c55e)' }; };
-    var catRow = function (c) { var t = tone(c.pct); return '<div class="bcRow"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:13px;font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">' + c.name + '</span><span style="font-size:11.5px;color:#94a3b8;white-space:nowrap">' + fmt(c.ytd) + ' / ' + fmt(c.yearly) + '</span></div><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;width:' + Math.min(c.pct, 100) + '%;background:' + t.grad + ';border-radius:4px"></div></div><span style="width:44px;text-align:right;font-size:12px;font-weight:800;color:' + t.txt + '">' + c.pct.toFixed(0) + '%</span></div></div>'; };
+    var catRow = function (c) { var t = tone(c.pct); return '<div class="bcRow"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:13px;font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">' + escapeHtml(c.name) + '</span><span style="font-size:11.5px;color:#94a3b8;white-space:nowrap">' + fmt(c.ytd) + ' / ' + fmt(c.yearly) + '</span></div><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;width:' + Math.min(c.pct, 100) + '%;background:' + t.grad + ';border-radius:4px"></div></div><span style="width:44px;text-align:right;font-size:12px;font-weight:800;color:' + t.txt + '">' + c.pct.toFixed(0) + '%</span></div></div>'; };
     var grp = function (t, arr) { var s = '<div style="font-size:12px;font-weight:700;color:#94a3b8;margin:4px 0 14px;letter-spacing:.3px">' + t + '</div>'; arr.forEach(function (c) { s += catRow(c); }); return s; };
     var gauge = function (label, val, desc, color, big) { return '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f5f9"><div><div style="font-size:' + (big ? 13 : 12) + 'px;font-weight:' + (big ? 700 : 600) + ';color:' + (big ? '#1e293b' : '#475569') + '">' + label + '</div><div style="font-size:10.5px;color:#94a3b8;margin-top:1px">' + desc + '</div></div><div style="font-size:' + (big ? 22 : 15) + 'px;font-weight:800;color:' + color + '">' + fmt(val) + '</div></div>'; };
 
@@ -5646,9 +5813,9 @@ function renderBudgetCheckup() {
     // HERO
     h += '<div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border-radius:24px;padding:30px 32px;margin-bottom:16px;color:#fff;box-shadow:0 14px 40px rgba(118,75,162,.35)"><div class="bcHero"><svg width="148" height="148" viewBox="0 0 148 148" style="flex-shrink:0"><circle cx="74" cy="74" r="64" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="12"/><circle cx="74" cy="74" r="64" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 74 74)"/><text x="74" y="68" text-anchor="middle" font-size="30" font-weight="800" fill="#fff">' + usedPct.toFixed(0) + '%</text><text x="74" y="90" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.85)">预算已用</text></svg><div style="flex:1"><div style="display:inline-block;background:rgba(255,200,80,.25);border:1px solid rgba(255,210,90,.5);color:#ffe9b8;font-size:12.5px;font-weight:700;padding:4px 12px;border-radius:20px;margin-bottom:12px">' + (usedPct > elapsedPct + 5 ? '⚠️ 预算偏快' : '✅ 节奏正常') + '</div><div style="font-size:25px;font-weight:800;line-height:1.3;margin-bottom:8px">时间过 ' + elapsedPct.toFixed(0) + '%，预算已花掉 ' + usedPct.toFixed(0) + '%</div><div style="font-size:13.5px;opacity:.9">已用 ' + fmt(ytdTotal) + ' / 全年 ' + fmt(budgetTotal) + ' · 剩 ' + fmt(remaining) + ' · 超前 ' + (usedPct - elapsedPct).toFixed(0) + ' 个百分点</div><div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.2);font-size:13px;line-height:1.6;opacity:.95">💡 支出集中在 <b>' + topMonTxt + '</b>（占已花的 ' + topMonShare.toFixed(0) + '%），多为阶段性大额。剔除后日常其实克制——近月常态约 ' + fmt(normAvg) + '/月。</div></div></div></div>';
     // TILES
-    var otherOver = over.slice(1).map(function (c) { return c.name; }).join('·');
+    var otherOver = over.slice(1).map(function (c) { return escapeHtml(c.name); }).join('·');
     h += '<div class="bcT3">';
-    h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:10px">🔴 超支重灾区</div><div style="font-size:25px;font-weight:800;color:#dc2626;line-height:1">' + top.name + ' ' + (top.pct / 100).toFixed(1) + '倍</div><div style="font-size:12.5px;color:#64748b;margin-top:9px">已花 ' + fmt(top.ytd) + ' · 预算 ' + fmt(top.yearly) + '</div><div style="font-size:11.5px;color:#94a3b8;margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9">' + (over.length > 1 ? '另有 ' + otherOver + ' 共 ' + (over.length - 1) + ' 类超支' : '其余类目尚在预算内') + '</div></div>';
+    h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:10px">🔴 超支重灾区</div><div style="font-size:25px;font-weight:800;color:#dc2626;line-height:1">' + escapeHtml(top.name) + ' ' + (top.pct / 100).toFixed(1) + '倍</div><div style="font-size:12.5px;color:#64748b;margin-top:9px">已花 ' + fmt(top.ytd) + ' · 预算 ' + fmt(top.yearly) + '</div><div style="font-size:11.5px;color:#94a3b8;margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9">' + (over.length > 1 ? '另有 ' + otherOver + ' 共 ' + (over.length - 1) + ' 类超支' : '其余类目尚在预算内') + '</div></div>';
     h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:6px">📅 月度支出 · 三个口径</div>' + gauge('摊销月均', amoAvg, '周期支出摊平后', '#5a4bb8', true) + gauge('原始月均', rawAvg, '实际每月花掉', '#475569') + '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:9px 0"><div><div style="font-size:12px;font-weight:600;color:#475569">常态月均</div><div style="font-size:10.5px;color:#94a3b8;margin-top:1px">近月日常（剔除一次性）</div></div><div style="font-size:15px;font-weight:800;color:#16a34a">' + fmt(normAvg) + '</div></div></div>';
     h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:10px">💰 现金流</div><div style="font-size:25px;font-weight:800;color:' + (c0 >= 0 ? '#16a34a' : '#dc2626') + ';line-height:1">' + (c0 >= 0 ? '+' : '') + fmt(c0) + '</div><div style="font-size:12.5px;color:#64748b;margin-top:9px">收 ' + fmt(incTotal) + ' · 支 ' + fmt(ytdTotal) + '</div><div style="font-size:11.5px;color:#d97706;margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9">' + (incTotal < ytdTotal * 0.6 ? '⚠️ 收入或未记全，缺口仅供参考' : '收入 − 支出') + '</div></div>';
     h += '</div>';
@@ -5674,7 +5841,7 @@ function renderBudgetCheckup() {
       + '@media(max-width:820px){#page-checkup .bcT3{grid-template-columns:1fr}#page-checkup .bcCols,#page-checkup .bcAm2{columns:1}#page-checkup .bcHero{flex-direction:column;gap:20px;text-align:center}}'
       + '</style>';
     host.innerHTML = css + '<div style="background:#eef1f8;border-radius:16px;padding:22px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif">' + h + '</div>';
-  } catch (e) { var hh = document.getElementById('page-checkup'); if (hh) hh.innerHTML = '<div style="padding:20px;color:#dc2626">预算体检加载失败：' + (e && e.message || e) + '</div>'; }
+  } catch (e) { var hh = document.getElementById('page-checkup'); if (hh) hh.innerHTML = '<div style="padding:20px;color:#dc2626">预算体检加载失败：' + escapeHtml(e && e.message || e) + '</div>'; }
 }
 
         function renderBudgetStatus() {
@@ -5797,7 +5964,7 @@ function renderBudgetCheckup() {
                             ${uncategorizedExpenses.map(e => `
                                 <div class="detail-item">
                                     <span class="date">${e.date.slice(5)}</span>
-                                    <span class="item">${e.item} <span style="color: var(--red-500); font-size: 11px;">(原类目: ${e.categoryName || 'ID:' + e.categoryId})</span></span>
+                        <span class="item">${escapeHtml(e.item)} <span style="color: var(--red-500); font-size: 11px;">(原类目: ${escapeHtml(e.categoryName || 'ID:' + e.categoryId)})</span></span>
                                     <span class="amount">¥${e.amount.toFixed(2)}</span>
                                 </div>
                             `).join('')}
@@ -5823,8 +5990,8 @@ function renderBudgetCheckup() {
                     <div class="budget-category ${expanded ? 'expanded' : ''}" onclick="toggleCategory(${cat.id})">
                         <div class="budget-category-header">
                             <div>
-                                <div class="name">${cat.id}. ${cat.name}</div>
-                                <div style="font-size: 12px; color: var(--gray-600);">${cat.type} | 预算 ¥${monthly}/月</div>
+                                <div class="name">${escapeHtml(cat.id)}. ${escapeHtml(cat.name)}</div>
+                                <div style="font-size: 12px; color: var(--gray-600);">${escapeHtml(cat.type)} | 预算 ¥${monthly}/月</div>
                             </div>
                             <div class="spent" style="color: ${statusClass === 'danger' ? 'var(--danger)' : statusClass === 'warning' ? 'var(--warning)' : 'inherit'}">
                                 ¥${spent.toFixed(0)}
@@ -5838,7 +6005,7 @@ function renderBudgetCheckup() {
                             ${catExpenses.length > 0 ? catExpenses.map(e => `
                                 <div class="detail-item">
                                     <span class="date">${e.date.slice(5)}</span>
-                                    <span class="item">${e.item}</span>
+                                    <span class="item">${escapeHtml(e.item)}</span>
                                     <span class="amount">¥${e.amount.toFixed(2)}</span>
                                 </div>
                             `).join('') : '<div class="no-data">本月暂无消费记录</div>'}
@@ -5965,9 +6132,9 @@ function renderBudgetCheckup() {
             document.getElementById('historyList').innerHTML = monthExpenses.map(e => `
                 <div class="record-item">
                     <div class="info">
-                        <div class="date">${e.date}</div>
-                        <div class="desc">${e.item}</div>
-                        <div class="cat">${e.categoryName} · ${e.type}</div>
+                        <div class="date">${escapeHtml(e.date)}</div>
+                        <div class="desc">${escapeHtml(e.item)}</div>
+                        <div class="cat">${escapeHtml(e.categoryName)} · ${escapeHtml(e.type)}</div>
                     </div>
                     <div class="amount">¥${e.amount.toFixed(2)}</div>
                     <div class="record-actions">
@@ -6007,9 +6174,9 @@ function renderBudgetCheckup() {
             document.getElementById('historyList').innerHTML = results.slice(0, 50).map(e => `
                 <div class="record-item">
                     <div class="info">
-                        <div class="date">${e.date}</div>
-                        <div class="desc">${e.item}</div>
-                        <div class="cat">${e.categoryName} · ${e.type}</div>
+                        <div class="date">${escapeHtml(e.date)}</div>
+                        <div class="desc">${escapeHtml(e.item)}</div>
+                        <div class="cat">${escapeHtml(e.categoryName)} · ${escapeHtml(e.type)}</div>
                     </div>
                     <div class="amount">¥${e.amount.toFixed(2)}</div>
                     <div class="record-actions">
@@ -6037,21 +6204,21 @@ function renderBudgetCheckup() {
                     <h3>✏️ 编辑消费记录</h3>
                     <div class="form-group">
                         <label>日期</label>
-                        <input type="date" id="editDate" value="${expense.date}">
+                        <input type="date" id="editDate" value="${escapeHtml(expense.date)}">
                     </div>
                     <div class="form-group">
                         <label>项目</label>
-                        <input type="text" id="editItem" value="${expense.item}">
+                        <input type="text" id="editItem" value="${escapeHtml(expense.item)}">
                     </div>
                     <div class="form-group">
                         <label>金额</label>
-                        <input type="number" id="editAmount" value="${expense.amount}" step="0.01">
+                        <input type="number" id="editAmount" value="${escapeHtml(expense.amount)}" step="0.01">
                     </div>
                     <div class="form-group">
                         <label>类目</label>
                         <select id="editCategory">
                             ${categories.map(cat => 
-                                `<option value="${cat.id}" ${cat.id === expense.categoryId ? 'selected' : ''}>${cat.id}. ${cat.name}</option>`
+                                `<option value="${escapeHtml(cat.id)}" ${cat.id === expense.categoryId ? 'selected' : ''}>${escapeHtml(cat.id)}. ${escapeHtml(cat.name)}</option>`
                             ).join('')}
                         </select>
                     </div>
@@ -6070,7 +6237,7 @@ function renderBudgetCheckup() {
         
         async function saveEditExpense(id) {
             const date = document.getElementById('editDate').value;
-            const item = document.getElementById('editItem').value.trim();
+            const item = cleanText(document.getElementById('editItem').value.trim(), 160);
             const amount = parseFloat(document.getElementById('editAmount').value);
             const categoryId = parseInt(document.getElementById('editCategory').value);
             const cat = categories.find(c => c.id === categoryId);
@@ -6085,14 +6252,17 @@ function renderBudgetCheckup() {
                 expense.type = cat.type;
                 
                 try {
-                    await db.from('expenses').update({
+                    await checkedSupabase(db.from('expenses').update({
                         date, item, amount,
                         category_id: categoryId,
                         category_name: cat.name,
                         type: cat.type
-                    }).eq('id', id);
+                    }).eq('id', id), '更新消费记录');
                 } catch (e) {
                     console.error('更新失败:', e);
+                    setSyncStatus('error');
+                    showToast('云端更新失败，请稍后重试', 'error');
+                    return;
                 }
                 
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
@@ -6107,8 +6277,14 @@ function renderBudgetCheckup() {
         async function deleteExpense(id) {
             if (!confirm('确定删除这条记录吗？')) return;
             
-            expenses = expenses.filter(e => String(e.id) !== String(id));
-            await deleteExpenseFromCloud(id);
+            const nextExpenses = expenses.filter(e => String(e.id) !== String(id));
+            const oldExpenses = expenses;
+            expenses = nextExpenses;
+            const deleted = await deleteExpenseFromCloud(id);
+            if (!deleted) {
+                expenses = oldExpenses;
+                return;
+            }
             renderHistory();
             renderBudgetStatus();
             renderCompareCards();
@@ -6121,9 +6297,9 @@ function renderBudgetCheckup() {
             renderBucketSettings();
             document.getElementById('settingsList').innerHTML = categories.map((cat, index) => `
                 <div class="category-setting-item" style="background: ${cat.type === '刚性' ? 'var(--pink-100)' : cat.type === '日常' ? '#fefcbf' : 'var(--green-100)'}">
-                    <span style="font-weight: 600;">${cat.id}</span>
-                    <input type="text" value="${cat.name}" onchange="updateCategory(${index}, 'name', this.value)">
-                    <input type="number" value="${cat.yearly}" onchange="updateCategory(${index}, 'yearly', parseInt(this.value))">
+                    <span style="font-weight: 600;">${escapeHtml(cat.id)}</span>
+                    <input type="text" value="${escapeHtml(cat.name)}" onchange="updateCategory(${index}, 'name', this.value)">
+                    <input type="number" value="${escapeHtml(cat.yearly)}" onchange="updateCategory(${index}, 'yearly', parseInt(this.value))">
                     <select onchange="updateCategory(${index}, 'type', this.value)">
                         <option value="刚性" ${cat.type === '刚性' ? 'selected' : ''}>刚性</option>
                         <option value="日常" ${cat.type === '日常' ? 'selected' : ''}>日常</option>
@@ -6135,6 +6311,8 @@ function renderBudgetCheckup() {
         }
         
         async function updateCategory(index, field, value) {
+            if (field === 'name' || field === 'type') value = cleanText(value, field === 'name' ? 80 : 20);
+            if (field === 'yearly') value = Number(value) || 0;
             categories[index][field] = value;
             await saveCategoriesToCloud();
             renderCategoryGrid();
@@ -6191,8 +6369,8 @@ function renderBudgetCheckup() {
             listDiv.innerHTML = Array.from(missingCategories.values()).map(cat => `
                 <div style="background: white; padding: 10px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <strong style="color: var(--red-600);">${cat.name}</strong>
-                        <span style="font-size: 12px; color: var(--gray-500);">(ID: ${cat.id})</span>
+                        <strong style="color: var(--red-600);">${escapeHtml(cat.name)}</strong>
+                        <span style="font-size: 12px; color: var(--gray-500);">(ID: ${escapeHtml(cat.id)})</span>
                     </div>
                     <div style="text-align: right; font-size: 12px; color: var(--gray-600);">
                         ${cat.count}笔消费 | ¥${cat.amount.toFixed(0)}
@@ -6385,14 +6563,14 @@ function renderBudgetCheckup() {
                     ${migrationList.map((o, idx) => `
                         <div style="padding: 12px 15px; display: grid; grid-template-columns: 1.2fr 50px 70px 1.2fr; gap: 8px; align-items: center; border-top: 1px solid var(--gray-200); font-size: 13px; ${o.isMismatch ? 'background: #fffbeb;' : ''}">
                             <div>
-                                <strong>${o.oldName}</strong>
-                                <span style="color: var(--gray-500); font-size: 11px;">(ID:${o.oldId})</span>
-                                ${o.isMismatch ? `<div style="font-size: 11px; color: #b7791f;">🔀 当前ID${o.oldId}=${o.newCurrentName}</div>` : ''}
+                                <strong>${escapeHtml(o.oldName)}</strong>
+                                <span style="color: var(--gray-500); font-size: 11px;">(ID:${escapeHtml(o.oldId)})</span>
+                                ${o.isMismatch ? `<div style="font-size: 11px; color: #b7791f;">🔀 当前ID${escapeHtml(o.oldId)}=${escapeHtml(o.newCurrentName)}</div>` : ''}
                             </div>
                             <span>${o.records.length}笔</span>
                             <span style="color: var(--danger);">¥${o.totalAmount.toFixed(0)}</span>
                             <select id="migrate_${idx}" style="padding: 8px; border-radius: 6px; border: 1px solid var(--gray-300); font-size: 13px;">
-                                ${categories.map(c => `<option value="${c.id}" ${c.id === suggestNewCategory(o.oldName) ? 'selected' : ''}>${c.id}. ${c.name} (${c.type})</option>`).join('')}
+                                ${categories.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === suggestNewCategory(o.oldName) ? 'selected' : ''}>${escapeHtml(c.id)}. ${escapeHtml(c.name)} (${escapeHtml(c.type)})</option>`).join('')}
                             </select>
                         </div>
                     `).join('')}
@@ -6432,10 +6610,11 @@ function renderBudgetCheckup() {
                 });
             });
             
-            const summary = mappings.map(m => `${m.oldName}(${m.count}笔) → ${m.newName}`).join('\n');
+            const summary = mappings.map(m => `${cleanText(m.oldName, 80)}(${m.count}笔) → ${cleanText(m.newName, 80)}`).join('\n');
             if (!confirm(`确认以下迁移映射？\n\n${summary}\n\n⚠️ 此操作会修改消费记录的类目，建议先导出备份！`)) return;
             
             let totalMigrated = 0;
+            const previousExpenses = expenses.map(e => ({ ...e }));
             
             // 更新内存中的expenses
             for (const m of mappings) {
@@ -6450,7 +6629,7 @@ function renderBudgetCheckup() {
                 
                 // 更新云端Supabase
                 try {
-                    const { error } = await db
+                    await checkedSupabase(db
                         .from('expenses')
                         .update({
                             category_id: m.newId,
@@ -6458,11 +6637,14 @@ function renderBudgetCheckup() {
                             type: m.newType
                         })
                         .eq('user_id', currentUser)
-                        .eq('category_id', m.oldId);
-                    
-                    if (error) console.error('云端迁移错误:', error);
+                        .eq('category_id', m.oldId), '迁移消费类目');
                 } catch (err) {
                     console.error('迁移请求失败:', err);
+                    expenses = previousExpenses;
+                    localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
+                    setSyncStatus('error');
+                    showToast('云端迁移失败，本地已回滚', 'error');
+                    return;
                 }
             }
             
@@ -6484,7 +6666,7 @@ function renderBudgetCheckup() {
                         成功迁移 <strong>${totalMigrated}</strong> 条记录
                     </p>
                     <div style="margin-top: 12px; font-size: 13px; color: var(--gray-500); text-align: left;">
-                        ${mappings.map(m => `✅ ${m.oldName} → ${m.newName} (${m.count}笔)`).join('<br>')}
+                        ${mappings.map(m => `✅ ${escapeHtml(m.oldName)} → ${escapeHtml(m.newName)} (${m.count}笔)`).join('<br>')}
                     </div>
                 </div>
             `;
@@ -6566,7 +6748,7 @@ function renderBudgetCheckup() {
                 <div class="modal">
                     <h3 style="color: var(--danger);">⚠️ 删除当前 Profile 数据</h3>
                     <p style="margin-bottom: 15px; color: var(--gray-600);">
-                        此操作将永久删除 <strong>${currentUser}</strong> 这个 profile 的所有数据：<br>
+                        此操作将永久删除 <strong>${escapeHtml(currentUser)}</strong> 这个 profile 的所有数据：<br>
                         • 所有消费记录<br>
                         • 所有收入/目标记录<br>
                         • 类目/资产/快照配置<br><br>
@@ -6609,10 +6791,10 @@ function renderBudgetCheckup() {
                 if (signErr) { showToast('密码错误', 'error'); return; }
 
                 // 删除当前 profile 的所有云端数据（RLS 会自动限制只能删自己的）
-                await db.from('expenses').delete().eq('user_id', currentUser);
-                await db.from('incomes').delete().eq('user_id', currentUser);
-                await db.from('goals').delete().eq('user_id', currentUser);
-                await db.from('user_configs').delete().eq('user_id', currentUser);
+                await checkedSupabase(db.from('expenses').delete().eq('user_id', currentUser), '删除 profile 支出');
+                await checkedSupabase(db.from('incomes').delete().eq('user_id', currentUser), '删除 profile 收入');
+                await checkedSupabase(db.from('goals').delete().eq('user_id', currentUser), '删除 profile 目标');
+                await checkedSupabase(db.from('user_configs').delete().eq('user_id', currentUser), '删除 profile 配置');
 
                 closeDeleteAccountModal();
                 showToast(`Profile「${currentUser}」已删除`, 'success');
@@ -7571,14 +7753,14 @@ function renderBudgetCheckup() {
             if (dayIncomes.length > 0) {
                 html += `<div style="margin-bottom: 10px;"><strong style="color: var(--success);">收入：</strong></div>`;
                 dayIncomes.forEach(i => {
-                    html += `<div class="detail-item"><span>${i.type}</span><span class="item">${i.item}</span><span class="amount" style="color: var(--success);">+¥${i.amount.toFixed(2)}</span></div>`;
+                    html += `<div class="detail-item"><span>${escapeHtml(i.type)}</span><span class="item">${escapeHtml(i.item)}</span><span class="amount" style="color: var(--success);">+¥${i.amount.toFixed(2)}</span></div>`;
                 });
             }
             
             if (dayExpenses.length > 0) {
                 html += `<div style="margin: 10px 0;"><strong style="color: var(--danger);">支出：</strong></div>`;
                 dayExpenses.forEach(e => {
-                    html += `<div class="detail-item"><span>${e.categoryName}</span><span class="item">${e.item}</span><span class="amount" style="color: var(--danger);">-¥${e.amount.toFixed(2)}</span></div>`;
+                    html += `<div class="detail-item"><span>${escapeHtml(e.categoryName)}</span><span class="item">${escapeHtml(e.item)}</span><span class="amount" style="color: var(--danger);">-¥${e.amount.toFixed(2)}</span></div>`;
                 });
             }
             
@@ -7689,7 +7871,7 @@ function renderBudgetCheckup() {
                     return `
                         <div class="goal-card" style="${isCompleted ? 'border-color: var(--success);' : ''}">
                             <div class="goal-header">
-                                <h4>${isCompleted ? '✅' : '🎯'} ${goal.name}</h4>
+                                <h4>${isCompleted ? '✅' : '🎯'} ${escapeHtml(goal.name)}</h4>
                                 <div>
                                     <button class="btn btn-sm btn-primary" onclick="addToGoal(${index})">💰 存入</button>
                                     <button class="btn btn-sm btn-outline" onclick="editGoal(${index})">✏️</button>
@@ -7704,7 +7886,7 @@ function renderBudgetCheckup() {
                                 <span>目标: ¥${goal.targetAmount.toFixed(0)}</span>
                                 <span>${isCompleted ? '🎉 已达成!' : `还差: ¥${remaining.toFixed(0)}`}</span>
                             </div>
-                            ${goal.deadline ? `<div style="font-size: 12px; color: var(--gray-600); margin-top: 8px;">截止日期: ${goal.deadline}</div>` : ''}
+                            ${goal.deadline ? `<div style="font-size: 12px; color: var(--gray-600); margin-top: 8px;">截止日期: ${escapeHtml(goal.deadline)}</div>` : ''}
                         </div>
                     `;
                 }).join('');
@@ -7744,7 +7926,7 @@ function renderBudgetCheckup() {
         }
         
         async function saveGoal() {
-            const name = document.getElementById('goalName').value.trim();
+            const name = cleanText(document.getElementById('goalName').value.trim(), 100);
             const targetAmount = parseFloat(document.getElementById('goalAmount').value);
             const deadline = document.getElementById('goalDeadline').value;
             
@@ -7794,8 +7976,14 @@ function renderBudgetCheckup() {
         async function deleteGoal(index) {
             if (!confirm('确定删除这个目标吗？')) return;
             const goal = goals[index];
+            const oldGoals = goals.slice();
             goals.splice(index, 1);
             await deleteGoalFromCloud(goal.id);
+            if (document.getElementById('syncStatus')?.classList.contains('error')) {
+                goals = oldGoals;
+                localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
+                return;
+            }
             renderGoals();
             showToast('已删除', 'success');
         }
@@ -8349,10 +8537,10 @@ function renderBudgetCheckup() {
                 return `
                     <div class="income-detail-item">
                         <div class="income-detail-left">
-                            <div class="income-type-badge ${badgeClass}">${type}</div>
+                            <div class="income-type-badge ${badgeClass}">${escapeHtml(type)}</div>
                             <div class="income-detail-info">
-                                <div class="income-item-name">${income.item || type}</div>
-                                <div class="income-item-date">${income.date}</div>
+                                <div class="income-item-name">${escapeHtml(income.item || type)}</div>
+                                <div class="income-item-date">${escapeHtml(income.date)}</div>
                             </div>
                         </div>
                         <div class="income-detail-right">
@@ -8370,8 +8558,14 @@ function renderBudgetCheckup() {
         async function deleteIncome(id) {
             if (!confirm('确定删除这条收入记录？')) return;
             
+            const oldIncomes = incomes.slice();
             incomes = incomes.filter(i => i.id !== id);
             await deleteIncomeFromCloud(id);
+            if (document.getElementById('syncStatus')?.classList.contains('error')) {
+                incomes = oldIncomes;
+                localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
+                return;
+            }
             localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
             renderIncomeTable();
             showToast('已删除', 'success');
@@ -8390,7 +8584,7 @@ function renderBudgetCheckup() {
                     <h3 style="margin-bottom: 20px;">📝 编辑收入记录</h3>
                     <div class="form-group">
                         <label>日期</label>
-                        <input type="date" id="editIncomeDate" value="${income.date}" class="form-input">
+                        <input type="date" id="editIncomeDate" value="${escapeHtml(income.date)}" class="form-input">
                     </div>
                     <div class="form-group">
                         <label>类型</label>
@@ -8403,11 +8597,11 @@ function renderBudgetCheckup() {
                     </div>
                     <div class="form-group">
                         <label>备注</label>
-                        <input type="text" id="editIncomeItem" value="${income.item || ''}" class="form-input" placeholder="如：1月工资">
+                        <input type="text" id="editIncomeItem" value="${escapeHtml(income.item || '')}" class="form-input" placeholder="如：1月工资">
                     </div>
                     <div class="form-group">
                         <label>金额</label>
-                        <input type="number" id="editIncomeAmount" value="${income.amount}" class="form-input" step="0.01">
+                        <input type="number" id="editIncomeAmount" value="${escapeHtml(income.amount)}" class="form-input" step="0.01">
                     </div>
                     <div style="display: flex; gap: 10px; margin-top: 20px;">
                         <button onclick="saveIncomeEdit('${id}')" class="btn btn-primary" style="flex: 1;">保存</button>
@@ -8420,8 +8614,8 @@ function renderBudgetCheckup() {
         
         async function saveIncomeEdit(id) {
             const date = document.getElementById('editIncomeDate').value;
-            const type = document.getElementById('editIncomeType').value;
-            const item = document.getElementById('editIncomeItem').value;
+            const type = cleanText(document.getElementById('editIncomeType').value, 40);
+            const item = cleanText(document.getElementById('editIncomeItem').value, 160);
             const amount = parseFloat(document.getElementById('editIncomeAmount').value);
             
             if (!date || isNaN(amount)) {
@@ -8431,12 +8625,20 @@ function renderBudgetCheckup() {
             
             const index = incomes.findIndex(i => i.id === id);
             if (index !== -1) {
+                const previous = { ...incomes[index] };
                 incomes[index] = { ...incomes[index], date, type, item, amount };
                 localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
                 // 同步到云端
                 try {
-                    await db.from('incomes').update({ date, type, item, amount }).eq('id', id);
-                } catch (e) { console.error('收入编辑同步失败:', e); showToast('收入编辑同步失败', 'error'); }
+                    await checkedSupabase(db.from('incomes').update({ date, type, item, amount }).eq('id', id), '编辑收入记录');
+                } catch (e) {
+                    incomes[index] = previous;
+                    localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
+                    console.error('收入编辑同步失败:', e);
+                    setSyncStatus('error');
+                    showToast('收入编辑同步失败', 'error');
+                    return;
+                }
                 renderIncomeTable();
                 closeIncomeEditModal();
                 showToast('已保存', 'success');
@@ -8483,8 +8685,17 @@ function renderBudgetCheckup() {
             if (amount > 0) {
                 if (existingIndex !== -1) {
                     // 更新现有记录
+                    const oldAmount = incomes[existingIndex].amount;
                     incomes[existingIndex].amount = amount;
-                    try { await db.from('incomes').update({ amount }).eq('id', incomes[existingIndex].id); } catch(e) { console.error('收入同步失败:', e); showToast('收入同步失败', 'error'); }
+                    try {
+                        await checkedSupabase(db.from('incomes').update({ amount }).eq('id', incomes[existingIndex].id), '更新月收入');
+                    } catch(e) {
+                        incomes[existingIndex].amount = oldAmount;
+                        console.error('收入同步失败:', e);
+                        setSyncStatus('error');
+                        showToast('收入同步失败', 'error');
+                        return;
+                    }
                 } else {
                     // 新增记录
                     const income = {
@@ -8623,8 +8834,8 @@ function renderBudgetCheckup() {
             if (!el) return;
             el.innerHTML = ASSET_TYPES.map(t => `
                 <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--gray-200);">
-                    <span style="flex:1;font-size:13px;font-weight:500;">${t.icon || ''} ${t.name}</span>
-                    <select data-typeid="${t.id}" style="padding:4px 8px;border-radius:var(--r-md);border:1px solid var(--gray-300);font-size:13px;color:var(--gray-800);">
+                    <span style="flex:1;font-size:13px;font-weight:500;">${escapeHtml(t.icon || '')} ${escapeHtml(t.name)}</span>
+                    <select data-typeid="${escapeHtml(t.id)}" style="padding:4px 8px;border-radius:var(--r-md);border:1px solid var(--gray-300);font-size:13px;color:var(--gray-800);">
                         ${['liquid','invest','property','debt'].map(b =>
                             `<option value="${b}" ${bucketOf(t.id) === b ? 'selected' : ''}>${BUCKET_LABELS[b]}</option>`
                         ).join('')}
@@ -9187,8 +9398,8 @@ function renderBudgetCheckup() {
                         const pct = totalAssets > 0 ? Math.round(a.value / totalAssets * 100) : 0;
                         return `<div class="detail-item" onclick="showUpdateAssets()">
                             <div>
-                                <div class="detail-item__name">${a.icon || ''} ${a.name}</div>
-                                <div class="detail-item__sub">${a.typeName}</div>
+                                <div class="detail-item__name">${escapeHtml(a.icon || '')} ${escapeHtml(a.name)}</div>
+                                <div class="detail-item__sub">${escapeHtml(a.typeName)}</div>
                             </div>
                             <div>
                                 <div class="detail-item__value">${fmt(a.value || 0)}</div>
@@ -9358,16 +9569,17 @@ function renderBudgetCheckup() {
         function renderAssetTypesManager() {
             let html = '';
             ASSET_TYPES.forEach((type, typeIndex) => {
+                const color = safeInlineStyleColor(type.color);
                 html += `
-                    <div class="asset-type-section" style="margin-bottom: 20px; padding: 15px; background: ${type.color}15; border-radius: 12px; border-left: 4px solid ${type.color};">
+                    <div class="asset-type-section" style="margin-bottom: 20px; padding: 15px; background: ${color}15; border-radius: 12px; border-left: 4px solid ${color};">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <span style="font-weight: 700; font-size: 15px;">${type.icon} ${type.name}</span>
-                            <button class="btn btn-sm" style="background: ${type.color}; color: white; font-size: 12px; padding: 4px 10px;" onclick="addAssetItem(${typeIndex})">+ 添加子类</button>
+                            <span style="font-weight: 700; font-size: 15px;">${escapeHtml(type.icon)} ${escapeHtml(type.name)}</span>
+                            <button class="btn btn-sm" style="background: ${color}; color: white; font-size: 12px; padding: 4px 10px;" onclick="addAssetItem(${typeIndex})">+ 添加子类</button>
                         </div>
                         <div class="asset-items-list">
                             ${type.items.map((item, itemIndex) => `
                                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: white; border-radius: 8px; margin-bottom: 6px;">
-                                    <span>${item.icon} ${item.name}</span>
+                                    <span>${escapeHtml(item.icon)} ${escapeHtml(item.name)}</span>
                                     <button class="btn btn-sm" style="background: #f56565; color: white; font-size: 11px; padding: 3px 8px;" onclick="removeAssetItem(${typeIndex}, ${itemIndex})">删除</button>
                                 </div>
                             `).join('')}
@@ -9505,8 +9717,8 @@ function renderBudgetCheckup() {
                     const asset = assets.find(a => a.id === item.id);
                     const val = asset ? (asset.value || 0) : 0;
                     formHtml += `<div class="snapshot-input-row">
-                        <label>${item.icon || ''} ${item.name}<span style="font-size:11px;color:var(--gray-500);margin-left:4px;">${type.name}</span></label>
-                        <input type="number" id="asset_${item.id}" value="${val}" placeholder="0" step="0.01" min="0"
+                        <label>${escapeHtml(item.icon || '')} ${escapeHtml(item.name)}<span style="font-size:11px;color:var(--gray-500);margin-left:4px;">${escapeHtml(type.name)}</span></label>
+                        <input type="number" id="asset_${escapeHtml(item.id)}" value="${escapeHtml(val)}" placeholder="0" step="0.01" min="0"
                                onfocus="this.select()"
                                onblur="if(this.value==='')this.value=0;">
                     </div>`;
