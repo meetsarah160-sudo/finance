@@ -2956,6 +2956,7 @@
         <input type="email" id="loginEmail" placeholder="邮箱" autocomplete="email">
         <input type="password" id="loginPassword" placeholder="密码" autocomplete="current-password">
         <button class="login-btn" id="loginBtn" onclick="login()">🚀 登录</button>
+        <button class="login-btn" style="margin-top: 10px; background: var(--gray-600);" onclick="requestPasswordReset()">忘记密码？发送重置邮件</button>
         <div class="tip">
             🔒 服务器端身份验证 · 数据按 owner 隔离
         </div>
@@ -6676,6 +6677,113 @@ function renderBudgetCheckup() {
         }
         
         // ==================== 账户安全 ====================
+        function getPasswordResetRedirectUrl() {
+            return window.location.origin + window.location.pathname;
+        }
+
+        async function requestPasswordReset(emailOverride = '') {
+            const email = (emailOverride || document.getElementById('loginEmail')?.value || '').trim();
+            if (!email) {
+                showToast('请输入邮箱后再发送重置邮件', 'error');
+                return;
+            }
+
+            try {
+                const { error } = await db.auth.resetPasswordForEmail(email, {
+                    redirectTo: getPasswordResetRedirectUrl()
+                });
+                if (error) {
+                    showToast('发送失败：' + error.message, 'error');
+                    return;
+                }
+                showToast('重置邮件已发送，请打开邮件里的链接设置新密码', 'success');
+            } catch (error) {
+                console.error('发送重置邮件失败:', error);
+                showToast('发送失败：' + (error.message || ''), 'error');
+            }
+        }
+
+        async function requestPasswordResetForCurrentUser() {
+            try {
+                const { data: sessData, error: sessErr } = await db.auth.getSession();
+                if (sessErr) throw sessErr;
+
+                const email = sessData?.session?.user?.email;
+                if (!email) {
+                    showToast('未获取到当前登录邮箱，请在登录页输入邮箱后重试', 'error');
+                    return;
+                }
+
+                await requestPasswordReset(email);
+                closePasswordModal();
+            } catch (error) {
+                console.error('发送当前用户重置邮件失败:', error);
+                showToast('发送失败：' + (error.message || ''), 'error');
+            }
+        }
+
+        function showRecoveryPasswordModal() {
+            if (document.getElementById('recoveryPasswordModal')) return;
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'recoveryPasswordModal';
+            modal.innerHTML = `
+                <div class="modal">
+                    <h3>🔑 设置新密码</h3>
+                    <div class="form-group">
+                        <label>新密码</label>
+                        <input type="password" id="recoveryNewPassword" placeholder="输入新密码（至少6位）">
+                    </div>
+                    <div class="form-group">
+                        <label>确认新密码</label>
+                        <input type="password" id="recoveryNewPassword2" placeholder="再次输入新密码">
+                    </div>
+                    <div class="modal-buttons">
+                        <button class="btn btn-outline" onclick="closeRecoveryPasswordModal()">稍后再说</button>
+                        <button class="btn btn-primary" onclick="finishPasswordRecovery()">保存新密码</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function closeRecoveryPasswordModal() {
+            document.getElementById('recoveryPasswordModal')?.remove();
+        }
+
+        async function finishPasswordRecovery() {
+            const newPwd = document.getElementById('recoveryNewPassword').value;
+            const newPwd2 = document.getElementById('recoveryNewPassword2').value;
+
+            if (newPwd.length < 6) { showToast('新密码至少 6 位（Supabase 要求）', 'error'); return; }
+            if (newPwd !== newPwd2) { showToast('两次新密码不一致', 'error'); return; }
+
+            try {
+                const { data: sessData, error: sessErr } = await db.auth.getSession();
+                if (sessErr) throw sessErr;
+                if (!sessData?.session) {
+                    showToast('重置链接已失效，请重新发送重置邮件', 'error');
+                    return;
+                }
+
+                const { error: updErr } = await db.auth.updateUser({ password: newPwd });
+                if (updErr) {
+                    showToast('设置失败：' + updErr.message, 'error');
+                    return;
+                }
+
+                if (sessData.session.user?.id) authUserId = sessData.session.user.id;
+                closeRecoveryPasswordModal();
+                history.replaceState(null, document.title, getPasswordResetRedirectUrl());
+                showToast('新密码设置成功', 'success');
+                await afterAuthEnterProfilePicker();
+            } catch (error) {
+                console.error('设置新密码失败:', error);
+                showToast('设置失败：' + (error.message || ''), 'error');
+            }
+        }
+
         function showChangePassword() {
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -6695,6 +6803,7 @@ function renderBudgetCheckup() {
                         <label>确认新密码</label>
                         <input type="password" id="newPassword2" placeholder="再次输入新密码">
                     </div>
+                    <button class="btn btn-outline" style="width: 100%; margin-top: 8px;" onclick="requestPasswordResetForCurrentUser()">忘记当前密码？通过邮箱重置</button>
                     <div class="modal-buttons">
                         <button class="btn btn-outline" onclick="closePasswordModal()">取消</button>
                         <button class="btn btn-primary" onclick="changePassword()">确认修改</button>
@@ -6709,8 +6818,7 @@ function renderBudgetCheckup() {
         }
         
         async function changePassword() {
-            // 旧密码字段不再使用（Supabase Auth 不要求原密码即可改）
-            // 但用户已熟悉这个 UI，保留 oldPassword 作为简单确认
+            // 常规改密需要先用旧密码重新登录一次，忘记旧密码时请走邮件重置。
             const oldPwd = document.getElementById('oldPassword').value;
             const newPwd = document.getElementById('newPassword').value;
             const newPwd2 = document.getElementById('newPassword2').value;
@@ -10331,6 +10439,14 @@ function renderBudgetCheckup() {
             localStorage.removeItem('finance_session');
             localStorage.removeItem('finance_passwords');
 
+            const isRecoveryUrl = window.location.hash.includes('type=recovery') || window.location.search.includes('type=recovery');
+            db.auth.onAuthStateChange((event, session) => {
+                if (event === 'PASSWORD_RECOVERY') {
+                    if (session?.user?.id) authUserId = session.user.id;
+                    setTimeout(showRecoveryPasswordModal, 0);
+                }
+            });
+
             try {
                 const { data: sessData, error: sessErr } = await db.auth.getSession();
                 if (sessErr) throw sessErr;
@@ -10338,6 +10454,11 @@ function renderBudgetCheckup() {
 
                 if (session && session.user?.id) {
                     authUserId = session.user.id;
+                    if (isRecoveryUrl) {
+                        showRecoveryPasswordModal();
+                        console.log('进入密码恢复模式:', session.user.email);
+                        return;
+                    }
                     await afterAuthEnterProfilePicker();
                     console.log('自动登录成功:', session.user.email);
                 }
