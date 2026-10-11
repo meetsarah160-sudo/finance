@@ -11,7 +11,7 @@ function harness(overrides = {}) {
   const writes=[], toasts=[], cache=new Map();let failure=false;
   const db={from(table){let op='select',payload,filters=[],range;const query={
     select(){return query;},eq(k,v){filters.push(r=>r[k]===v);return query;},is(k,v){filters.push(r=>r[k]===v);return query;},order(){return query;},range(a,b){range=[a,b];return query;},
-    update(p){op='update';payload=p;return query;},insert(p){op='insert';payload=p;return query;},delete(){op='delete';return query;},
+    upsert(p){op='upsert';payload=p;return query;},update(p){op='update';payload=p;return query;},insert(p){op='insert';payload=p;return query;},delete(){op='delete';return query;},
     maybeSingle(){return resolve(true);},single(){return resolve(true);},then(a,b){return resolve(false).then(a,b);}
   };async function resolve(single){
     if(failure)return {error:{message:'simulated network failure'}};
@@ -19,10 +19,11 @@ function harness(overrides = {}) {
     if(op!=='select'){
       writes.push({table,op,payload:clone(payload||{})});
       if(op==='update')rows.forEach(r=>Object.assign(r,clone(payload),{updated_at:new Date().toISOString()}));
+      if(op==='upsert'){const old=tables[table].find(r=>r.id===payload.id);if(old)rows=[];else {const r=clone(payload);tables[table].push(r);rows=[r];}}
       if(op==='insert'){const r={id:crypto.randomUUID(),...clone(payload)};tables[table].push(r);rows=[r];}
     }
     if(range)rows=rows.slice(range[0],range[1]+1);
-    if(single && rows.length!==1)return {data:null,error:rows.length?{message:'multiple rows'}:op==='select'?null:{message:'conflict: no matching revision'}};
+    if(single && rows.length!==1)return {data:null,error:rows.length?{message:'multiple rows'}:(op==='select'||op==='upsert')?null:{message:'conflict: no matching revision'}};
     return {data:clone(single?rows[0]:rows),error:null};
   }return query;}};
   const elem={value:'',style:{},classList:{add(){},remove(){},contains(){return false;}},addEventListener(){},getContext(){return {}},options:[]};
@@ -41,7 +42,18 @@ test('failed load cannot save empty configuration',async()=>{const h=harness();h
 test('config writes are serialized with revision returned by each update',async()=>{const h=harness();await h.run('loadDataFromCloud()');const results=await h.run(`Promise.all([syncAllToCloud(),syncAllToCloud()])`);assert.deepEqual(Array.from(results),[true,true]);});
 test('refresh failure does not show sync success',async()=>{const h=harness();await h.run('loadDataFromCloud()');h.setFailure(true);await h.run('syncData()');assert.ok(!h.toasts.some(t=>t.m==='已从云端刷新'));});
 test('local date does not use the previous UTC calendar date',()=>{const h=harness();assert.equal(h.run(`localDateString(new Date(2026,9,11,0,1))`),'2026-10-11');});
-test('default asset groups preserve investment classification',()=>{const h=harness();assert.equal(h.run('bucketOf("invest")'),'invest');assert.equal(h.run('bucketOf("protect")'),'invest');assert.equal(h.run('BUCKET_MAP.invest="invalid";bucketOf("invest")'),'liquid');});
+test('default asset groups preserve investment classification',()=>{const h=harness();assert.equal(h.run('bucketOf("invest")'),'invest');assert.equal(h.run('bucketOf("protect")'),'invest');assert.equal(h.run('BUCKET_MAP.invest="invalid";bucketOf("invest")'),'invest');});
 test('net worth subtracts positive debt balances',()=>{const h=harness();h.run('BUCKET_MAP.loan="debt";assets=[{typeId:"liquid",value:1000},{typeId:"loan",value:300}]');assert.equal(h.run('assetTotals().net'),700);assert.equal(h.run('assetTotals().gross'),1000);});
 test('category deletion cannot break historical references',async()=>{const h=harness();await h.run('loadDataFromCloud()');h.run('categories=[{id:1,name:"used"},{id:9,name:"unused"},{id:12,name:"keep"}];expenses=[{categoryId:1}]');await h.run('deleteCategory(0)');assert.equal(h.run('categories.length'),3);h.run('renderSettings=renderCategoryGrid=renderBudgetTip=renderBudgetStatus=()=>{}');await h.run('deleteCategory(1)');assert.equal(h.run('categories[1].id'),12);});
 test('editing legacy income updates the authoritative config',async()=>{const h=harness();await h.run('loadDataFromCloud()');h.run('renderIncomeTable=closeIncomeEditModal=()=>{};document.getElementById=id=>({value:({editIncomeDate:"2026-03-01",editIncomeType:"工资",editIncomeItem:"edited",editIncomeAmount:"123"})[id]})');await h.run('saveIncomeEdit("old-income")');await h.run('loadDataFromCloud()');assert.equal(h.run('incomes[0].amount'),123);assert.equal(h.run('incomes[0].item'),'edited');});
+
+function importFixture(){return {version:'v5',user:'test',categories:[{id:1,name:'food',type:'日常',yearly:100}],expenses:[],incomes:[],goals:[],assets:[],assetHistory:[],assetTypes:[],monthlyExpenseOverrides:{},bucketMap:{}};}
+test('receivables are in net worth but never available cash',()=>{const h=harness();h.run('assets=[{typeId:"liquid",value:100},{typeId:"pending",value:900},{typeId:"other",value:30}]');assert.equal(h.run('assetTotals().net'),1030);assert.equal(h.run('assetBuckets().liquid'),100);assert.equal(h.run('assetBuckets().receivable'),930);});
+test('missing months suppress averages instead of assuming zero',()=>{const h=harness();h.run('expenses=[{date:"2026-09-01",amount:600}];incomes=[{date:"2026-09-01",amount:1200}]');assert.equal(h.run('cashflowWindow(new Date(2026,9,11)).avgExp'),null);assert.equal(h.run('cashflowWindow(new Date(2026,9,11)).missing.length'),5);});
+test('shared six-month window excludes partial current month',()=>{const h=harness();h.run('expenses=[];incomes=[];for(let m=4;m<=9;m++){expenses.push({date:`2026-${String(m).padStart(2,"0")}-01`,amount:100});incomes.push({date:`2026-${String(m).padStart(2,"0")}-01`,amount:200});}expenses.push({date:"2026-10-01",amount:9999})');assert.equal(h.run('cashflowWindow(new Date(2026,9,11)).avgExp'),100);assert.equal(h.run('cashflowWindow(new Date(2026,9,11)).avgInc'),200);});
+test('validates every imported row before any write',()=>{const h=harness();const fixture=importFixture();fixture.expenses=[{date:'2026-10-01',item:'ok',amount:1,categoryId:1},{date:'2026-02-30',item:'bad',amount:2,categoryId:1}];assert.throws(()=>h.run(`validateBackup(${JSON.stringify(fixture)},true)`),/第 2 条/);assert.equal(h.writes.length,0);});
+test('append deduplicates within file and preserves existing records',()=>{const h=harness();const base=importFixture();const row={id:1,date:'2026-10-01',item:'new',amount:10,categoryId:1,type:'日常'};const data={user:'test',expenses:[row,row]};const plan=h.run(`buildImportPlan(${JSON.stringify(data)},${JSON.stringify(base)},'追加')`);assert.equal(plan.result.expenses.length,1);assert.match(plan.result.expenses[0].id,/^[0-9a-f-]{36}$/);});
+test('partial overwrite and foreign profile imports fail closed',()=>{const h=harness();const base=JSON.stringify(importFixture());assert.throws(()=>h.run(`buildImportPlan({expenses:[]},${base},'覆盖')`),/categories/);assert.throws(()=>h.run(`buildImportPlan({user:'other'},${base},'追加')`),/其他账本/);});
+test('category ID collision fails rather than misclassifying expenses',()=>{const h=harness();assert.throws(()=>h.run(`buildImportPlan({categories:[{id:1,name:'rent',yearly:1}]},${JSON.stringify(importFixture())},'追加')`),/不同名称/);});
+test('expense retry uses same ID and inserts exactly once',async()=>{const h=harness();await h.run('loadDataFromCloud()');h.run('expenses=[{id:123,date:"2026-10-11",item:"retry",amount:1,categoryId:1}];');assert.equal(await h.run('saveExpenseToCloud(expenses[0])'),true);const id=h.run('expenses[0].id');assert.equal(await h.run('saveExpenseToCloud(expenses[0])'),true);assert.equal(h.tables.expenses.length,1);assert.equal(h.run('expenses[0].id'),id);});
+test('category reset refuses to invalidate historical references',async()=>{const h=harness();h.run('categories=[{id:999,name:"custom",yearly:100}];expenses=[{categoryId:999,categoryName:"custom"}]');await h.run('resetToDefaultCategories()');assert.equal(h.run('categories[0].id'),999);assert.equal(h.writes.length,0);});
