@@ -1037,7 +1037,7 @@
         
         .category-setting-item {
             display: grid;
-            grid-template-columns: 40px 1fr 100px 80px 50px;
+            grid-template-columns: 40px minmax(0, 1fr) 100px 80px 50px;
             gap: 10px;
             align-items: center;
             padding: 10px;
@@ -1048,12 +1048,17 @@
         
         @media (max-width: 600px) {
             .category-setting-item {
-                grid-template-columns: 30px 1fr 80px 70px 40px;
+                grid-template-columns: 24px minmax(0, 1fr) 64px 64px 32px;
                 gap: 5px;
                 font-size: 12px;
             }
         }
         
+        .category-setting-item input, .category-setting-item select {
+            min-width: 0;
+            width: 100%;
+        }
+
         .category-setting-item input {
             padding: 8px;
             border: 1px solid var(--gray-300);
@@ -3693,6 +3698,28 @@
         let goals = [];
         let assets = [];
         let assetHistory = []; // 资产历史记录
+        let configRevision = null;
+        let configLoadedFor = null;
+        let configSyncQueue = Promise.resolve();
+        let configSyncPending = 0;
+        const APP_VERSION = '2026.10.11.1';
+
+        function localDateString(date = new Date()) {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+
+        function configPayload() {
+            return JSON.parse(JSON.stringify({
+                categories, assets_data: assets, asset_history: assetHistory,
+                asset_types: ASSET_TYPES, expense_overrides: monthlyExpenseOverrides,
+                incomes_data: incomes, goals_data: goals, bucket_map: BUCKET_MAP
+            }));
+        }
+
+        function rememberConfigRevision(row) {
+            configRevision = row ? { id: row.id, updated_at: row.updated_at } : null;
+        }
+
         let BUCKET_MAP = {}; // { typeId: 'liquid'|'invest'|'property'|'debt' }
         let selectedCategory = null;
         let expandedCategories = new Set();
@@ -3942,6 +3969,8 @@
         
         function setSyncStatus(status) {
             const el = document.getElementById('syncStatus');
+            if (status === 'synced' && (expenses.some(e => typeof e.id === 'number') ||
+                localStorage.getItem('finance_pending_config_' + currentUser))) status = 'error';
             if (status === 'synced') {
                 el.className = 'sync-status synced';
                 el.textContent = '✓ 已同步';
@@ -4101,6 +4130,7 @@
         }
 
         async function selectProfile(profile) {
+            await configSyncQueue;
             currentUser = profile;
             localStorage.setItem('finance_last_profile', profile);
             const display = document.getElementById('displayUser');
@@ -4146,6 +4176,7 @@
         }
 
         async function logoutFromProfilePage() {
+            await configSyncQueue;
             try { await db.auth.signOut(); } catch {}
             authUserId = null;
             currentUser = null;
@@ -4170,6 +4201,7 @@
         }
 
         async function logout() {
+            await configSyncQueue;
             try { await db.auth.signOut(); } catch {}
             authUserId = null;
             currentUser = null;
@@ -4186,311 +4218,125 @@
         
         // ==================== 数据加载/保存 ====================
         async function loadDataFromCloud() {
+            await configSyncQueue;
+            const profile = currentUser;
+            configLoadedFor = null;
             setSyncStatus('syncing');
-            
             try {
-                // 加载用户配置（包含类目、资产等所有数据）
-                const { data: configData } = await checkedSupabase(db
-                    .from('user_configs')
-                    .select('*')  // 获取所有字段
-                    .eq('user_id', currentUser)
-                    .maybeSingle(), '加载用户配置');
-                
-                if (configData) {
-                    // 加载类目 - 优先云端，其次本地，最后默认
-                    if (configData.categories && configData.categories.length > 0) {
-                        categories = configData.categories;
-                        console.log('✅ 从云端加载类目:', categories.length, '个');
-                    } else {
-                        // 云端为空，尝试本地备份
-                        const localCat = localStorage.getItem('finance_categories_' + currentUser);
-                        if (localCat) {
-                            const parsedCat = safeParse(localCat, null);
-                            if (parsedCat && parsedCat.length > 0) {
-                                categories = parsedCat;
-                                console.log('⚠️ 云端类目为空，使用本地备份:', categories.length, '个');
-                                // 同步本地数据到云端
-                                await saveCategoriesToCloud();
-                            } else {
-                                categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-                                console.log('⚠️ 本地类目也为空，使用默认类目');
-                            }
-                        } else {
-                            categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-                            console.log('⚠️ 无本地备份，使用默认类目');
-                        }
-                    }
-                    
-                    // 🔥 加载云端资产数据（优先使用云端）
-                    if (configData.assets_data && configData.assets_data.length > 0) {
-                        assets = configData.assets_data;
-                        localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
-                        console.log('✅ 从云端加载资产数据:', assets.length, '条');
-                    } else {
-                        assets = safeParse('finance_assets_' + currentUser, []);
-                    }
-
-                    // 🔥 加载云端资产历史
-                    if (configData.asset_history && configData.asset_history.length > 0) {
-                        assetHistory = configData.asset_history;
-                        localStorage.setItem('finance_asset_history_' + currentUser, JSON.stringify(assetHistory));
-                        console.log('✅ 从云端加载资产历史:', assetHistory.length, '条');
-                    } else {
-                        assetHistory = safeParse('finance_asset_history_' + currentUser, []);
-                    }
-
-                    // 🔥 加载云端资产类型配置
-                    if (configData.asset_types && configData.asset_types.length > 0) {
-                        ASSET_TYPES = configData.asset_types;
-                        localStorage.setItem('finance_asset_types_' + currentUser, JSON.stringify(ASSET_TYPES));
-                        console.log('✅ 从云端加载资产类型配置');
-                    } else {
-                        const savedAssetTypes = localStorage.getItem('finance_asset_types_' + currentUser);
-                        if (savedAssetTypes) {
-                            ASSET_TYPES = safeParse(savedAssetTypes, JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
-                        }
-                    }
-
-                    // 🔥 加载云端月度支出覆盖
-                    if (configData.expense_overrides && Object.keys(configData.expense_overrides).length > 0) {
-                        monthlyExpenseOverrides = configData.expense_overrides;
-                        localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
-                        console.log('✅ 从云端加载月度支出覆盖');
-                    } else {
-                        monthlyExpenseOverrides = safeParse('finance_expense_overrides_' + currentUser, {});
-                    }
-
-                    // 🔥 加载云端四笔钱分组配置
-                    if (configData.bucket_map && Object.keys(configData.bucket_map).length > 0) {
-                        BUCKET_MAP = configData.bucket_map;
-                        localStorage.setItem('finance_bucket_map_' + currentUser, JSON.stringify(BUCKET_MAP));
-                        console.log('✅ 从云端加载资产分组配置');
-                    } else {
-                        BUCKET_MAP = safeParse('finance_bucket_map_' + currentUser, { ...BUCKET_DEFAULTS });
-                    }
-                } else {
-                    // 云端没有配置，优先使用本地备份
-                    console.log('⚠️ 云端无user_configs数据');
-                    const localCat = localStorage.getItem('finance_categories_' + currentUser);
-                    if (localCat) {
-                        const parsedCat = safeParse(localCat, null);
-                        if (parsedCat && parsedCat.length > 0) {
-                            categories = parsedCat;
-                            console.log('⚠️ 使用本地类目备份:', categories.length, '个');
-                        } else {
-                            categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-                        }
-                    } else {
-                        categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-                    }
-                    // 加载其他本地数据
-                    assets = safeParse('finance_assets_' + currentUser, []);
-                    assetHistory = safeParse('finance_asset_history_' + currentUser, []);
-                    monthlyExpenseOverrides = safeParse('finance_expense_overrides_' + currentUser, {});
-                    const savedAssetTypes = localStorage.getItem('finance_asset_types_' + currentUser);
-                    if (savedAssetTypes) ASSET_TYPES = safeParse(savedAssetTypes, JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
-                    
-                    // 同步到云端（只有确认有数据才同步）
-                    if (categories.length > 0) {
-                        await saveCategoriesToCloud();
-                    }
-                }
-                
-                // 加载支出
-                const expenseData = await fetchAllRows(
-                    () => db
-                        .from('expenses')
-                        .select('*')
-                        .eq('user_id', currentUser)
-                        .order('date', { ascending: false }),
-                    '加载支出记录'
-                );
-
-                if (expenseData && expenseData.length > 0) {
-                    expenses = expenseData.map(e => ({
-                        id: e.id,
-                        date: e.date,
-                        item: e.item,
-                        amount: parseFloat(e.amount),
-                        categoryId: e.category_id,
-                        categoryName: e.category_name,
-                        type: e.type
-                    }));
-                } else {
-                    expenses = [];
-                }
-
-                // 检查 localStorage 中是否有未同步到云端的记录（ID 为整数表示未同步）
-                const localExpenses = safeParse('finance_expenses_' + currentUser, []);
+                const { data: config } = await checkedSupabase(db.from('user_configs')
+                    .select('*').eq('user_id', profile).maybeSingle(), '加载用户配置');
+                const [rows, legacyIncomes, legacyGoals] = await Promise.all([
+                    fetchAllRows(() => db.from('expenses').select('*').eq('user_id', profile)
+                        .order('date', { ascending: false }).order('id'), '加载支出记录'),
+                    Array.isArray(config?.incomes_data) ? [] : fetchAllRows(
+                        () => db.from('incomes').select('*').eq('user_id', profile).order('id'), '加载旧版收入'),
+                    Array.isArray(config?.goals_data) ? [] : fetchAllRows(
+                        () => db.from('goals').select('*').eq('user_id', profile).order('id'), '加载旧版目标')
+                ]);
+                if (profile !== currentUser) return false;
+                categories = Array.isArray(config?.categories) ? config.categories : JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                assets = Array.isArray(config?.assets_data) ? config.assets_data : [];
+                assetHistory = Array.isArray(config?.asset_history) ? config.asset_history : [];
+                ASSET_TYPES = Array.isArray(config?.asset_types) ? config.asset_types : JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES));
+                monthlyExpenseOverrides = config?.expense_overrides || {};
+                BUCKET_MAP = config?.bucket_map || {};
+                incomes = Array.isArray(config?.incomes_data) ? config.incomes_data : legacyIncomes.map(i => ({
+                    id: i.id, date: i.date, item: i.item, amount: Number(i.amount), type: i.type
+                }));
+                goals = Array.isArray(config?.goals_data) ? config.goals_data : legacyGoals.map(g => ({
+                    id: g.id, name: g.name, targetAmount: Number(g.target_amount),
+                    currentAmount: Number(g.current_amount || 0), deadline: g.deadline
+                }));
+                expenses = rows.map(e => ({ id: e.id, date: e.date, item: e.item, amount: Number(e.amount),
+                    categoryId: e.category_id, categoryName: e.category_name, type: e.type }));
                 const cloudIds = new Set(expenses.map(e => String(e.id)));
-                const unsynced = localExpenses.filter(e => !cloudIds.has(String(e.id)) && typeof e.id === 'number');
-                if (unsynced.length > 0) {
-                    console.log(`🔄 发现 ${unsynced.length} 条本地未同步记录，正在上传...`);
-                    const uploadData = unsynced.map(expenseToCloudRow);
-                    try {
-                        const inserted = await insertRowsInChunks('expenses', uploadData, '上传本地未同步记录', { selectInserted: true });
-                        if (inserted && inserted.length > 0) {
-                            const newRecords = inserted.map(e => ({
-                                id: e.id,
-                                date: e.date,
-                                item: e.item,
-                                amount: parseFloat(e.amount),
-                                categoryId: e.category_id,
-                                categoryName: e.category_name,
-                                type: e.type
-                            }));
-                            expenses = [...expenses, ...newRecords].sort((a, b) => new Date(b.date) - new Date(a.date));
-                            localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
-                            showToast(`✅ 已同步 ${inserted.length} 条历史记录到云端`, 'success');
-                            console.log(`✅ 成功上传 ${inserted.length} 条未同步记录`);
-                        }
-                    } catch (uploadErr) {
-                        console.error('历史记录上传失败:', uploadErr);
-                        // 上传失败时，仍将本地未同步记录合并到内存，保证显示完整
-                        expenses = [...expenses, ...unsynced].sort((a, b) => new Date(b.date) - new Date(a.date));
-                    }
-                }
-                
-                // 加载收入：优先 incomes 表，其次 user_configs.incomes_data，最后 localStorage
-                let incomesLoaded = false;
-                try {
-                    const incomeData = await fetchAllRows(
-                        () => db
-                            .from('incomes')
-                            .select('*')
-                            .eq('user_id', currentUser)
-                            .order('date', { ascending: false }),
-                        '加载收入记录'
-                    );
-
-                    if (incomeData && incomeData.length > 0) {
-                        incomes = incomeData.map(i => ({
-                            id: i.id,
-                            date: i.date,
-                            item: i.item,
-                            amount: parseFloat(i.amount),
-                            type: i.type
-                        }));
-                        incomesLoaded = true;
-                        console.log('✅ 从 incomes 表加载收入:', incomes.length, '条');
-                    }
-                } catch (e) {
-                    console.log('incomes 表不可用，尝试从 user_configs 加载');
-                }
-                // 如果 incomes 表没有数据，从 user_configs 读取
-                if (!incomesLoaded && configData && configData.incomes_data && configData.incomes_data.length > 0) {
-                    incomes = configData.incomes_data;
-                    incomesLoaded = true;
-                    console.log('✅ 从 user_configs.incomes_data 加载收入:', incomes.length, '条');
-                }
-                // 最后回退到 localStorage
-                if (!incomesLoaded) {
-                    incomes = safeParse('finance_incomes_' + currentUser, []);
-                    if (incomes.length > 0) {
-                        console.log('⚠️ 使用本地收入数据:', incomes.length, '条');
-                    }
-                }
-
-                // 加载目标：优先 goals 表，其次 user_configs.goals_data，最后 localStorage
-                let goalsLoaded = false;
-                try {
-                    const goalsData = await fetchAllRows(
-                        () => db
-                            .from('goals')
-                            .select('*')
-                            .eq('user_id', currentUser),
-                        '加载目标记录'
-                    );
-
-                    if (goalsData && goalsData.length > 0) {
-                        goals = goalsData.map(g => ({
-                            id: g.id,
-                            name: g.name,
-                            targetAmount: parseFloat(g.target_amount),
-                            currentAmount: parseFloat(g.current_amount || 0),
-                            deadline: g.deadline
-                        }));
-                        goalsLoaded = true;
-                        console.log('✅ 从 goals 表加载目标:', goals.length, '条');
-                    }
-                } catch (e) {
-                    console.log('goals 表不可用，尝试从 user_configs 加载');
-                }
-                if (!goalsLoaded && configData && configData.goals_data && configData.goals_data.length > 0) {
-                    goals = configData.goals_data;
-                    goalsLoaded = true;
-                    console.log('✅ 从 user_configs.goals_data 加载目标:', goals.length, '条');
-                }
-                if (!goalsLoaded) {
-                    goals = safeParse('finance_goals_' + currentUser, []);
-                }
-                
-                // 加载月度支出覆盖值（本地存储）
-                monthlyExpenseOverrides = safeParse('finance_expense_overrides_' + currentUser, {});
-                
-                // 加载资产类型配置
-                const savedAssetTypes = localStorage.getItem('finance_asset_types_' + currentUser);
-                if (savedAssetTypes) {
-                    ASSET_TYPES = safeParse(savedAssetTypes, JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
-                }
-                
+                const pending = safeParse('finance_expenses_' + profile, []).filter(e =>
+                    typeof e.id === 'number' && !cloudIds.has(String(e.id)));
+                expenses.push(...pending);
                 normalizeFinanceData();
-                setSyncStatus('synced');
+                rememberConfigRevision(config);
+                configLoadedFor = profile;
+                saveConfigLocalBackup();
+                localStorage.setItem('finance_expenses_' + profile, JSON.stringify(expenses));
                 init();
-                
+                const hasPendingConfig = !!localStorage.getItem('finance_pending_config_' + profile);
+                setSyncStatus(pending.length || hasPendingConfig ? 'error' : 'synced');
+                if (hasPendingConfig) showToast('有上次未同步的修改，可从导出备份中找回；当前展示云端数据', 'warning');
+                return true;
             } catch (error) {
                 console.error('加载数据:', error);
-                showToast('云端数据加载失败，使用本地数据', 'warning');
-                setSyncStatus('error');
-                categories = safeParse('finance_categories_' + currentUser, null) || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-                expenses = safeParse('finance_expenses_' + currentUser, []);
-                incomes = safeParse('finance_incomes_' + currentUser, []);
-                goals = safeParse('finance_goals_' + currentUser, []);
+                if (profile !== currentUser) return false;
+                categories = safeParse('finance_categories_' + profile, JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)));
+                expenses = safeParse('finance_expenses_' + profile, []);
+                incomes = safeParse('finance_incomes_' + profile, []);
+                goals = safeParse('finance_goals_' + profile, []);
+                assets = safeParse('finance_assets_' + profile, []);
+                assetHistory = safeParse('finance_asset_history_' + profile,
+                    safeParse('finance_assets_history_' + profile, []));
+                ASSET_TYPES = safeParse('finance_asset_types_' + profile, JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
+                monthlyExpenseOverrides = safeParse('finance_expense_overrides_' + profile, {});
+                BUCKET_MAP = safeParse('finance_bucket_map_' + profile, {});
                 normalizeFinanceData();
                 init();
+                setSyncStatus('error');
+                showToast('云端加载失败，当前为本机缓存；配置修改暂不能上传', 'error');
+                return false;
             }
         }
         
         // 统一的云端同步函数 - 把所有数据保存到 user_configs 表
-        async function syncAllToCloud() {
-            setSyncStatus('syncing');
+        function syncAllToCloud() {
+            const profile = currentUser;
+            const owner = authUserId;
             normalizeFinanceData();
-            try {
-                await checkedSupabase(db.from('user_configs').upsert(withOwner({
-                    user_id: currentUser,
-                    categories: categories,
-                    assets_data: assets,
-                    asset_history: assetHistory,
-                    asset_types: ASSET_TYPES,
-                    expense_overrides: monthlyExpenseOverrides,
-                    incomes_data: incomes,
-                    goals_data: goals,
-                    bucket_map: BUCKET_MAP
-                }), { onConflict: 'user_id' }), '同步配置到云端');
-
-                // 同时保存到本地作为备份
-                saveConfigLocalBackup();
-
-                setSyncStatus('synced');
-                await autoBackupToIndexedDB('sync');
-                return true;
-            } catch (error) {
-                console.error('同步到云端失败:', error);
-                showToast('云端同步失败，数据已保存到本地', 'error');
-                setSyncStatus('error');
-                // 云端失败也保存到本地
-                saveConfigLocalBackup();
-                return false;
-            }
+            const payload = configPayload();
+            configSyncPending++;
+            const operation = configSyncQueue.then(async () => {
+                try {
+                    if (!profile || !owner || profile !== currentUser || configLoadedFor !== profile) {
+                        throw new Error('请先成功加载云端数据再保存配置');
+                    }
+                    setSyncStatus('syncing');
+                    const updatedAt = new Date().toISOString();
+                    let query;
+                    if (configRevision) {
+                        query = db.from('user_configs').update({ ...payload, updated_at: updatedAt })
+                            .eq('id', configRevision.id).eq('owner_id', owner).eq('user_id', profile);
+                        query = configRevision.updated_at == null ? query.is('updated_at', null)
+                            : query.eq('updated_at', configRevision.updated_at);
+                    } else {
+                        query = db.from('user_configs').insert({ ...payload, user_id: profile, owner_id: owner, updated_at: updatedAt });
+                    }
+                    const { data } = await checkedSupabase(query.select('id,updated_at').single(),
+                        '保存配置（若其他设备已修改，请先导出本机数据再刷新）');
+                    rememberConfigRevision(data);
+                    saveConfigLocalBackup();
+                    localStorage.removeItem('finance_pending_config_' + profile);
+                    setSyncStatus('synced');
+                    await autoBackupToIndexedDB('sync');
+                    return true;
+                } catch (error) {
+                    console.error('同步到云端失败:', error);
+                    localStorage.setItem('finance_pending_config_' + profile, JSON.stringify({ savedAt: new Date().toISOString(), ...payload }));
+                    saveConfigLocalBackup();
+                    setSyncStatus('error');
+                    showToast('未同步：' + error.message + '；本机待同步副本已保留', 'error');
+                    return false;
+                } finally {
+                    configSyncPending--;
+                }
+            });
+            configSyncQueue = operation.catch(() => false);
+            return operation;
         }
 
         async function saveCategoriesToCloud() {
-            await syncAllToCloud();
+            return syncAllToCloud();
         }
 
         // 专门保存资产数据到云端
         async function saveAssetsToCloud() {
-            await syncAllToCloud();
+            return syncAllToCloud();
         }
         
         async function saveExpenseToCloud(expense) {
@@ -4536,85 +4382,47 @@
         }
         
         async function saveIncomeToCloud(income) {
-            income.item = cleanText(income.item || '', 160);
-            income.type = cleanText(income.type || '其他', 40);
-            try {
-                const { data } = await checkedSupabase(db.from('incomes').insert(withOwner({
-                    user_id: currentUser,
-                    date: income.date,
-                    item: income.item,
-                    amount: income.amount,
-                    type: income.type
-                })).select().single(), '保存收入记录');
-
-                if (data) income.id = data.id;
-            } catch (error) {
-                console.warn('收入表保存失败，使用 user_configs 保存:', error);
-            }
-            // 同时保存到 user_configs（确保云端一定有数据）
-            await syncAllToCloud();
+            // A single cloud source prevents partial legacy tables from hiding history.
+            return syncAllToCloud();
         }
 
         async function deleteIncomeFromCloud(id) {
-            try {
-                await checkedSupabase(db.from('incomes').delete().eq('id', id), '删除收入记录');
-            } catch (error) {
-                console.warn('收入表删除失败，继续同步 user_configs:', error);
-            }
-            await syncAllToCloud();
+            // A single cloud source prevents partial legacy tables from hiding history.
+            return syncAllToCloud();
         }
 
         async function saveGoalToCloud(goal) {
-            goal.name = cleanText(goal.name, 100);
-            goal.deadline = cleanText(goal.deadline || '', 20);
-            try {
-                const { data } = await checkedSupabase(db.from('goals').insert(withOwner({
-                    user_id: currentUser,
-                    name: goal.name,
-                    target_amount: goal.targetAmount,
-                    current_amount: goal.currentAmount,
-                    deadline: goal.deadline
-                })).select().single(), '保存目标');
-
-                if (data) goal.id = data.id;
-            } catch (error) {
-                console.warn('目标表保存失败，使用 user_configs 保存:', error);
-            }
-            await syncAllToCloud();
+            // A single cloud source prevents partial legacy tables from hiding history.
+            return syncAllToCloud();
         }
 
         async function updateGoalInCloud(goal) {
-            try {
-                await checkedSupabase(db.from('goals').update({
-                    name: goal.name,
-                    target_amount: goal.targetAmount,
-                    current_amount: goal.currentAmount,
-                    deadline: goal.deadline
-                }).eq('id', goal.id), '更新目标');
-            } catch (error) {
-                console.warn('目标表更新失败，继续同步 user_configs:', error);
-            }
-            await syncAllToCloud();
+            // A single cloud source prevents partial legacy tables from hiding history.
+            return syncAllToCloud();
         }
 
         async function deleteGoalFromCloud(id) {
-            try {
-                await checkedSupabase(db.from('goals').delete().eq('id', id), '删除目标');
-            } catch (error) {
-                console.warn('目标表删除失败，继续同步 user_configs:', error);
-            }
-            await syncAllToCloud();
+            // A single cloud source prevents partial legacy tables from hiding history.
+            return syncAllToCloud();
         }
         
         async function syncData() {
-            await loadDataFromCloud();
-            showToast('同步完成', 'success');
+            // Do not replace unsaved in-memory edits with an older cloud copy.
+            if (localStorage.getItem('finance_pending_config_' + currentUser)) {
+                showToast('存在未同步修改，请先导出备份保留待同步副本，再决定如何合并', 'warning');
+                return;
+            }
+            for (const expense of expenses.filter(e => typeof e.id === 'number')) {
+                if (!await saveExpenseToCloud(expense)) return;
+            }
+            if (await loadDataFromCloud()) showToast('已从云端刷新', 'success');
         }
         
         // ==================== 导入导出 ====================
         function exportData() {
             const data = {
                 version: 'v4',
+                pendingConfig: safeParse('finance_pending_config_' + currentUser, null),
                 user: currentUser,
                 exportTime: new Date().toISOString(),
                 // 完整数据备份
@@ -4633,7 +4441,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `财务完整备份_${cleanText(currentUser, 80)}_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `财务完整备份_${cleanText(currentUser, 80)}_${localDateString()}.json`;
             a.click();
             URL.revokeObjectURL(url);
             
@@ -4674,6 +4482,7 @@
                     user: currentUser,
                     data: {
                         version: 'v4',
+                        pendingConfig: safeParse('finance_pending_config_' + currentUser, null),
                         user: currentUser,
                         exportTime: new Date().toISOString(),
                         categories, expenses, incomes, goals, assets,
@@ -4690,10 +4499,10 @@
                 await new Promise((res, rej) => {
                     const tx = idb.transaction('snapshots', 'readwrite');
                     const store = tx.objectStore('snapshots');
-                    const req = store.index('ts').getAllKeys();
+                    const req = store.getAll();
                     req.onsuccess = () => {
-                        const keys = req.result;
-                        if (keys.length > 7) keys.slice(0, keys.length - 7).forEach(k => store.delete(k));
+                        const own = req.result.filter(s => s.user === currentUser).sort((a, b) => a.ts - b.ts);
+                        if (own.length > 7) own.slice(0, own.length - 7).forEach(s => store.delete(s.id));
                     };
                     tx.oncomplete = res; tx.onerror = rej;
                 });
@@ -4758,7 +4567,7 @@
                 if (d.assetTypes) ASSET_TYPES = d.assetTypes;
                 // 支出单独写云端表：先写新数据成功，再删除旧数据，避免失败时清空云端
                 if (d.expenses) await replaceCloudExpenses(d.expenses, '恢复快照');
-                await syncAllToCloud();
+                if (!await syncAllToCloud()) throw new Error('配置恢复未完成');
                 closeAutoBackupModal();
                 showToast('快照已恢复', 'success');
                 location.reload();
@@ -4869,7 +4678,7 @@
                         if (mode === '覆盖') {
                             if (data.categories) {
                                 categories = data.categories;
-                                await saveCategoriesToCloud();
+                                if (!await saveCategoriesToCloud()) return;
                             }
                             if (data.incomes) incomes = data.incomes;
                             if (data.assets) assets = data.assets;
@@ -4915,8 +4724,8 @@
                         }
 
                         // 同步剩余配置到云端，再从云端拉一遍刷新视图
-                        await syncAllToCloud();
-                        await loadDataFromCloud();
+                        if (!await syncAllToCloud()) throw new Error('配置导入未完成');
+                        if (!await loadDataFromCloud()) throw new Error('导入后的云端校验失败');
 
                         const summary = mode === '覆盖'
                             ? `✅ 覆盖导入完成\n\n支出已替换为备份的 ${data.expenses?.length || 0} 条`
@@ -4936,8 +4745,8 @@
         
         // ==================== 初始化 ====================
         function init() {
-            document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
-            document.getElementById('incomeDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('expenseDate').value = localDateString();
+            document.getElementById('incomeDate').value = localDateString();
             renderCategoryGrid();
             renderMonthOverview();
             renderCheckinCalendar();
@@ -5008,6 +4817,17 @@
         
         // ==================== Dashboard 功能 ====================
         function renderDashboard() {
+            let notice = document.getElementById('dataFreshnessNotice');
+            if (!notice) {
+                notice = document.createElement('div');
+                notice.id = 'dataFreshnessNotice';
+                notice.style.cssText = 'padding:12px 16px;margin-bottom:16px;border-radius:10px;background:#fff8e6;color:#744b00;font-size:14px;line-height:1.7';
+                document.getElementById('page-dashboard').prepend(notice);
+            }
+            const lastExpense = expenses.map(e => e.date).sort().at(-1);
+            const lastIncome = incomes.map(i => i.date).sort().at(-1);
+            notice.textContent = `账本记录截至：支出 ${lastExpense || '暂无'} · 收入 ${lastIncome || '暂无'}。未记账月份的零值不代表实际没有收支。`;
+            notice.title = '版本 ' + APP_VERSION;
             renderDashboardKPI();
             renderDailyReminder();
             renderDashboardNetworth();
@@ -5023,7 +4843,7 @@
             const month = now.getMonth() + 1;
             const day = now.getDate();
             const daysInMonth = new Date(year, month, 0).getDate();
-            const daysLeft = daysInMonth - day;
+            const daysLeft = daysInMonth - day + 1;
             
             // 本月可控预算（日常+弹性）
             const totalBudget = getTotalMonthlyBudget();
@@ -5154,9 +4974,9 @@
         }
         
         function renderDashboardNetworth() {
-            const total = assets.reduce((sum, a) => sum + (a.value || 0), 0);
+            const total = assetTotals().net;
             const goalAmount = 1000000; // 百万目标
-            const progress = Math.min((total / goalAmount) * 100, 100);
+            const progress = Math.max(0, Math.min((total / goalAmount) * 100, 100));
             
             document.getElementById('dashboardNetworthValue').textContent = '¥' + total.toLocaleString();
             document.getElementById('dashboardGoalPercent').textContent = progress.toFixed(1) + '%';
@@ -5165,6 +4985,11 @@
         
         // 🔥🔥🔥 CFP财务生命体征仪表盘 🔥🔥🔥
         function renderDashboardVitalSigns() {
+            const thisMonth = localDateString().slice(0, 7);
+            if (![...expenses, ...incomes].some(r => r.date?.startsWith(thisMonth))) {
+                document.getElementById('dashboardVitalSigns').innerHTML = '<p style="grid-column:1/-1;color:var(--gray-600);padding:16px">本月尚无收支记录，暂不评估财务体征。请补齐账单后查看。</p>';
+                return;
+            }
             // 直接调用 calculateVitalSigns，确保首页体征数据口径一致
             const signs = calculateVitalSigns();
             
@@ -5580,7 +5405,7 @@
             
             const expense = {
                 id: Date.now(),
-                date: new Date().toISOString().split('T')[0],
+                date: localDateString(),
                 item: item.name.replace(/^[^\s]+\s/, ''), // 去掉emoji
                 amount: item.amount,
                 categoryId: item.categoryId,
@@ -5589,11 +5414,11 @@
             };
             
             expenses.unshift(expense);
-            await saveExpenseToCloud(expense);
+            const saved = await saveExpenseToCloud(expense);
             trackRecentCategory(item.categoryId);
             renderBudgetStatus();
             renderCheckinCalendar();
-            showToast(`已记录 ${item.name} ¥${item.amount}`, 'success');
+            if (saved) showToast(`已记录 ${item.name} ¥${item.amount}`, 'success');
         }
         
         function renderCategoryGrid() {
@@ -5720,7 +5545,7 @@
             const item = document.getElementById('expenseItem').value.trim();
             const amount = parseFloat(document.getElementById('expenseAmount').value);
             
-            if (!date || !item || !amount || !selectedCategory) {
+            if (!date || !item || !Number.isFinite(amount) || amount === 0 || !selectedCategory) {
                 showToast('请填写完整信息', 'error');
                 return;
             }
@@ -5737,7 +5562,7 @@
             };
             
             expenses.unshift(expense);
-            await saveExpenseToCloud(expense);
+            const saved = await saveExpenseToCloud(expense);
             
             // 记录最近使用的类目
             trackRecentCategory(selectedCategory);
@@ -5749,7 +5574,7 @@
             renderBudgetStatus();
             renderCheckinCalendar();
             
-            showToast(`已保存 ¥${amount}`, 'success');
+            if (saved) showToast(`已保存到云端 ¥${amount}`, 'success');
         }
         
         // ==================== 预算页面 ====================
@@ -6315,18 +6140,21 @@ function renderBudgetCheckup() {
             if (field === 'name' || field === 'type') value = cleanText(value, field === 'name' ? 80 : 20);
             if (field === 'yearly') value = Number(value) || 0;
             categories[index][field] = value;
-            await saveCategoriesToCloud();
+            if (!await saveCategoriesToCloud()) return;
             renderCategoryGrid();
             renderBudgetTip();
             renderBudgetStatus();
         }
         
         async function deleteCategory(index) {
+            if (expenses.some(e => e.categoryId === categories[index].id)) {
+                showToast('这个类目仍有支出记录，请先迁移记录再删除', 'warning');
+                return;
+            }
             if (!confirm('确定删除这个类目吗？')) return;
             categories.splice(index, 1);
-            // 重新编号
-            categories.forEach((cat, i) => cat.id = i + 1);
-            await saveCategoriesToCloud();
+            // Keep IDs stable: historical expenses reference these IDs.
+            if (!await saveCategoriesToCloud()) return;
             renderSettings();
             renderCategoryGrid();
             renderBudgetTip();
@@ -6408,7 +6236,7 @@ function renderBudgetCheckup() {
             if (addedCount > 0) {
                 // 按ID排序
                 categories.sort((a, b) => a.id - b.id);
-                await saveCategoriesToCloud();
+                if (!await saveCategoriesToCloud()) return;
                 renderSettings();
                 renderCategoryGrid();
                 renderBudgetStatus();
@@ -6429,7 +6257,7 @@ function renderBudgetCheckup() {
                 yearly: 6000,
                 type: '弹性'
             });
-            await saveCategoriesToCloud();
+            if (!await saveCategoriesToCloud()) return;
             renderSettings();
             renderCategoryGrid();
             showToast('已添加', 'success');
@@ -6440,7 +6268,7 @@ function renderBudgetCheckup() {
             if (!confirm('⚠️ 确定要重置为默认的22个类目吗？\n\n这会覆盖当前所有类目设置，但不会删除你的消费记录。\n\n重置后会自动扫描需要迁移的记录。')) return;
             
             categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-            await saveCategoriesToCloud();
+            if (!await saveCategoriesToCloud()) return;
             renderSettings();
             renderCategoryGrid();
             renderBudgetTip();
@@ -6939,7 +6767,7 @@ function renderBudgetCheckup() {
             }
             
             // 1. 资产数据
-            const totalAssetsVal = assets.reduce((sum, a) => sum + (a.value || 0), 0);
+            const totalAssetsVal = assetTotals().net;
             let liquidAssets = 0, investAssets = 0, protectAssets = 0;
             
             assets.forEach(a => {
@@ -7534,7 +7362,7 @@ function renderBudgetCheckup() {
             const amount = parseFloat(document.getElementById('incomeAmount').value);
             const type = document.getElementById('incomeType').value;
             
-            if (!date || !item || !amount) {
+            if (!date || !item || !Number.isFinite(amount) || amount === 0) {
                 showToast('请填写完整信息', 'error');
                 return;
             }
@@ -7548,14 +7376,14 @@ function renderBudgetCheckup() {
             };
             
             incomes.unshift(income);
-            await saveIncomeToCloud(income);
+            const saved = await saveIncomeToCloud(income);
             
             document.getElementById('incomeItem').value = '';
             document.getElementById('incomeAmount').value = '';
             
             renderMonthOverview();
             renderCheckinCalendar();
-            showToast(`已记录收入 ¥${amount}`, 'success');
+            if (saved) showToast(`收入已保存到云端 ¥${amount}`, 'success');
         }
         
         function renderMonthOverview() {
@@ -8038,7 +7866,7 @@ function renderBudgetCheckup() {
             const targetAmount = parseFloat(document.getElementById('goalAmount').value);
             const deadline = document.getElementById('goalDeadline').value;
             
-            if (!name || !targetAmount) {
+            if (!name || !Number.isFinite(targetAmount) || targetAmount <= 0) {
                 showToast('请填写目标名称和金额', 'error');
                 return;
             }
@@ -8052,30 +7880,30 @@ function renderBudgetCheckup() {
             };
             
             goals.push(goal);
-            await saveGoalToCloud(goal);
+            const saved = await saveGoalToCloud(goal);
             
             closeGoalModal();
             renderGoals();
-            showToast('目标已添加', 'success');
+            if (saved) showToast('目标已保存到云端', 'success');
         }
         
-        function addToGoal(index) {
+        async function addToGoal(index) {
             const goal = goals[index];
             const amount = prompt(`为「${goal.name}」存入金额：`, '1000');
             if (amount && !isNaN(amount)) {
                 goal.currentAmount += parseFloat(amount);
-                updateGoalInCloud(goal);
+                if (!await updateGoalInCloud(goal)) return;
                 renderGoals();
                 showToast(`已存入 ¥${amount}`, 'success');
             }
         }
         
-        function editGoal(index) {
+        async function editGoal(index) {
             const goal = goals[index];
             const newAmount = prompt(`修改「${goal.name}」的目标金额：`, goal.targetAmount);
             if (newAmount && !isNaN(newAmount)) {
                 goal.targetAmount = parseFloat(newAmount);
-                updateGoalInCloud(goal);
+                if (!await updateGoalInCloud(goal)) return;
                 renderGoals();
                 showToast('已更新', 'success');
             }
@@ -8726,7 +8554,7 @@ function renderBudgetCheckup() {
             const item = cleanText(document.getElementById('editIncomeItem').value, 160);
             const amount = parseFloat(document.getElementById('editIncomeAmount').value);
             
-            if (!date || isNaN(amount)) {
+            if (!date || !Number.isFinite(amount)) {
                 showToast('请填写完整信息', 'error');
                 return;
             }
@@ -8738,7 +8566,7 @@ function renderBudgetCheckup() {
                 localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
                 // 同步到云端
                 try {
-                    await checkedSupabase(db.from('incomes').update({ date, type, item, amount }).eq('id', id), '编辑收入记录');
+                    if (!await syncAllToCloud()) throw new Error('云端保存失败');
                 } catch (e) {
                     incomes[index] = previous;
                     localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
@@ -8781,56 +8609,25 @@ function renderBudgetCheckup() {
         }
         
         async function saveMonthIncome(year, month, type) {
-            const amount = parseFloat(document.getElementById('editCellAmount').value) || 0;
-            const dateStr = `${year}-${String(month).padStart(2, '0')}-15`;
-            
-            // 查找该月该类型的收入记录
-            const existingIndex = incomes.findIndex(i => {
-                const d = new Date(i.date);
-                return d.getFullYear() === year && d.getMonth() + 1 === month && i.type === type;
-            });
-            
-            if (amount > 0) {
-                if (existingIndex !== -1) {
-                    // 更新现有记录
-                    const oldAmount = incomes[existingIndex].amount;
-                    incomes[existingIndex].amount = amount;
-                    try {
-                        await checkedSupabase(db.from('incomes').update({ amount }).eq('id', incomes[existingIndex].id), '更新月收入');
-                    } catch(e) {
-                        incomes[existingIndex].amount = oldAmount;
-                        console.error('收入同步失败:', e);
-                        setSyncStatus('error');
-                        showToast('收入同步失败', 'error');
-                        return;
-                    }
-                } else {
-                    // 新增记录
-                    const income = {
-                        id: 'inc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-                        date: dateStr,
-                        item: `${month}月${type}`,
-                        amount: amount,
-                        type: type
-                    };
-                    incomes.push(income);
-                    await saveIncomeToCloud(income);
-                }
-            } else {
-                // 删除记录
-                if (existingIndex !== -1) {
-                    const delId = incomes[existingIndex].id;
-                    incomes.splice(existingIndex, 1);
-                    await deleteIncomeFromCloud(delId);
-                }
+            const amount = Number(document.getElementById('editCellAmount').value || 0);
+            if (!Number.isFinite(amount) || amount < 0) { showToast('金额必须为零或正数', 'error'); return; }
+            const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+            const matching = incomes.filter(i => i.date.slice(0, 7) === monthKey && i.type === type);
+            if (matching.length > 1) {
+                showToast('该月有多笔同类收入，请展开明细逐笔编辑，避免覆盖其他记录', 'warning');
+                return;
             }
-            
-            // 保存到本地存储
-            localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
-            
+            const previous = JSON.parse(JSON.stringify(incomes));
+            if (matching.length) {
+                if (amount === 0) incomes = incomes.filter(i => i !== matching[0]);
+                else matching[0].amount = amount;
+            } else if (amount > 0) {
+                incomes.push({ id: 'inc_' + crypto.randomUUID(), date: monthKey + '-15', item: `${month}月${type}`, amount, type });
+            }
+            if (!await syncAllToCloud()) { incomes = previous; return; }
             closeIncomeEditModal();
             renderIncomeTable();
-            showToast('已保存', 'success');
+            showToast('已保存到云端', 'success');
         }
         
         function editMonthExpense(year, month, currentAmount) {
@@ -8855,7 +8652,7 @@ function renderBudgetCheckup() {
             document.getElementById('editCellAmount').select();
         }
         
-        function saveMonthExpense(year, month) {
+        async function saveMonthExpense(year, month) {
             const amount = parseFloat(document.getElementById('editCellAmount').value) || 0;
             const key = `${year}-${month}`;
             
@@ -8868,7 +8665,7 @@ function renderBudgetCheckup() {
             localStorage.setItem('finance_expense_overrides_' + currentUser, JSON.stringify(monthlyExpenseOverrides));
             
             // 🔥 同步到云端
-            saveAssetsToCloud();
+            if (!await saveAssetsToCloud()) return;
             
             closeIncomeEditModal();
             renderIncomeTable();
@@ -8881,42 +8678,15 @@ function renderBudgetCheckup() {
         let currentTrendRange = '1Y';
         
         function initAssets() {
-            // 从本地存储加载资产数据
-            const savedAssets = localStorage.getItem('finance_assets_' + currentUser);
-            const savedHistory = localStorage.getItem('finance_assets_history_' + currentUser);
-            
-            if (savedAssets) {
-                assets = JSON.parse(savedAssets);
-            } else {
-                // 初始化默认资产结构
-                assets = [];
-                ASSET_TYPES.forEach(type => {
-                    type.items.forEach(item => {
-                        assets.push({
-                            id: item.id,
-                            typeId: type.id,
-                            typeName: type.name,
-                            name: item.name,
-                            icon: item.icon,
-                            value: 0,
-                            updateTime: null
-                        });
-                    });
-                });
-            }
-            
-            if (savedHistory) {
-                assetHistory = JSON.parse(savedHistory);
-            } else {
-                assetHistory = [];
-            }
+            // loadDataFromCloud has already selected the authoritative source.
+            // Re-reading a differently named cache here previously erased asset history.
+            if (!Array.isArray(assets)) assets = [];
+            if (!Array.isArray(assetHistory)) assetHistory = [];
         }
         
-        function saveAssets() {
-            localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
-            localStorage.setItem('finance_assets_history_' + currentUser, JSON.stringify(assetHistory));
-            // 🔥 同步到云端
-            saveAssetsToCloud();
+        async function saveAssets() {
+            saveConfigLocalBackup();
+            return saveAssetsToCloud();
         }
         
         // ==================== 资产分组（四笔钱 bucket）====================
@@ -8925,15 +8695,23 @@ function renderBudgetCheckup() {
         const BUCKET_COLORS   = { liquid: 'var(--asset-liquid)', invest: 'var(--asset-invest)', property: 'var(--asset-property)', debt: 'var(--asset-debt)' };
 
         function loadBucketMap() {
-            BUCKET_MAP = safeParse('finance_bucket_map_' + (currentUser || 'default'), { ...BUCKET_DEFAULTS });
+            // Already hydrated with the rest of the cloud configuration.
+            if (!BUCKET_MAP || typeof BUCKET_MAP !== 'object') BUCKET_MAP = {};
         }
 
         function saveBucketMap() {
             localStorage.setItem('finance_bucket_map_' + currentUser, JSON.stringify(BUCKET_MAP));
         }
 
+        function assetTotals() {
+            const gross = assets.filter(a => bucketOf(a.typeId) !== 'debt').reduce((n, a) => n + Number(a.value || 0), 0);
+            const debt = assets.filter(a => bucketOf(a.typeId) === 'debt').reduce((n, a) => n + Math.abs(Number(a.value || 0)), 0);
+            return { gross, debt, net: gross - debt };
+        }
+
         function bucketOf(typeId) {
-            return BUCKET_MAP[typeId] || 'liquid';
+            const candidate = BUCKET_MAP[typeId] || BUCKET_DEFAULTS[typeId] || 'liquid';
+            return Object.hasOwn(BUCKET_LABELS, candidate) ? candidate : 'liquid';
         }
 
         // 渲染设置页里的分组配置 UI
@@ -8952,12 +8730,13 @@ function renderBudgetCheckup() {
             `).join('');
         }
 
-        function saveBucketMapFromUI() {
+        async function saveBucketMapFromUI() {
             document.querySelectorAll('#bucketSettingsList select').forEach(sel => {
                 BUCKET_MAP[sel.dataset.typeid] = sel.value;
             });
             saveBucketMap();
-            showToast('分组配置已保存', 'success');
+            if (!await syncAllToCloud()) return;
+            showToast('分组配置已保存到云端', 'success');
             renderAssets(); // 立即刷新 KPI
         }
 
@@ -8983,9 +8762,9 @@ function renderBudgetCheckup() {
                 : (v > 0 ? `¥${Math.round(v).toLocaleString()}` : '—');
 
             const liquidMonths = avgExp > 0 ? (buckets.liquid / avgExp).toFixed(1) : '—';
-            const investPct    = totalAssets > 0 ? Math.round(buckets.invest   / totalAssets * 100) : '—';
-            const propertyPct  = totalAssets > 0 ? Math.round(buckets.property / totalAssets * 100) : '—';
-            const debtRate     = totalAssets > 0 ? Math.round(buckets.debt     / totalAssets * 100) : '—';
+            const investPct    = assetTotals().gross > 0 ? Math.round(buckets.invest   / assetTotals().gross * 100) : '—';
+            const propertyPct  = assetTotals().gross > 0 ? Math.round(buckets.property / assetTotals().gross * 100) : '—';
+            const debtRate     = assetTotals().gross > 0 ? Math.round(buckets.debt     / assetTotals().gross * 100) : '—';
 
             document.getElementById('kpiCards').innerHTML = `
                 <div class="kpi-card" style="border-top-color:var(--asset-liquid);">
@@ -9070,8 +8849,8 @@ function renderBudgetCheckup() {
 
             const emergencyMonths = avgExp > 0 ? buckets.liquid / avgExp : 0;
             const savingRate      = avgInc > 0 ? Math.max(0, (avgInc - avgExp) / avgInc) : 0;
-            const debtRatio       = totalAssets > 0 ? buckets.debt / totalAssets : 0;
-            const investRatio     = totalAssets > 0 ? buckets.invest / totalAssets : 0;
+            const debtRatio       = assetTotals().gross > 0 ? Math.abs(buckets.debt) / assetTotals().gross : 0;
+            const investRatio     = assetTotals().gross > 0 ? buckets.invest / assetTotals().gross : 0;
 
             const metrics = { emergency: emergencyMonths, saving: savingRate, debt: debtRatio, invest: investRatio };
             const score   = totalHealthScore(metrics);
@@ -9142,7 +8921,7 @@ function renderBudgetCheckup() {
 
         function renderAssets() {
             // 计算总资产
-            const totalAssets = assets.reduce((sum, a) => sum + (a.value || 0), 0);
+            const totalAssets = assetTotals().net;
 
             // 获取最新更新时间
             const updateTimes = assets.filter(a => a.updateTime).map(a => new Date(a.updateTime));
@@ -9750,7 +9529,7 @@ function renderBudgetCheckup() {
             document.getElementById('assetTypesContainer').innerHTML = renderAssetTypesManager();
         }
         
-        function saveAssetTypes() {
+        async function saveAssetTypes() {
             localStorage.setItem('finance_asset_types_' + currentUser, JSON.stringify(ASSET_TYPES));
             
             // 初始化新添加的资产项
@@ -9771,7 +9550,7 @@ function renderBudgetCheckup() {
             localStorage.setItem('finance_assets_' + currentUser, JSON.stringify(assets));
             
             // 🔥 同步到云端
-            saveAssetsToCloud();
+            if (!await saveAssetsToCloud()) return;
             
             closeManageAssetTypesModal();
             renderAssets();
@@ -10135,14 +9914,14 @@ function renderBudgetCheckup() {
                 return;
             }
 
-            saveAssets();
+            if (!await saveAssets()) return;
             closeAssetHistoryModal();
             showAssetHistoryModal();
             renderAssets();
             showToast('已删除', 'success');
         }
         
-        function saveUpdatedAssets() {
+        async function saveUpdatedAssets() {
             const selectedMonth = document.getElementById('assetMonth').value;
             const [year, month] = selectedMonth.split('-').map(Number);
             const updateTime = new Date().toISOString();
@@ -10156,7 +9935,7 @@ function renderBudgetCheckup() {
                     const input = document.getElementById(`asset_${item.id}`);
                     if (input) {
                         const value = parseFloat(input.value) || 0;
-                        total += value;
+                        total += bucketOf(type.id) === 'debt' ? -Math.abs(value) : value;
                         details[item.id] = value;
                         
                         // 如果是当前月，同时更新资产明细
@@ -10187,7 +9966,7 @@ function renderBudgetCheckup() {
             assetHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
             
             // 保存
-            saveAssets();
+            if (!await saveAssets()) return;
             
             closeUpdateAssetsModal();
             renderAssets();
