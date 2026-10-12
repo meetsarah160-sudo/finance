@@ -57,3 +57,52 @@ test('partial overwrite and foreign profile imports fail closed',()=>{const h=ha
 test('category ID collision fails rather than misclassifying expenses',()=>{const h=harness();assert.throws(()=>h.run(`buildImportPlan({categories:[{id:1,name:'rent',yearly:1}]},${JSON.stringify(importFixture())},'追加')`),/不同名称/);});
 test('expense retry uses same ID and inserts exactly once',async()=>{const h=harness();await h.run('loadDataFromCloud()');h.run('expenses=[{id:123,date:"2026-10-11",item:"retry",amount:1,categoryId:1}];');assert.equal(await h.run('saveExpenseToCloud(expenses[0])'),true);const id=h.run('expenses[0].id');assert.equal(await h.run('saveExpenseToCloud(expenses[0])'),true);assert.equal(h.tables.expenses.length,1);assert.equal(h.run('expenses[0].id'),id);});
 test('category reset refuses to invalidate historical references',async()=>{const h=harness();h.run('categories=[{id:999,name:"custom",yearly:100}];expenses=[{categoryId:999,categoryName:"custom"}]');await h.run('resetToDefaultCategories()');assert.equal(h.run('categories[0].id'),999);assert.equal(h.writes.length,0);});
+
+test('22 legacy categories inherit agreed scopes without rewriting history or budgets',async()=>{
+  const categories=Array.from({length:22},(_,i)=>({id:i+1,name:'category '+(i+1),type:'日常',yearly:100}));
+  const h=harness({categories});await h.run('loadDataFromCloud()');
+  assert.equal(h.run('categories.filter(c=>categoryBudgetScope(c)==="business").map(c=>c.id).join(",")'),'3,22');
+  assert.equal(h.run('scopeSummary(2026).personal.budget'),2000);
+  assert.equal(h.run('scopeSummary(2026).business.budget'),200);
+  assert.deepEqual(h.tables.user_configs[0].categories,categories);assert.equal(h.writes.length,0);
+});
+test('single-entry overrides move spending only; refunds, totals, and annual boundaries stay correct',()=>{
+  const h=harness();h.run(`categories=[{id:7,yearly:100},{id:22,yearly:200}];expenses=[
+    {id:'a',date:'2026-01-01',amount:30,categoryId:7,budgetScope:'business'},
+    {id:'b',date:'2026-02-01',amount:40,categoryId:22,budgetScope:'personal'},
+    {id:'c',date:'2026-03-01',amount:-10,categoryId:22},
+    {id:'d',date:'2025-01-01',amount:999,categoryId:22}];`);
+  assert.equal(h.run('scopeSummary(2026).personal.spent'),40);
+  assert.equal(h.run('scopeSummary(2026).business.spent'),20);
+  assert.equal(h.run('scopeSummary(2026).personal.budget'),100);
+  h.run('expenses[0].budgetScope=null');assert.equal(h.run('scopeSummary(2026).personal.spent'),70);
+});
+test('new explicit scope survives save and cloud reload, retry remains idempotent',async()=>{
+  const h=harness();await h.run('loadDataFromCloud()');h.run(`expenses=[{id:123,date:'2026-10-11',item:'business taxi',amount:25,categoryId:7,budgetScope:'business'}]`);
+  await h.run('saveExpenseToCloud(expenses[0])');await h.run('saveExpenseToCloud(expenses[0])');await h.run('loadDataFromCloud()');
+  assert.equal(h.tables.expenses.length,1);assert.equal(h.run('expenses[0].budgetScope'),'business');
+});
+test('portable cloud backups and both import modes retain explicit scope',()=>{
+  const h=harness(),base=importFixture();base.expenses=[{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',date:'2026-01-01',item:'taxi',amount:10,type:'日常',categoryId:1,budgetScope:'business'}];
+  for(const mode of ['追加','覆盖']){
+    const plan=h.run(`buildImportPlan(${JSON.stringify(base)},${JSON.stringify(base)},'${mode}')`);
+    assert.equal(plan.result.expenses[0].budgetScope,'business');
+  }
+  const old=clone(base);delete old.expenses[0].budgetScope;
+  assert.equal(h.run(`buildImportPlan(${JSON.stringify(old)},${JSON.stringify(base)},'覆盖').result.expenses[0].budgetScope`),'business');
+  old.expenses[0].budgetScope=null;
+  assert.equal(h.run(`buildImportPlan(${JSON.stringify(old)},${JSON.stringify(base)},'覆盖').result.expenses[0].budgetScope`),null);
+  assert.equal(h.run(`portableCloudState({config:{user_id:'test'},expenses:[{id:'x',budget_scope:'business'}]}).expenses[0].budgetScope`),'business');
+  assert.throws(()=>h.run(`validateBackup({expenses:[{date:'2026-01-01',amount:1,item:'x',budgetScope:'wrong'}]})`),/归属无效/);
+});
+test('scope edit is atomic and failure/stale rows do not change local ledger',async()=>{
+  const h=harness({categories:[{id:7,name:'交通',type:'日常',yearly:6000}]});
+  const row={id:'row',owner_id:'owner',user_id:'test',date:'2026-10-11',item:'taxi',amount:25,category_id:7,category_name:'交通',type:'日常',budget_scope:null};
+  h.tables.expenses.push(clone(row));await h.run('loadDataFromCloud()');
+  h.run(`renderHistory=renderBudgetStatus=renderDashboard=closeEditModal=()=>{};document.getElementById=id=>id==='historyModal'?null:({value:({editDate:'2026-10-11',editItem:'taxi',editAmount:'25',editCategory:'7',editScope:'business'})[id]})`);
+  h.setFailure(true);await h.run(`saveEditExpense('row')`);assert.equal(h.run('expenses[0].budgetScope'),null);
+  h.setFailure(false);await h.run(`saveEditExpense('row')`);assert.equal(h.run('expenses[0].budgetScope'),'business');
+  assert.equal(h.tables.expenses[0].amount,25);assert.equal(h.tables.expenses[0].category_id,7);
+  h.tables.expenses[0].amount=30;h.run(`document.getElementById=id=>id==='historyModal'?null:({value:({editDate:'2026-10-11',editItem:'taxi',editAmount:'25',editCategory:'7',editScope:'personal'})[id]})`);
+  await h.run(`saveEditExpense('row')`);assert.equal(h.run('expenses[0].budgetScope'),'business');assert.equal(h.tables.expenses[0].amount,30);
+});

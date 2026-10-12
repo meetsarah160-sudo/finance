@@ -1,6 +1,6 @@
 # Finance
 
-Static personal ledger using Supabase Auth and owner-scoped RLS. Current version: 2026.10.11.2.
+Static personal ledger using Supabase Auth and owner-scoped RLS. Current version: 2026.10.12.1.
 
 ## Storage and safety
 
@@ -17,6 +17,16 @@ Static personal ledger using Supabase Auth and owner-scoped RLS. Current version
 ## Database setup
 
 On an existing project, apply `finance-data-integrity.sql`, then `finance-safety-upgrade.sql` **once**, before deploying the new UI. Both are additive setup scripts, not Supabase CLI migration history entries. They do not replace existing financial rows. The second script expects the first revision trigger and existing owner-based RLS policies.
+
+## Personal and business annual budgets
+
+- Apply `finance-budget-scope.sql` after the two safety setup scripts and before deploying version 2026.10.12.1. It adds a nullable `expenses.budget_scope` constrained to `personal` / `business`, updates the existing atomic import RPC, and does not rewrite historical expenses or change RLS policies.
+- Category JSON may specify `budgetScope`. Existing category IDs 3 (company accounting) and 22 (business purchases) default to business; all other categories default to personal. Category budgets and identifiers remain unchanged.
+- A null expense scope follows its category default. An explicit scope overrides that default for this entry only. Changing an entry's scope moves recorded spending between annual groups without moving any budget, changing category, or changing amount.
+- Dashboard and budget pages show both annual limits separately and their combined recorded outflow. Monthly figures are references only; group budgets do not automatically offset each other. Income remains combined and is not presented as a verified available-cash balance.
+- The selected year's records are compared to current category budgets; the UI explicitly labels historical years as using current settings, since the app does not store annual budget versions.
+- Normal/quick entry, editing, cloud hydration, local/portable/cloud backups and atomic import carry the scope. Legacy imports lacking the field preserve the scope of a matching existing ID; explicit null resets to category default.
+- Scope edits update one row atomically with ownership and original-field checks. Failed or stale writes leave local data untouched. Database tests run in a rolled-back transaction with a temporary QA profile; browser QA uses a mocked database with Supabase requests blocked.
 
 ## Metrics
 

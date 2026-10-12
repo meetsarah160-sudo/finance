@@ -2951,6 +2951,23 @@
         
         .score-circle .score { font-size: 28px; }
         .score-circle .label { font-size: 12px; opacity: 0.9; }
+        .scope-panel { margin: 0 0 22px; }
+        .scope-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+        .scope-heading h3 { font-size:18px; }
+        .scope-heading select, .scope-filters select { padding:8px; border:1px solid var(--gray-300); border-radius:8px; background:white; color:var(--gray-800); }
+        .scope-budget-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+        .scope-budget-card { background:var(--gray-100); padding:18px; border-radius:14px; min-width:0; }
+        .scope-budget-card h4 { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-bottom:12px; }
+        .scope-spent, .scope-balance { margin:10px 0; }
+        .scope-spent strong { display:block; font-size:24px; font-variant-numeric:tabular-nums; }
+        .scope-over { color:var(--danger); }
+        .scope-meter { height:8px; border-radius:4px; background:var(--gray-300); overflow:hidden; }
+        .scope-meter > div { height:100%; background:var(--primary); }
+        .scope-note { font-size:13px; line-height:1.6; color:var(--gray-600); margin:8px 0; }
+        .scope-total { font-weight:600; margin-top:14px; }
+        .scope-filters { display:flex; gap:10px; flex-wrap:wrap; margin:10px 0; }
+        .scope-setting-label { grid-column:2 / -1; color:var(--gray-600); font-size:12px; }
+        @media(max-width:600px) { .scope-budget-grid { grid-template-columns:1fr; } }
     </style>
 </head>
 <body>
@@ -3018,6 +3035,7 @@
             <!-- ==================== 📊 总览页面 (Dashboard) ==================== -->
             <div id="page-dashboard" class="page active">
                 <h2 class="page-title">📊 财务总览</h2>
+                <div id="dashboardScopeBudget" class="scope-panel"></div>
                 
                 <!-- 关键指标卡片 -->
                 <div class="dashboard-kpi-grid" id="dashboardKPI"></div>
@@ -3114,6 +3132,11 @@
                 
                 <!-- 支出记录区 -->
                 <div id="expenseForm">
+                    <div class="form-group">
+                        <label for="expenseScope">预算归属（普通记账和快捷记账均适用）</label>
+                        <select id="expenseScope"><option value="">按类目默认</option><option value="personal">个人 · 单笔指定</option><option value="business">创业 · 单笔指定</option></select>
+                        <p class="scope-note">公司代账费、创业购置默认归创业，其他默认归个人；可为这一笔单独调整。</p>
+                    </div>
                     <!-- 常用消费快捷按钮 -->
                     <div style="margin-bottom: 15px;">
                         <label style="font-weight: 500; margin-bottom: 8px; display: block;">⚡ 常用消费（一键记录）</label>
@@ -3183,6 +3206,7 @@
             
             <!-- 预算页面 -->
             <div id="page-budget" class="page">
+                <div id="annualScopeBudget" class="scope-panel"></div>
                 <h2 class="page-title">📊 本月预算</h2>
                 
                 <div class="summary-cards" id="summaryCards"></div>
@@ -3690,6 +3714,88 @@
             '购物': 20, '零食': 20
         };
         
+        // Budget scope is independent of the original spending category and amount.
+        const BUDGET_SCOPE_LABELS = { personal: '个人', business: '创业' };
+        function validBudgetScope(value) {
+            return value === 'personal' || value === 'business';
+        }
+        function categoryBudgetScope(cat) {
+            if (validBudgetScope(cat?.budgetScope)) return cat.budgetScope;
+            return [3, 22].includes(Number(cat?.id)) ? 'business' : 'personal';
+        }
+        function expenseBudgetScope(expense) {
+            if (validBudgetScope(expense.budgetScope)) return expense.budgetScope;
+            return categoryBudgetScope(categories.find(c => String(c.id) === String(expense.categoryId)));
+        }
+        function budgetScopeOptions(value, categoryId) {
+            const scope = categoryBudgetScope(categories.find(c => String(c.id) === String(categoryId)));
+            return `<option value="" ${!validBudgetScope(value) ? 'selected' : ''}>按类目默认（${BUDGET_SCOPE_LABELS[scope]}）</option>` +
+                Object.entries(BUDGET_SCOPE_LABELS).map(([key,label]) => `<option value="${key}" ${value === key ? 'selected' : ''}>${label} · 单笔指定</option>`).join('');
+        }
+        function updateScopeDefault(selectId, categoryId) {
+            const select = document.getElementById(selectId);
+            if (select) select.innerHTML = budgetScopeOptions(select.value, categoryId);
+        }
+        function readExpenseScope(selectId) {
+            const value = document.getElementById(selectId)?.value;
+            return validBudgetScope(value) ? value : null;
+        }
+        function scopeMatches(expense, scope) {
+            return !validBudgetScope(scope) || expenseBudgetScope(expense) === scope;
+        }
+        function scopeSummary(year) {
+            const result = {personal: {budget:0,spent:0,count:0}, business: {budget:0,spent:0,count:0}};
+            for (const cat of categories) result[categoryBudgetScope(cat)].budget += Math.round(Number(cat.yearly || 0)*100);
+            for (const e of expenses) if (String(e.date).slice(0,4) === String(year)) {
+                const bucket = result[expenseBudgetScope(e)];
+                bucket.spent += Math.round(Number(e.amount || 0)*100);
+                bucket.count++;
+            }
+            for (const bucket of Object.values(result)) {
+                bucket.budget /= 100; bucket.spent /= 100;
+                bucket.remaining = Math.round((bucket.budget-bucket.spent)*100)/100;
+            }
+            return result;
+        }
+        function scopeMoney(value) {
+            return '¥' + Number(value).toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
+        }
+        let scopeBudgetYear = new Date().getFullYear();
+        function setScopeBudgetYear(value) {
+            scopeBudgetYear = Number(value);
+            renderScopeBudgets();
+        }
+        function renderScopeBudgets() {
+            const years = [...new Set([new Date().getFullYear(), ...expenses.map(e => Number(String(e.date).slice(0,4))).filter(Number.isFinite)])].sort((a,b)=>b-a);
+            if (!years.includes(scopeBudgetYear)) scopeBudgetYear = years[0];
+            const summary = scopeSummary(scopeBudgetYear);
+            const totalBudget = summary.personal.budget + summary.business.budget;
+            const totalSpent = Math.round((summary.personal.spent + summary.business.spent)*100)/100;
+            const latest = expenses.filter(e => String(e.date).startsWith(String(scopeBudgetYear))).map(e=>e.date).sort().at(-1);
+            for (const id of ['dashboardScopeBudget','annualScopeBudget']) {
+                const target = document.getElementById(id);
+                if (!target) continue;
+                target.innerHTML = `<div class="scope-heading"><h3>个人与创业 · 年度预算</h3><label>年度 <select aria-label="年度预算年份" onchange="setScopeBudgetYear(this.value)">${years.map(y=>`<option ${y===scopeBudgetYear?'selected':''}>${y}</option>`).join('')}</select></label></div>
+                    <div class="scope-budget-grid">${Object.entries(summary).map(([key,b])=>`<section class="scope-budget-card">
+                        <h4>${BUDGET_SCOPE_LABELS[key]}年度预算 <span>${scopeMoney(b.budget)}</span></h4>
+                        <div class="scope-spent">已记录支出 <strong>${scopeMoney(b.spent)}</strong></div>
+                        <div class="scope-meter" role="progressbar" aria-label="${BUDGET_SCOPE_LABELS[key]}预算使用率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.max(0,Math.min(100,b.budget ? b.spent/b.budget*100 : 0))}" aria-valuetext="${b.budget ? (b.spent/b.budget*100).toFixed(1)+'%' : '未设置预算'}"><div style="width:${Math.max(0,Math.min(100,b.budget ? b.spent/b.budget*100 : 0))}%"></div></div>
+                        <div class="scope-balance ${b.remaining<0?'scope-over':''}">${b.remaining<0?'超预算':'年度剩余'} <strong>${scopeMoney(Math.abs(b.remaining))}</strong></div>
+                        <div class="scope-note">${b.count} 笔 · 月均参考 ${scopeMoney(b.budget/12)}</div>
+                        <button class="btn btn-outline btn-sm" onclick="showScopeRecords('${key}',${scopeBudgetYear})">查看${BUDGET_SCOPE_LABELS[key]}明细</button>
+                    </section>`).join('')}</div>
+                    <div class="scope-total">合计年度预算 ${scopeMoney(totalBudget)} · 合计已记录支出 ${scopeMoney(totalSpent)}</div>
+                    <p class="scope-note">分别使用年度额度，不自动互抵；月均仅供参考。预算剩余不等于账户可用现金。${latest?'最新支出：'+escapeHtml(latest):'该年暂无支出记录'}。</p>
+                    ${scopeBudgetYear !== new Date().getFullYear()?'<p class="scope-note">历史支出对照当前预算设置，非历史年度预算快照。</p>':''}`;
+            }
+        }
+        function showScopeRecords(scope, year) {
+            showHistoryInRecord();
+            document.getElementById('historyScope').value = scope;
+            document.getElementById('historyScopeYear').value = year;
+            renderHistoryInModal();
+        }
+
         // ==================== 状态 ====================
         let authUserId = null;       // Supabase Auth UID（用作 owner_id）
         let availableProfiles = [];  // 当前 owner 下的所有 profile 名（即原 user_id）
@@ -3704,7 +3810,7 @@
         let configLoadedFor = null;
         let configSyncQueue = Promise.resolve();
         let configSyncPending = 0;
-        const APP_VERSION = '2026.10.11.2';
+        const APP_VERSION = '2026.10.12.1';
 
         function localDateString(date = new Date()) {
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -3919,7 +4025,8 @@
                 amount: Number(exp.amount) || 0,
                 category_id: Number.isFinite(Number(exp.categoryId)) ? Number(exp.categoryId) : cleanId(exp.categoryId),
                 category_name: cleanText(exp.categoryName || '未知', 80),
-                type: cleanText(exp.type || '弹性', 20)
+                type: cleanText(exp.type || '弹性', 20),
+                budget_scope: validBudgetScope(exp.budgetScope) ? exp.budgetScope : null
             };
         }
 
@@ -4235,7 +4342,7 @@
                     currentAmount: Number(g.current_amount || 0), deadline: g.deadline
                 }));
                 expenses = rows.map(e => ({ id: e.id, date: e.date, item: e.item, amount: Number(e.amount),
-                    categoryId: e.category_id, categoryName: e.category_name, type: e.type }));
+                    categoryId: e.category_id, categoryName: e.category_name, type: e.type, budgetScope: e.budget_scope ?? null }));
                 const cloudIds = new Set(expenses.map(e => String(e.id)));
                 const pending = safeParse('finance_expenses_' + profile, []).filter(e =>
                     (typeof e.id === 'number' || e.pending) && !cloudIds.has(String(e.id)));
@@ -4342,7 +4449,8 @@
                     amount: expense.amount,
                     category_id: expense.categoryId,
                     category_name: expense.categoryName,
-                    type: expense.type
+                    type: expense.type,
+                    budget_scope: validBudgetScope(expense.budgetScope) ? expense.budgetScope : null
                 }), {onConflict:'id',ignoreDuplicates:true}).select().maybeSingle(), '保存消费记录');
                 
                 if (data) expense.id = data.id;
@@ -4564,7 +4672,7 @@
         const BACKUP_FIELDS = {categories:'categories',incomes:'incomes_data',goals:'goals_data',assets:'assets_data',assetHistory:'asset_history',assetTypes:'asset_types',monthlyExpenseOverrides:'expense_overrides',bucketMap:'bucket_map'};
         function portableCloudState(s) {
             const c=s.config;
-            const out={version:'v5',user:c.user_id,exportTime:new Date().toISOString(),expenses:s.expenses.map(e=>({id:e.id,date:e.date,item:e.item,amount:Number(e.amount),categoryId:e.category_id,categoryName:e.category_name,type:e.type}))};
+            const out={version:'v5',user:c.user_id,exportTime:new Date().toISOString(),expenses:s.expenses.map(e=>({id:e.id,date:e.date,item:e.item,amount:Number(e.amount),categoryId:e.category_id,categoryName:e.category_name,type:e.type,...(Object.hasOwn(e,'budget_scope')?{budgetScope:e.budget_scope}: {})}))};
             for(const [key,col] of Object.entries(BACKUP_FIELDS)) out[key]=c[col] ?? (['monthlyExpenseOverrides','bucketMap'].includes(key)?{}:[]);
             return out;
         }
@@ -4602,6 +4710,7 @@
                 const ids=new Set();for(const r of d[k]||[]) { if(r.id==null || ids.has(String(r.id))) throw new Error(`${k} 缺少 ID 或 ID 重复`);ids.add(String(r.id)); }
             }
             for(const r of d.categories||[]) if(!numberOK(r.yearly)||Number(r.yearly)<0||!Number.isInteger(Number(r.id))) throw new Error('预算金额或分类 ID 无效');
+            for(const r of [...(d.expenses||[]),...(d.categories||[])]) if(r.budgetScope!=null && !validBudgetScope(r.budgetScope)) throw new Error('个人／创业归属无效');
             for(const r of d.assets||[]) if(!numberOK(r.value)) throw new Error('资产金额无效');
             for(const r of d.goals||[]) if(!numberOK(r.targetAmount)||Number(r.targetAmount)<=0||!numberOK(r.currentAmount)) throw new Error('目标金额无效');
             for(const r of d.assetHistory||[]) if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(r.month||'')||!numberOK(r.total)) throw new Error('资产历史月份或金额无效');
@@ -4638,7 +4747,9 @@
                 const c=cats.get(String(e.categoryId));if(!c)throw new Error(`支出「${e.item}」找不到分类`);
                 const id=/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(String(e.id))?e.id:crypto.randomUUID();
                 if(ids.has(id))throw new Error('支出 ID 重复');ids.add(id);
-                return {...e,id,amount:Number(e.amount),categoryId:Number(c.id),categoryName:c.name,type:c.type};
+                const existing=base.expenses.find(r=>String(r.id)===String(id));
+                const budgetScope=Object.hasOwn(e,'budgetScope') ? e.budgetScope : existing?.budgetScope ?? null;
+                return {...e,id,amount:Number(e.amount),categoryId:Number(c.id),categoryName:c.name,type:c.type,budgetScope};
             });
             const typeIds=new Set(result.assetTypes.map(t=>String(t.id)));
             if(result.assets.some(a=>!typeIds.has(String(a.typeId)))) throw new Error('资产类型缺失');
@@ -4767,6 +4878,7 @@
         
         // ==================== Dashboard 功能 ====================
         function renderDashboard() {
+            renderScopeBudgets();
             let notice = document.getElementById('dataFreshnessNotice');
             if (!notice) {
                 notice = document.createElement('div');
@@ -5255,6 +5367,11 @@
                     <div class="search-box" style="margin: 15px 0;">
                         <input type="text" id="historySearchKeyword" placeholder="搜索消费记录..." onkeyup="searchHistoryInModal()">
                     </div>
+                    <div class="scope-filters">
+                        <label>预算归属 <select id="historyScope" onchange="renderHistoryInModal()"><option value="">全部</option><option value="personal">个人</option><option value="business">创业</option></select></label>
+                        <label>年度 <select id="historyScopeYear" onchange="renderHistoryInModal()"><option value="">全部</option>${[...new Set(expenses.map(e=>e.date.slice(0,4)))].sort().reverse().map(y=>`<option>${escapeHtml(y)}</option>`).join('')}</select></label>
+                    </div>
+                    <div id="historyScopeTotal" class="scope-note"></div>
                     <div id="historyModalList" style="max-height: 50vh; overflow-y: auto;"></div>
                 </div>
             `;
@@ -5270,11 +5387,16 @@
         function renderHistoryInModal() {
             const keyword = document.getElementById('historySearchKeyword')?.value?.toLowerCase() || '';
             let filtered = expenses.filter(e => {
+                if (!scopeMatches(e, document.getElementById('historyScope')?.value)) return false;
+                const year = document.getElementById('historyScopeYear')?.value;
+                if (year && !e.date.startsWith(year)) return false;
                 if (keyword && !e.item?.toLowerCase().includes(keyword) && !e.categoryName?.toLowerCase().includes(keyword)) {
                     return false;
                 }
                 return true;
-            }).slice(0, 50); // 只显示最近50条
+            }).sort((a,b)=>b.date.localeCompare(a.date));
+            document.getElementById('historyScopeTotal').textContent = `共 ${filtered.length} 笔，${scopeMoney(filtered.reduce((sum,e)=>sum+e.amount,0))}（显示最近 100 笔，可搜索更多）`;
+            filtered = filtered.slice(0,100);
             
             if (filtered.length === 0) {
                 document.getElementById('historyModalList').innerHTML = 
@@ -5287,7 +5409,7 @@
                     <div class="recent-tx-icon expense">💸</div>
                     <div class="recent-tx-info" style="flex: 1; min-width: 0;">
                         <div class="tx-name">${escapeHtml(e.item || '未命名')}</div>
-                        <div class="tx-date">${escapeHtml(e.date)} · ${escapeHtml(e.categoryName || '未分类')}</div>
+                        <div class="tx-date">${escapeHtml(e.date)} · ${escapeHtml(e.categoryName || '未分类')} · ${BUDGET_SCOPE_LABELS[expenseBudgetScope(e)]}</div>
                     </div>
                     <div class="recent-tx-amount expense" style="margin-right: 8px;">-¥${e.amount.toLocaleString()}</div>
                     <div style="display: flex; gap: 4px; flex-shrink: 0;">
@@ -5360,11 +5482,13 @@
                 amount: item.amount,
                 categoryId: item.categoryId,
                 categoryName: cat.name,
-                type: cat.type
+                type: cat.type,
+                budgetScope: readExpenseScope('expenseScope')
             };
             
             expenses.unshift(expense);
             const saved = await saveExpenseToCloud(expense);
+            if (saved) document.getElementById('expenseScope').value = '';
             trackRecentCategory(item.categoryId);
             renderBudgetStatus();
             renderCheckinCalendar();
@@ -5452,6 +5576,7 @@
         
         function selectCategory(id) {
             selectedCategory = id;
+            updateScopeDefault('expenseScope', id);
             renderCategoryGrid();
         }
         
@@ -5508,7 +5633,8 @@
                 amount,
                 categoryId: selectedCategory,
                 categoryName: cat.name,
-                type: cat.type
+                type: cat.type,
+                budgetScope: readExpenseScope('expenseScope')
             };
             
             expenses.unshift(expense);
@@ -5520,6 +5646,8 @@
             document.getElementById('expenseItem').value = '';
             document.getElementById('expenseAmount').value = '';
             selectedCategory = null;
+            document.getElementById('expenseScope').value = '';
+            updateScopeDefault('expenseScope', null);
             renderCategoryGrid();
             renderBudgetStatus();
             renderCheckinCalendar();
@@ -5621,6 +5749,7 @@ function renderBudgetCheckup() {
 }
 
         function renderBudgetStatus() {
+            renderScopeBudgets();
             const now = new Date();
             const year = now.getFullYear();
             const month = now.getMonth() + 1;
@@ -5910,7 +6039,7 @@ function renderBudgetCheckup() {
                     <div class="info">
                         <div class="date">${escapeHtml(e.date)}</div>
                         <div class="desc">${escapeHtml(e.item)}</div>
-                        <div class="cat">${escapeHtml(e.categoryName)} · ${escapeHtml(e.type)}</div>
+                        <div class="cat">${escapeHtml(e.categoryName)} · ${escapeHtml(e.type)} · ${BUDGET_SCOPE_LABELS[expenseBudgetScope(e)]}</div>
                     </div>
                     <div class="amount">¥${e.amount.toFixed(2)}</div>
                     <div class="record-actions">
@@ -5952,7 +6081,7 @@ function renderBudgetCheckup() {
                     <div class="info">
                         <div class="date">${escapeHtml(e.date)}</div>
                         <div class="desc">${escapeHtml(e.item)}</div>
-                        <div class="cat">${escapeHtml(e.categoryName)} · ${escapeHtml(e.type)}</div>
+                        <div class="cat">${escapeHtml(e.categoryName)} · ${escapeHtml(e.type)} · ${BUDGET_SCOPE_LABELS[expenseBudgetScope(e)]}</div>
                     </div>
                     <div class="amount">¥${e.amount.toFixed(2)}</div>
                     <div class="record-actions">
@@ -5992,11 +6121,16 @@ function renderBudgetCheckup() {
                     </div>
                     <div class="form-group">
                         <label>类目</label>
-                        <select id="editCategory">
+                        <select id="editCategory" onchange="updateScopeDefault('editScope',this.value)">
                             ${categories.map(cat => 
                                 `<option value="${escapeHtml(cat.id)}" ${cat.id === expense.categoryId ? 'selected' : ''}>${escapeHtml(cat.id)}. ${escapeHtml(cat.name)}</option>`
                             ).join('')}
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editScope">预算归属</label>
+                        <select id="editScope">${budgetScopeOptions(expense.budgetScope, expense.categoryId)}</select>
+                        <p class="scope-note">只调整这一笔的个人／创业归属，不改变类目预算。</p>
                     </div>
                     <div class="modal-buttons">
                         <button class="btn btn-outline" onclick="closeEditModal()">取消</button>
@@ -6011,45 +6145,44 @@ function renderBudgetCheckup() {
             document.getElementById('editModal')?.remove();
         }
         
+        let expenseEditBusy = false;
         async function saveEditExpense(id) {
+            if (expenseEditBusy) return;
+            const expense = expenses.find(e => String(e.id) === String(id));
+            if (!expense) return;
             const date = document.getElementById('editDate').value;
             const item = cleanText(document.getElementById('editItem').value.trim(), 160);
-            const amount = parseFloat(document.getElementById('editAmount').value);
-            const categoryId = parseInt(document.getElementById('editCategory').value);
+            const amount = Number(document.getElementById('editAmount').value);
+            const categoryId = Number(document.getElementById('editCategory').value);
             const cat = categories.find(c => c.id === categoryId);
-            
-            const expense = expenses.find(e => String(e.id) === String(id));
-            if (expense) {
-                expense.date = date;
-                expense.item = item;
-                expense.amount = amount;
-                expense.categoryId = categoryId;
-                expense.categoryName = cat.name;
-                expense.type = cat.type;
-                
-                try {
-                    await checkedSupabase(db.from('expenses').update({
-                        date, item, amount,
-                        category_id: categoryId,
-                        category_name: cat.name,
-                        type: cat.type
-                    }).eq('id', id), '更新消费记录');
-                } catch (e) {
-                    console.error('更新失败:', e);
-                    setSyncStatus('error');
-                    showToast('云端更新失败，请稍后重试', 'error');
-                    return;
-                }
-                
-                localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !item || !Number.isFinite(amount) || amount === 0 || !cat) {
+                showToast('请填写有效的日期、项目、非零金额和类目', 'error'); return;
             }
-            
-            closeEditModal();
-            renderHistory();
-            renderBudgetStatus();
-            showToast('已更新', 'success');
+            const next = {...expense, date, item, amount, categoryId, categoryName:cat.name, type:cat.type, budgetScope:readExpenseScope('editScope')};
+            expenseEditBusy = true;
+            try {
+                // Save one atomic row. Failed/stale writes leave the displayed ledger unchanged.
+                let query = db.from('expenses').update(expenseToCloudRow(next))
+                    .eq('id', id).eq('owner_id', authUserId).eq('user_id', currentUser)
+                    .eq('date', expense.date).eq('item', expense.item).eq('amount', expense.amount)
+                    .eq('category_id', expense.categoryId).eq('category_name', expense.categoryName).eq('type', expense.type);
+                query = expense.budgetScope == null ? query.is('budget_scope', null) : query.eq('budget_scope', expense.budgetScope);
+                await checkedSupabase(query.select('id').single(), '更新消费记录（若其他设备已修改，请刷新后重试）');
+                Object.assign(expense, next);
+                localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
+                closeEditModal();
+                renderHistory();
+                if (document.getElementById('historyModal')) renderHistoryInModal();
+                renderBudgetStatus();
+                renderDashboard();
+                setSyncStatus('synced');
+                showToast('已更新并同步云端', 'success');
+            } catch (error) {
+                setSyncStatus('error');
+                showToast(error.message, 'error');
+            } finally { expenseEditBusy = false; }
         }
-        
+
         async function deleteExpense(id) {
             if (!confirm('确定删除这条记录吗？')) return;
             
@@ -6082,6 +6215,7 @@ function renderBudgetCheckup() {
                         <option value="弹性" ${cat.type === '弹性' ? 'selected' : ''}>弹性</option>
                     </select>
                     <button class="delete-btn" onclick="deleteCategory(${index})">🗑️</button>
+                    <span class="scope-setting-label">默认归属：${BUDGET_SCOPE_LABELS[categoryBudgetScope(cat)]} · 年度预算，月均仅作参考</span>
                 </div>
             `).join('');
         }
