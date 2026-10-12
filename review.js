@@ -83,6 +83,7 @@ function rvBudgetCards(year) {
 }
 function renderScopeBudgets(){
     const years=rvYears();if(!years.includes(scopeBudgetYear))scopeBudgetYear=years[0];
+    rvPut('dashboardScopeBudget',rvBudgetCards(new Date().getFullYear()));
     rvPut('annualScopeBudget',`<div class="scope-heading"><h3>个人与创业</h3><select aria-label="年度预算年份" onchange="setScopeBudgetYear(this.value)">${years.map(y=>`<option ${y===scopeBudgetYear?'selected':''}>${y}</option>`).join('')}</select></div>${rvBudgetCards(scopeBudgetYear)}<p class="scope-note">年度额度累计使用，月均仅作参考；个人与创业分别计算。预算剩余不等于可用现金。</p>`);
 }
 
@@ -190,7 +191,7 @@ function rvReview(range,scope=''){
     ${rvFundIssues().length?'<p class="scope-over">资金关联原账有变化，请到资产页核对；相关统计暂不完整。</p>':''}${monthly}
     <section class="rv-section"><h3>本期复盘</h3><ol>${tips.slice(0,3).map(t=>`<li>${escapeHtml(t)}</li>`).join('')}</ol></section>
     <section class="rv-section"><h3>钱花在哪里</h3>${catRows.length?rvTable(catRows.slice(0,6),['类目','原账付款']):'<p class="muted">暂无支出记录。</p>'}${catRows.length>6?`<details><summary>其余 ${catRows.length-6} 个类目</summary>${rvTable(catRows.slice(6),['类目','原账付款'])}</details>`:''}<details><summary>大额支出前 ${top.length} 笔</summary>${rvTable(top.map(e=>`<tr><td>${escapeHtml(e.date)}</td><td>${escapeHtml(e.item)}</td><td>${scopeMoney(e.amount)}</td></tr>`),['日期','事项','金额'])}</details></section>
-    <details class="rv-section"><summary>账本核对与统计说明</summary><p class="muted">当月记账仍在进行，月末后再确认。未记录不等于零；同比仅在两期均核对完整后计算。季度房租、年度保险按实际付款日期列示。</p>${rvTable(reconciliation,['月份','状态','操作'])}<p class="muted">本页使用可追溯明细；旧版手填月度汇总保留在备份中。金额未知的事项不计入总额；支出未核齐时不推算完整结余。保证金、预付的确认与核销在资产页管理。</p></details>`;
+    <details class="rv-section"><summary>账本核对与统计说明</summary><p class="muted">当月记账仍在进行，月末后再确认。支出未记录不等于零；同比仅在两期均核对完整后计算。季度房租、年度保险按实际付款日期列示。</p>${rvTable(reconciliation,['月份','状态','操作'])}<p class="muted">本页使用可追溯明细；旧版手填月度汇总保留在备份中。金额未知的事项不计入总额；支出未核齐时不推算完整结余。保证金、预付的确认与核销在资产页管理。</p></details>`;
 }
 
 function renderReport(){

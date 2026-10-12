@@ -174,3 +174,13 @@ test('failed income and goal deletions do not appear to succeed locally',async()
 test('category additions start with no invented budget and retain original annual budget',async()=>{
  const h=harness({categories:[{id:1,name:'food',yearly:100,type:'日常'}]});await h.run('loadDataFromCloud()');h.run('renderCategoryGrid=renderBudgetTip=renderBudgetStatus=renderSettings=renderReport=renderDashboard=()=>{}');await h.run('addCategory()');assert.equal(h.run('categories[1].yearly'),0);assert.equal(h.run('reviewData.budgetYears[new Date().getFullYear()].original[0].yearly'),100);assert.equal(h.run('scopeSummary(new Date().getFullYear()).personal.budget'),100);
 });
+
+test('restored quick-entry buttons only prepare a form, never insert an expense',()=>{
+ const h=harness();h.run(`const formFields={expenseItem:{value:''},expenseAmount:{value:''}};document.getElementById=id=>formFields[id];selectCategory=()=>{};expenses=[];quickRecord(0);`);assert.equal(h.run(`document.getElementById('expenseItem').value`),'咖啡');assert.equal(h.run(`document.getElementById('expenseAmount').value`),25);assert.equal(h.run('expenses.length'),0);assert.equal(h.writes.length,0);
+});
+test('restored annual summary labels missing history unknown, not zero or Infinity',()=>{
+ const h=harness();h.run(`const fields={yearSelect:{value:'2024'},yearSummary:{},yearGrid:{},yearCategoryRank:{}};document.getElementById=id=>fields[id];expenses=[];categories=[];renderYearlyStats();`);const html=h.run(`document.getElementById('yearSummary').innerHTML`);assert.match(html,/未知/);assert.doesNotMatch(html,/Infinity|NaN|¥0\.00/);assert.match(h.run(`document.getElementById('yearGrid').innerHTML`),/未知/);
+});
+test('restored dashboard goal progress uses canonical goal amounts',()=>{
+ const h=harness();h.run(`const el={};document.getElementById=()=>el;goals=[{name:'test',targetAmount:200,currentAmount:50}];renderDashboardGoals();`);assert.match(h.run(`document.getElementById('dashboardGoalsProgress').innerHTML`),/25%/);
+});

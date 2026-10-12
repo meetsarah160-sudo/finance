@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, ">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💰 财务管理系统</title>
     <script src="assets/vendor/supabase-js-2.75.0.min.js"></script>
     <script src="assets/vendor/chart-4.5.0.umd.min.js"></script>
@@ -2969,12 +2969,12 @@
         .scope-setting-label { grid-column:2 / -1; color:var(--gray-600); font-size:12px; }
         @media(max-width:600px) { .scope-budget-grid { grid-template-columns:1fr; } }
     </style>
-<link rel="stylesheet" href="review.css?v=20261012.3">
+<link rel="stylesheet" href="review.css?v=20261012.4">
 </head>
 <body>
     <!-- 登录页面 -->
     <div id="loginPage" class="login-container">
-        <h1>财务管理</h1>
+        <h1>💰 财务管理</h1>
         <p class="subtitle">云同步 · 多设备 · 数据分析</p>
         <input type="email" id="loginEmail" placeholder="邮箱" autocomplete="email">
         <input type="password" id="loginPassword" placeholder="密码" autocomplete="current-password">
@@ -3006,40 +3006,124 @@
     <div id="mainApp" class="container hidden">
         <!-- 头部 -->
         <div class="header">
-            <h1>财务管理</h1>
+            <h1>💰 财务管理</h1>
             <div class="header-info">
                 <span class="user-badge">👤 <span id="displayUser"></span></span>
                 <span class="sync-status synced" id="syncStatus">✓ 已同步</span>
             </div>
-            <div class="header-buttons"><button class="btn btn-outline btn-sm" onclick="syncData()">刷新账本</button><button class="btn btn-outline btn-sm" onclick="switchPage('settings')">备份与设置</button></div>
+            <div class="header-buttons">
+                <button class="btn btn-outline btn-sm" onclick="exportData()">📤 导出</button>
+                <button class="btn btn-outline btn-sm" onclick="importData()">📥 导入</button>
+                <button class="btn btn-outline btn-sm" onclick="showAutoBackups()">📋 本机快照</button>
+                <button class="btn btn-outline btn-sm" onclick="exportCloudBackup()">☁️ 云端备份下载</button>
+                <button class="btn btn-outline btn-sm" onclick="showCloudHistory()">🕘 修改与备份</button>
+                <button class="btn btn-outline btn-sm" onclick="syncData()">🔄 同步</button>
+                <button class="btn btn-danger btn-sm" onclick="logout()">退出</button>
+            </div>
         </div>
 
         <!-- 导航标签 -->
-        <nav class="tabs" aria-label="主导航"><button class="tab active" data-page="dashboard" onclick="switchPage('dashboard')">概览</button><button class="tab " data-page="record" onclick="switchPage('record')">记账</button><button class="tab " data-page="budget" onclick="switchPage('budget')">预算</button><button class="tab " data-page="report" onclick="switchPage('report')">复盘</button><button class="tab " data-page="assets" onclick="switchPage('assets')">资产</button><button class="tab " data-page="settings" onclick="switchPage('settings')">设置</button></nav>
+        <div class="tabs" role="navigation" aria-label="主导航">
+            <button class="tab active" data-page="dashboard" onclick="switchPage('dashboard', event)">📊 总览</button>
+            <button class="tab" data-page="record" onclick="switchPage('record', event)">📝 记账</button>
+            <button class="tab" data-page="analysis" onclick="switchPage('analysis', event)">📈 分析</button>
+            <button class="tab" data-page="wealth" onclick="switchPage('wealth', event)">💰 财富</button>
+            <button class="tab" data-page="settings" onclick="switchPage('settings', event)">⚙️ 设置</button>
+        </div>
 
         <!-- 主内容区 -->
         <div class="main-content">
             <!-- ==================== 📊 总览页面 (Dashboard) ==================== -->
             <div id="page-dashboard" class="page active">
- <div class="page-heading"><div><h2>财务概览</h2><p id="dashboardAsOf" class="muted"></p></div><button class="btn btn-primary" onclick="switchPage('record')">记一笔</button></div>
- <div class="dashboard-kpi-grid" id="dashboardKPI"></div>
- <section class="rv-section"><div class="card-header-flex"><h3>今年的预算</h3><button class="btn btn-outline btn-sm" onclick="switchPage('budget')">预算明细</button></div><div id="dashboardScopeBudget"></div></section>
- <section class="rv-section" id="dashboardAttention"></section>
- <section class="rv-section"><div class="card-header-flex"><h3>最近收支</h3><button class="btn btn-outline btn-sm" onclick="showHistoryInRecord()">支出明细</button></div><div id="dashboardRecentTx"></div></section>
-</div>
+                <h2 class="page-title">📊 财务总览</h2>
+                <div id="dashboardScopeBudget" class="scope-panel"></div>
+
+                <!-- 关键指标卡片 -->
+                <div class="dashboard-kpi-grid" id="dashboardKPI"></div>
+
+                <!-- 💡 每日提醒 -->
+                <div id="dailyReminder" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 20px; margin-bottom: 15px; color: white; position: relative; overflow: hidden;">
+                    <div style="position: absolute; right: -20px; top: -20px; font-size: 80px; opacity: 0.15;">💰</div>
+                    <div id="dailyReminderContent"></div>
+                </div>
+
+                <!-- 资产净值大卡片 -->
+                <div class="dashboard-networth" id="dashboardNetworth">
+                    <div class="nw-label">💎 资产净值</div>
+                    <div class="nw-value" id="dashboardNetworthValue">¥0</div>
+                    <div class="nw-progress">
+                        <div class="nw-progress-label">
+                            <span>🎯 百万目标进度</span>
+                            <span id="dashboardGoalPercent">0%</span>
+                        </div>
+                        <div class="nw-progress-bar">
+                            <div class="nw-progress-fill" id="dashboardGoalFill" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🔥 CFP财务生命体征仪表盘 -->
+                <div class="dashboard-card vital-signs-card">
+                    <h3>📌 财务关键指标</h3>
+                    <div class="vital-signs-grid" id="dashboardVitalSigns">
+                        <!-- 由JS动态渲染 -->
+                    </div>
+                </div>
+
+                <!-- 双列布局：预算执行 + 储蓄目标 -->
+                <div class="dashboard-two-col">
+                    <div class="dashboard-card">
+                        <h3>📊 年度预算执行</h3>
+                        <div id="dashboardBudgetProgress"></div>
+                    </div>
+                    <div class="dashboard-card">
+                        <h3>🎯 储蓄目标</h3>
+                        <div id="dashboardGoalsProgress"></div>
+                    </div>
+                </div>
+
+                <!-- 快捷操作 -->
+                <div class="dashboard-quick-actions">
+                    <button class="quick-action-btn" onclick="switchPage('record', event)">
+                        <span class="icon">📝</span>
+                        <span>快速记账</span>
+                    </button>
+                    <button class="quick-action-btn" onclick="showUpdateAssets()">
+                        <span class="icon">💰</span>
+                        <span>更新资产</span>
+                    </button>
+                    <button class="quick-action-btn" onclick="switchPage('analysis', event)">
+                        <span class="icon">📋</span>
+                        <span>查看报告</span>
+                    </button>
+                    <button class="quick-action-btn" onclick="switchPage('wealth', event)">
+                        <span class="icon">🎯</span>
+                        <span>财富管理</span>
+                    </button>
+                </div>
+
+                <!-- 最近交易 -->
+                <div class="dashboard-card">
+                    <div class="card-header-flex">
+                        <h3>📋 最近交易</h3>
+                        <a href="javascript:void(0)" onclick="switchPage('record', event)" class="view-all-link">查看全部 →</a>
+                    </div>
+                    <div id="dashboardRecentTx"></div>
+                </div>
+            </div>
 
             <!-- ==================== 📝 记账页面 ==================== -->
             <div id="page-record" class="page">
                 <div class="card-header-flex" style="margin-bottom: 15px;">
-                    <h2 class="page-title" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">记账</h2>
-                    <div class="rv-controls"><button class="btn btn-outline btn-sm" onclick="showHistoryInRecord()">支出明细</button><button class="btn btn-outline btn-sm" onclick="switchPage('income')">收入明细</button></div>
+                    <h2 class="page-title" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">📝 快速记账</h2>
+                    <button class="btn btn-outline btn-sm" onclick="showHistoryInRecord()">📋 历史记录</button>
                 </div>
 
                 <!-- 月度总览 -->
-                <div class="record-summary" id="monthOverview"></div><div id="recordPending"></div>
+                <div class="overview-card" id="monthOverview"></div><div id="recordPending"></div>
 
                 <!-- 记账打卡日历 -->
-
+                <div class="checkin-calendar" id="checkinCalendar"></div>
 
                 <!-- 收入/支出切换 -->
                 <div class="type-switch">
@@ -3050,10 +3134,16 @@
                 <!-- 支出记录区 -->
                 <div id="expenseForm">
                     <div class="form-group">
-                        <label for="expenseScope">预算归属</label>
+                        <label for="expenseScope">预算归属（普通记账和快捷记账均适用）</label>
                         <select id="expenseScope"><option value="">按类目默认</option><option value="personal">个人 · 单笔指定</option><option value="business">创业 · 单笔指定</option></select>
                         <p class="scope-note">公司代账费、创业购置默认归创业，其他默认归个人；可为这一笔单独调整。</p>
                     </div>
+                    <!-- 常用消费快捷按钮 -->
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: 500; margin-bottom: 8px; display: block;">⚡ 常用消费（一键记录）</label>
+                        <div class="quick-buttons" id="quickButtons"></div>
+                    </div>
+
                     <div class="quick-input-section">
                         <label style="font-weight: 500; margin-bottom: 8px; display: block;">快速输入</label>
                         <div class="quick-input">
@@ -3080,7 +3170,7 @@
                     <label style="font-weight: 500; margin-bottom: 10px; display: block;">选择类目</label>
                     <div id="categoryGrid"></div>
 
-                    <button class="btn btn-primary" style="width: 100%; padding: 15px; font-size: 16px; margin-top: 15px;" onclick="saveExpense()">💸 记录支出</button>
+                    <button class="btn btn-danger" style="width: 100%; padding: 15px; font-size: 16px; margin-top: 15px;" onclick="saveExpense()">💸 记录支出</button>
                 </div>
 
                 <!-- 收入记录区 -->
@@ -3118,7 +3208,7 @@
             <!-- 预算页面 -->
             <div id="page-budget" class="page">
                 <div id="annualScopeBudget" class="scope-panel"></div>
-                <h2 class="page-title">年度预算</h2>
+                <h2 class="page-title">📊 年度预算</h2>
 
                 <div class="summary-cards" id="summaryCards"></div>
 
@@ -3126,34 +3216,169 @@
                 <div class="compare-cards" id="compareCards"></div>
 
                 <div style="font-size: 14px; color: var(--gray-600); margin-bottom: 15px;">
-                    按全年累计；点击类目查看对应支出。
+                    💡 点击类目可展开查看具体消费明细
                 </div>
 
                 <div id="budgetList"></div>
             </div>
 
             <!-- 消费日历页面 -->
+            <div id="page-calendar" class="page">
+                <h2 class="page-title">📅 消费热力图</h2>
 
+                <!-- 月度汇总 -->
+                <div class="calendar-summary" id="calendarSummary"></div>
 
-            <!-- 收支总览页面 -->
-            <div id="page-income" class="page"><div class="page-heading"><h2>收入明细</h2><button class="btn btn-outline" onclick="switchPage('record');switchRecordType('income')">记录收入</button></div><div class="rv-controls"><label>年份 <select id="incomeYearSelect" onchange="renderIncomeTable()"></select></label><label>月份 <select id="incomeMonthFilter" onchange="renderIncomeTable()"><option value="all">全年</option><option value="1">1 月</option><option value="2">2 月</option><option value="3">3 月</option><option value="4">4 月</option><option value="5">5 月</option><option value="6">6 月</option><option value="7">7 月</option><option value="8">8 月</option><option value="9">9 月</option><option value="10">10 月</option><option value="11">11 月</option><option value="12">12 月</option></select></label></div><div id="incomeSummaryCards" class="muted"></div><div id="incomeDetailList"></div></div>
+                <div class="calendar-header">
+                    <div class="calendar-nav">
+                        <button onclick="prevMonth()">◀</button>
+                        <span id="calendarTitle"></span>
+                        <button onclick="nextMonth()">▶</button>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="goToToday()">今天</button>
+                </div>
 
+                <div class="calendar-grid" id="calendarGrid"></div>
+
+                <!-- 图例 -->
+                <div class="calendar-legend">
+                    <div class="legend-item"><div class="legend-color" style="background:#f0fdf4;"></div>无</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#dcfce7;"></div>&lt;50</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#fef9c3;"></div>50-100</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#fef08a;"></div>100-200</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#fdba74;"></div>300-500</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#fca5a5;"></div>500-800</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#ef4444;"></div>&gt;1000</div>
+                    <div class="legend-item">💰=有收入</div>
+                </div>
+
+                <div class="calendar-detail" id="calendarDetail">
+                    <h4>📋 选择日期查看明细</h4>
+                    <div id="dayDetail">点击日历中的日期查看当天消费明细</div>
+                </div>
+            </div>
+
+<div id="page-income" class="page"><h2 class="page-title">💵 收支总览</h2><div class="income-header"><select id="incomeYearSelect" onchange="renderIncomeTable()" class="year-selector"></select><div class="income-summary" id="incomeSummaryCards"></div></div><p class="muted">未新增收入按零计算；支出按已记账明细展示，未知月份不补零。</p><div class="income-table-scroll"><table class="income-table"><thead><tr><th>月份</th><th>收入</th><th>已记净付款</th><th>已记收支差额</th></tr></thead><tbody id="incomeTableBody"></tbody></table></div><div class="income-charts-grid"><div class="chart-card"><h3>🥧 收入构成</h3><div class="chart-wrapper"><canvas id="incomeComposeChart"></canvas></div><div id="incomeComposeLegend" class="income-legend"></div></div><div class="chart-card"><h3>📊 月度收支</h3><div class="chart-wrapper"><canvas id="monthlyCompareChart"></canvas></div></div></div><div class="card-header-flex"><h3>📋 收入明细</h3><select id="incomeMonthFilter" onchange="renderIncomeList()"><option value="all">全年</option><option value="1">1 月</option><option value="2">2 月</option><option value="3">3 月</option><option value="4">4 月</option><option value="5">5 月</option><option value="6">6 月</option><option value="7">7 月</option><option value="8">8 月</option><option value="9">9 月</option><option value="10">10 月</option><option value="11">11 月</option><option value="12">12 月</option></select></div><div id="incomeDetailList"></div></div>
             <!-- 存量资产页面 -->
             <div id="page-assets" class="page">
- <div class="page-heading"><h2>资产</h2><button class="btn btn-primary" onclick="showUpdateAssets()">更新余额</button></div>
- <section class="asset-hero"><div><p class="muted">已记录净资产</p><div id="heroNetWorth" class="asset-hero__value"></div><p id="heroDate" class="muted"></p></div></section>
- <section class="rv-section"><div class="trend-card__header"><h3>净值趋势</h3><div class="range-tabs" id="rangeTabs"><button data-range="3M">近 3 月</button><button data-range="6M">近 6 月</button><button data-range="1Y" class="is-active">近 1 年</button><button data-range="ALL">全部</button></div></div><p id="trendReadout" class="chart-readout" aria-live="polite"></p><div class="trend-card__chart"><canvas id="trendChart" role="img" aria-label="净值趋势，具体金额也可在下方数据表查看"></canvas></div><div class="trend-card__summary"><span>所选记录净值变化</span><strong id="trendDelta">—</strong></div><p class="muted">包含新增资金等变化；连线仅连接已有快照，不代表投资收益。</p><details><summary>查看每月数值</summary><div id="trendTable"></div></details></section>
- <section class="rv-section"><div class="card-header-flex"><h3>余额明细</h3><div class="rv-controls"><button class="btn btn-outline btn-sm" onclick="showAssetHistoryModal()">快照历史</button><button class="btn btn-outline btn-sm" onclick="showManageAssetTypes()">管理项目</button></div></div><div id="detailGroups"></div></section>
- <div id="assetFunds"></div><section class="rv-section"><div class="card-header-flex"><div><h3>储蓄目标</h3><p class="muted">保留你设置的目标，进度单独记录。</p></div><button class="btn btn-outline btn-sm" onclick="switchPage('goals')">管理目标</button></div></section>
-</div>
+                <h2 class="page-title">💰 存量资产</h2>
+
+                <!-- STEP 1 · Hero 区 -->
+                <section class="asset-hero">
+                    <div class="asset-hero__main">
+                        <div class="asset-hero__label">资产净值 · 登记于 <span id="heroDate">—</span></div>
+                        <div class="asset-hero__row">
+                            <span class="asset-hero__value" id="heroNetWorth">¥0</span>
+                            <span id="heroDelta"></span>
+                        </div>
+                    </div>
+                    <div class="asset-hero__actions">
+                        <button class="btn btn-primary-hero" onclick="showManageAssetTypes()">+ 新增资产</button>
+                        <button class="btn" onclick="showUpdateAssets()">⟳ 月度快照</button>
+                    </div>
+                </section>
+
+                <!-- STEP 2 · 四笔钱 KPI 卡 -->
+                <section class="kpi-grid" id="kpiCards"></section>
+
+                <!-- STEP 3 · 财务健康度 -->
+                <section class="health-card" id="healthCard">
+                    <div class="health-card__header">
+                        <div class="health-card__title">资产口径</div>
+                        <div class="health-card__score">
+                            <span id="healthScoreNum">—</span>
+                            <span class="health-card__score-meta"><span id="healthScoreLabel"></span></span>
+                        </div>
+                    </div>
+                    <div class="health-card__metrics" id="healthMetrics"></div>
+                </section>
+
+                <!-- STEP 4 · 百万目标里程碑跑道 -->
+                <section class="milestone-card" id="assetsMilestonesCard">
+                    <div class="milestone-card__header">
+                        <div class="milestone-card__title">百万目标</div>
+                        <div class="milestone-card__sub" id="milestoneSub">—</div>
+                    </div>
+                    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:14px;">
+                        <span class="milestone-card__pct" id="milestonePct">0%</span>
+                        <span style="font-size:12px;color:var(--gray-500);" id="milestonePctMeta"></span>
+                    </div>
+                    <div class="milestone-track">
+                        <div class="milestone-track__bg"></div>
+                        <div class="milestone-track__fill" id="milestoneFill" style="width:0%"></div>
+                        <div class="milestone-track__nodes" id="milestoneNodes"></div>
+                    </div>
+                    <div class="milestone-labels" id="milestoneLabels"></div>
+                </section>
+
+                <!-- STEP 5+6 · 环形图 + 趋势图 -->
+                <div class="assets-charts-grid">
+                    <!-- STEP 6 · 净值趋势（Chart.js + 时间切换） -->
+                    <div class="chart-card">
+                        <div class="trend-card__header">
+                            <div class="trend-card__title">净值趋势</div>
+                            <div class="range-tabs" id="rangeTabs">
+                                <button data-range="3M">3M</button>
+                                <button data-range="6M">6M</button>
+                                <button data-range="1Y">1Y</button>
+                                <button data-range="ALL" class="is-active">全部</button>
+                            </div>
+                        </div>
+                        <p id="trendReadout" class="chart-readout" aria-live="polite"></p><div class="trend-card__chart">
+                            <canvas id="trendChart" role="img" aria-label="资产净值趋势"></canvas>
+                        </div>
+                        <div class="trend-card__summary">
+                            <span style="font-size:12px;color:var(--gray-600);">所选记录净值变化</span>
+                            <span id="trendDelta" style="font-size:13px;font-weight:500;">—</span>
+                        </div><details class="chart-data"><summary>查看每月数值</summary><div id="trendTable"></div><p class="muted">连线连接已有快照，净值变化不等于投资收益。</p></details>
+                    </div>
+
+                    <!-- STEP 5 · 资产配置环形图（Chart.js doughnut） -->
+                    <div class="chart-card">
+                        <div class="trend-card__title" style="margin-bottom:12px;">资产配置</div>
+                        <div class="alloc-chart-wrap">
+                            <canvas id="allocChart"></canvas>
+                            <div class="alloc-chart-center">
+                                <div class="alloc-chart-center__label">合计</div>
+                                <div class="alloc-chart-center__value" id="allocTotal">¥0</div>
+                            </div>
+                        </div>
+                        <div id="assetsLegend" class="assets-legend"></div>
+                    </div>
+                </div>
+
+                <!-- 分类趋势 + 资产明细（左右布局） -->
+                <div class="assets-detail-grid">
+                    <!-- 左侧：分类资产变化图表 -->
+                    <div class="chart-card">
+                        <h3>📊 分类资产变化</h3>
+                        <div class="chart-wrapper-wide">
+                            <canvas id="assetsCategoryChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- STEP 7 · 资产明细分组卡片 -->
+                    <div class="chart-card">
+                        <div class="card-header-flex">
+                            <div class="trend-card__title">资产明细</div>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                <button class="btn btn-secondary btn-sm" onclick="showAssetHistoryModal()">📜 历史</button>
+                                <button class="btn btn-secondary btn-sm" onclick="showManageAssetTypes()">⚙️ 管理</button>
+                                <button class="btn btn-primary btn-sm" onclick="showUpdateAssets()">⟳ 快照</button>
+                            </div>
+                        </div>
+                        <div id="detailGroups" style="margin-top:12px;"></div><div id="assetFunds"></div>
+                    </div>
+                </div>
+            </div>
 
             <!-- 储蓄目标页面 -->
             <div id="page-goals" class="page">
                 <h2 class="page-title">🎯 储蓄目标</h2>
 
                 <div class="overview-card">
-
-                    <div id="savingsOverview" class="muted">目标进度为手动登记，不额外计入资产。</div>
+                    <h3>💰 目标进度</h3>
+                    <div id="savingsOverview" class="muted">目标进度为单独登记，不额外计入资产。</div>
                 </div>
 
                 <h3 style="font-size: 16px; margin-bottom: 15px;">📋 我的目标</h3>
@@ -3164,9 +3389,9 @@
 
             <!-- 月度报告页面 -->
             <div id="page-report" class="page">
-                <h2 class="page-title">月／季／年复盘</h2>
+                <h2 class="page-title">📋 月／季／年复盘</h2>
 
-                <div class="rv-controls report-controls">
+                <div class="report-controls">
                     <label>归属 <select id="reportScope" onchange="renderReport()"><option value="">全部</option><option value="personal">个人</option><option value="business">创业</option></select></label> <label>复盘周期 <select id="reportMode" onchange="initReportMonthSelector();renderReport()"><option value="month">月度</option><option value="quarter">季度</option><option value="year">年度</option></select></label> <label>期间 <select id="reportMonth" onchange="renderReport()" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300);"></select></label>
                 </div>
 
@@ -3192,20 +3417,51 @@
             </div>
 
             <!-- ==================== 📈 分析页面 ==================== -->
+            <div id="page-analysis" class="page">
+                <!-- 二级导航 -->
+                <div class="sub-tabs">
+                    <button class="sub-tab active" onclick="switchAnalysisTab('report')">📋 月／季／年复盘</button>
+                    <button class="sub-tab" onclick="switchAnalysisTab('charts')">📈 图表分析</button>
+                    <button class="sub-tab" onclick="switchAnalysisTab('calendar')">📅 日历热力图</button>
+                    <button class="sub-tab" onclick="switchAnalysisTab('yearly')">📊 年度统计</button>
+                </div>
 
+                <!-- 子页面内容容器 -->
+                <div id="analysis-content"></div>
+            </div>
 
             <!-- 预算体检子页（由 switchWealthTab 移入 wealth-content） -->
-
+            <div id="page-checkup" style="display:none"></div>
 
             <!-- ==================== 💰 财富页面 ==================== -->
+            <div id="page-wealth" class="page">
+                <!-- 二级导航 -->
+                <div class="sub-tabs">
+                    <button class="sub-tab active" onclick="switchWealthTab('assets')">💰 资产管理</button>
+                    <button class="sub-tab" onclick="switchWealthTab('income')">💵 收支总览</button>
+                    <button class="sub-tab" onclick="switchWealthTab('budget')">📊 预算管理</button>
+                    <button class="sub-tab" onclick="switchWealthTab('checkup')">🩺 预算体检</button>
+                    <button class="sub-tab" onclick="switchWealthTab('goals')">🎯 储蓄目标</button>
+                </div>
 
+                <!-- 子页面内容容器 -->
+                <div id="wealth-content"></div>
+            </div>
 
             <!-- 设置页面 -->
             <div id="page-settings" class="page">
-                <h2 class="page-title">设置</h2><section class="rv-section"><h3>数据与备份</h3><p id="recordingPolicyNote" class="muted"></p><p class="muted">下载完整账本，包含支出、收入、预算、资产及复盘配置。</p><div class="rv-controls"><button class="btn btn-primary" onclick="exportCloudBackup()">下载云端完整备份</button><button class="btn btn-outline" onclick="showCloudHistory()">修改与备份历史</button></div><details><summary>导入与本机恢复</summary><div class="rv-controls"><button class="btn btn-outline" onclick="exportData()">导出当前账本</button><button class="btn btn-outline" onclick="importData()">导入文件</button><button class="btn btn-outline" onclick="showAutoBackups()">本机快照</button></div></details></section>
+                <h2 class="page-title">⚙️ 设置</h2>
 
-<details class="rv-section"><summary>账户安全</summary><div class="rv-controls"><button class="btn btn-outline" onclick="showChangePassword()">修改密码</button><button class="btn btn-outline" onclick="logout()">退出登录</button></div><details><summary>注销账户</summary><button class="btn btn-danger" onclick="showDeleteAccount()">注销账户</button></details></details>
-<details class="rv-section"><summary>记账类目</summary>                <h3 style="font-size: 16px; margin-bottom: 15px;">📋 类目设置</h3>
+                <!-- 账户安全 -->
+                <div style="background: var(--gray-100); border-radius: 12px; padding: 15px; margin-bottom: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">🔒 账户安全</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="showChangePassword()">修改密码</button>
+                        <button class="btn btn-outline" onclick="showDeleteAccount()">注销账户</button>
+                    </div>
+                </div>
+
+                <h3 style="font-size: 16px; margin-bottom: 15px;">📋 类目设置</h3>
 
                 <div class="settings-tip">
                     💡 修改后会自动保存并同步到云端
@@ -3234,17 +3490,17 @@
                     <button class="btn btn-outline" onclick="checkMissingCategories()">🔍 检测缺失类目</button>
                 </div>
 
-</details><details class="rv-section"><summary>资产分组</summary>                <!-- 资产分组配置（四笔钱 bucket mapping）-->
+                <!-- 资产分组配置（四笔钱 bucket mapping）-->
                 <div style="margin-top: 25px; border-top: 2px solid var(--gray-200); padding-top: 20px;">
                     <h3 style="font-size: 16px; margin-bottom: 8px;">🗂️ 资产分组配置</h3>
                     <p style="font-size: 13px; color: var(--gray-600); margin-bottom: 14px;">
-                        指定流动资产、投资资产、负债等分组。负债从净资产中扣除。
+                        指定每个资产大类属于哪个分析维度（影响 KPI 卡片和健康度评分）。
                     </p>
                     <div id="bucketSettingsList"></div>
                     <button class="btn btn-primary" style="margin-top: 12px;" onclick="saveBucketMapFromUI()">保存分组配置</button>
                 </div>
 
-</details><details class="rv-section"><summary>类目修复工具</summary>                <!-- 数据迁移工具 -->
+                <!-- 数据迁移工具 -->
                 <div style="margin-top: 25px; border-top: 2px solid var(--gray-200); padding-top: 20px;">
                     <h3 style="font-size: 16px; margin-bottom: 15px;">🔄 数据迁移工具</h3>
                     <div class="settings-tip" style="margin-bottom: 15px;">
@@ -3252,19 +3508,75 @@
                     </div>
 
                     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
-
+                        <button class="btn btn-warning" onclick="resetToDefaultCategories()">🔄 重置为默认类目</button>
                         <button class="btn btn-primary" onclick="scanAndShowMigration()">🔍 扫描待迁移记录</button>
                     </div>
 
                     <div id="migrationPanel" style="display: none;"></div>
-                </div></details>
+                </div>
             </div>
 
             <!-- 图表页面 -->
+            <div id="page-charts" class="page">
+                <h2 class="page-title">📈 可视化图表</h2>
 
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <select id="chartMonth" onchange="renderCharts()" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300); font-size: 14px;"></select>
+                    <div style="font-size: 14px; color: var(--gray-600);">
+                        💡 图表数据根据所选月份自动更新
+                    </div>
+                </div>
+
+                <!-- 汇总卡片 -->
+                <div class="summary-cards" id="chartSummary" style="margin-bottom: 25px;"></div>
+
+                <!-- 图表区域 -->
+                <div class="charts-container">
+                    <!-- 饼图：支出构成 -->
+                    <div class="chart-card">
+                        <h3>🥧 支出构成</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="pieChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 折线图：每日消费趋势 -->
+                    <div class="chart-card">
+                        <h3>📉 每日消费趋势</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="lineChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 柱状图：预算vs实际 -->
+                    <div class="chart-card full-width">
+                        <h3>📊 预算 vs 实际支出</h3>
+                        <div class="chart-wrapper-wide">
+                            <canvas id="barChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- 年度统计页面 -->
+            <div id="page-yearly" class="page">
+                <h2 class="page-title">📅 年度统计</h2>
 
+                <div style="margin-bottom: 20px;">
+                    <select id="yearSelect" onchange="renderYearlyStats()" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300); font-size: 14px;"></select>
+                </div>
+
+                <!-- 年度汇总 -->
+                <div id="yearSummary"></div>
+
+                <!-- 月度卡片 -->
+
+                <div id="yearGrid"></div>
+
+                <!-- 年度类目排行 -->
+
+                <div id="yearCategoryRank"></div>
+            </div>
         </div>
     </div>
 
@@ -3419,7 +3731,7 @@
         let configLoadedFor = null;
         let configSyncQueue = Promise.resolve();
         let configSyncPending = 0;
-        const APP_VERSION = '2026.10.12.3';
+        const APP_VERSION = '2026.10.12.4';
 
         function localDateString(date = new Date()) {
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -4426,6 +4738,8 @@
             document.getElementById('incomeDate').value = localDateString();
             renderCategoryGrid();
             renderMonthOverview();
+            renderCheckinCalendar();
+            renderQuickButtons();
 
 
             renderBudgetStatus();
@@ -4441,27 +4755,36 @@
         }
 
         function switchPage(page) {
-            page=({analysis:'report',wealth:'assets',calendar:'report',charts:'report',yearly:'report',checkup:'budget'})[page]||page;
-            const target=document.getElementById('page-'+page);if(!target)return;
-            document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p===target));
-            document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.page===({income:'record',history:'record',goals:'assets'}[page]||page)));
-            if(page==='dashboard')renderDashboard();
-            if(page==='budget')renderBudgetStatus();
-            if(page==='settings')renderSettings();
-            if(page==='assets')renderAssets();
-            if(page==='goals')renderGoals();
-            if(page==='history')renderHistory();
-            if(page==='income'){initIncomeYearSelector();renderIncomeTable();}
-            if(page==='report'){initReportMonthSelector();renderReport();}
-            if(page==='record'){renderMonthOverview();rvPut('recordPending',rvPendingUI());}
+            const analysis=['report','charts','calendar','yearly'],wealth=['assets','income','budget','checkup','goals'];
+            const root=analysis.includes(page)?'analysis':wealth.includes(page)?'wealth':page;
+            document.querySelectorAll('.page').forEach(p=>{p.classList.remove('active');p.style.display='';});
+            const target=document.getElementById('page-'+root);if(!target)return;target.classList.add('active');
+            document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.toggle('active',t.dataset.page===(root==='history'?'record':root)));
+            if(root==='analysis'||root==='wealth'){
+                const tabs=root==='analysis'?analysis:wealth,tab=page===root?tabs[0]:page,container=document.getElementById(root+'-content');
+                tabs.forEach((name,i)=>{const el=document.getElementById('page-'+name);if(el){container.appendChild(el);el.style.display=name===tab?'block':'none';}document.querySelectorAll('#page-'+root+' .sub-tab')[i]?.classList.toggle('active',name===tab);});
+                if(tab==='report'){initReportMonthSelector();renderReport();}
+                if(tab==='charts'){initChartMonthSelector();renderCharts();}
+                if(tab==='calendar')renderCalendar();
+                if(tab==='yearly'){initYearSelector();renderYearlyStats();}
+                if(tab==='assets')renderAssets();
+                if(tab==='income'){initIncomeYearSelector();renderIncomeTable();}
+                if(tab==='budget')renderBudgetStatus();
+                if(tab==='checkup')renderBudgetCheckup();
+                if(tab==='goals')renderGoals();
+            }
+            if(root==='dashboard')renderDashboard();
+            if(root==='record'){renderMonthOverview();renderCheckinCalendar();rvPut('recordPending',rvPendingUI());}
+            if(root==='settings')renderSettings();
+            if(root==='history')renderHistory();
         }
 
         // ==================== Dashboard 功能 ====================
         function renderDashboard() {
-            const latest=expenses.map(e=>e.date).sort().at(-1);
-            rvPut('dashboardAsOf','支出记录至 '+(latest?escapeHtml(latest):'尚无记录'));
-            renderDashboardKPI();rvPut('dashboardScopeBudget',rvBudgetCards(new Date().getFullYear()));
-            rvPut('dashboardAttention',rvAttention());renderDashboardRecentTx();
+            renderScopeBudgets();renderDashboardKPI();renderDashboardNetworth();renderDashboardBudget();renderDashboardGoals();renderDashboardRecentTx();
+            const latest=expenses.map(e=>e.date).sort().at(-1),pending=rvState().pending.filter(p=>!p.resolvedAt).length;
+            rvPut('dailyReminderContent',`<strong>账本记录至 ${escapeHtml(latest||'暂无')}</strong><p style="margin-top:8px;font-size:13px;line-height:1.7">未新增收入即无进账；资产沿用上次登记余额。${pending?`<br><a style="color:inherit" href="#" onclick="switchPage('record');return false">${pending} 笔金额待补，未计入支出 →</a>`:''}</p>`);
+            renderDashboardVitalSigns();
         }
 
 
@@ -4570,11 +4893,11 @@
         }
 
         // ==================== 分析页面Tab切换 ====================
-        function switchAnalysisTab(tab) { switchPage(tab==='yearly'?'report':tab);
+        function switchAnalysisTab(tab) {switchPage(tab);
         }
 
         // ==================== 财富页面Tab切换 ====================
-        function switchWealthTab(tab) { switchPage(tab);
+        function switchWealthTab(tab) {switchPage(tab);
         }
 
         // ==================== 记账功能 ====================
@@ -4693,37 +5016,68 @@
             `).join('');
         }
 
-        async function quickRecord(index) {
-            const item = QUICK_ITEMS[index];
-            const cat = categories.find(c => c.id === item.categoryId);
-            if (!cat) {
-                showToast('类目不存在', 'error');
-                return;
-            }
-
-            const expense = {
-                id: Date.now(),
-                date: localDateString(),
-                item: item.name.replace(/^[^\s]+\s/, ''), // 去掉emoji
-                amount: item.amount,
-                categoryId: item.categoryId,
-                categoryName: cat.name,
-                type: cat.type,
-                budgetScope: readExpenseScope('expenseScope')
-            };
-
-            expenseSaveBusy=true;
-            expenses.unshift(expense);
-            let saved;try{saved=await saveExpenseToCloud(expense);}finally{expenseSaveBusy=false;}
-            if (saved) document.getElementById('expenseScope').value = '';
-            trackRecentCategory(item.categoryId);
-            renderBudgetStatus();
-
-            if (saved) showToast(`已记录 ${item.name} ¥${item.amount}`, 'success');
+        function quickRecord(index) {
+            const item=QUICK_ITEMS[index];if(!item)return;selectCategory(item.categoryId);document.getElementById('expenseItem').value=item.name.replace(/^\S+\s*/,'');document.getElementById('expenseAmount').value=item.amount;
+            showToast('已填入，请核对后保存','success');
         }
 
         function renderCategoryGrid() {
-            rvPut('categoryGrid',['刚性','日常','弹性'].map(type=>`<section class="category-section"><h4>${type==='刚性'?'固定责任':type==='日常'?'日常生活':'弹性支出'}</h4><div class="category-grid">${categories.filter(c=>c.type===type).map(c=>`<button class="category-btn ${selectedCategory===c.id?'selected':''}" onclick="selectCategory(${Number(c.id)})"><span class="name">${escapeHtml(c.name)}</span><span class="budget">全年 ${scopeMoney(c.yearly)}</span></button>`).join('')}</div></section>`).join(''));
+            const container = document.getElementById('categoryGrid');
+            container.innerHTML = '';
+
+            // 最近使用的类目（最多显示5个）
+            const recentIds = getRecentCategories();
+            const recentCats = recentIds.map(id => categories.find(c => c.id === id)).filter(Boolean);
+
+            if (recentCats.length > 0) {
+                const recentSection = document.createElement('div');
+                recentSection.className = 'category-section';
+                recentSection.innerHTML = `
+                    <div class="category-section-title" onclick="toggleSection(this)">
+                        ⚡ 最近使用
+                    </div>
+                    <div class="category-grid">
+                        ${recentCats.map(cat => `
+                            <button class="category-btn ${selectedCategory === cat.id ? 'selected' : ''}"
+                                    onclick="selectCategory(${Number(cat.id)})"
+                                    style="border: 2px solid var(--primary); background: #f0f4ff;">
+                                <div class="name">${escapeHtml(cat.id)}. ${escapeHtml(cat.name)}</div>
+                                <div class="budget">全年 ${scopeMoney(cat.yearly)}</div>
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(recentSection);
+            }
+
+            const types = [
+                { type: '刚性', icon: '🔒', title: '刚性（固定责任）', collapsed: true },
+                { type: '日常', icon: '📅', title: '日常（年度累计）', collapsed: false },
+                { type: '弹性', icon: '💫', title: '弹性（年度累计）', collapsed: false }
+            ];
+
+            types.forEach(({ type, icon, title, collapsed }) => {
+                const cats = categories.filter(c => c.type === type);
+                if (cats.length === 0) return;
+
+                const section = document.createElement('div');
+                section.className = 'category-section';
+                section.innerHTML = `
+                    <div class="category-section-title ${collapsed ? 'collapsed' : ''}" onclick="toggleSection(this)">
+                        ${icon} ${title}
+                    </div>
+                    <div class="category-grid ${collapsed ? 'collapsed' : ''}">
+                        ${cats.map(cat => `
+                            <button class="category-btn ${type === '刚性' ? 'rigid' : ''} ${selectedCategory === cat.id ? 'selected' : ''}"
+                                    onclick="selectCategory(${Number(cat.id)})">
+                                <div class="name">${escapeHtml(cat.id)}. ${escapeHtml(cat.name)}</div>
+                                <div class="budget">全年 ${scopeMoney(cat.yearly)}</div>
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(section);
+            });
         }
 
         // 最近使用类目追踪
@@ -4832,95 +5186,10 @@
 
         // ==================== 预算页面 ====================
 function renderBudgetCheckup() {
-  try {
-    var host = document.getElementById('page-checkup');
-    if (!host) return;
-    var fmt = function (n) { return (n < 0 ? '-¥' : '¥') + Math.abs(Math.round(n)).toLocaleString(); };
-    var EX = (typeof expenses !== 'undefined' && Array.isArray(expenses)) ? expenses : [];
-    var IN = (typeof incomes !== 'undefined' && Array.isArray(incomes)) ? incomes : [];
-    var CA = (typeof categories !== 'undefined' && Array.isArray(categories)) ? categories : [];
-    // 以数据最新年份为准（不依赖系统时钟）
-    var years = EX.map(function (r) { return (r.date || '').slice(0, 4); }).filter(Boolean).sort();
-    var Y = years.length ? years[years.length - 1] : String(new Date().getFullYear());
-    var ex = EX.filter(function (r) { return (r.date || '').slice(0, 4) === Y; });
-    var inc = IN.filter(function (r) { return (r.date || '').slice(0, 4) === Y; });
-    var months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-    var expM = {}, incM = {}; months.forEach(function (m) { expM[m] = 0; incM[m] = 0; });
-    ex.forEach(function (r) { var m = (r.date || '').slice(5, 7); if (expM[m] != null) expM[m] += Number(r.amount) || 0; });
-    inc.forEach(function (r) { var m = (r.date || '').slice(5, 7); if (incM[m] != null) incM[m] += Number(r.amount) || 0; });
-    // 时间进度：以该年最新一笔的日期为“今天”
-    var latest = ex.map(function (r) { return r.date; }).filter(Boolean).sort();
-    latest = latest.length ? latest[latest.length - 1] : (Y + '-01-01');
-    var lm = parseInt(latest.slice(5, 7), 10), ld = parseInt(latest.slice(8, 10), 10);
-    var cum = [0,31,59,90,120,151,181,212,243,273,304,334];
-    var dayOfYear = cum[lm - 1] + ld;
-    var elapsedPct = dayOfYear / 365 * 100;
-    var byCat = {}; ex.forEach(function (r) { var c = r.category_name || r.categoryName || '未知'; byCat[c] = (byCat[c] || 0) + (Number(r.amount) || 0); });
-    var budgetTotal = CA.reduce(function (s, c) { return s + Number(c.yearly || 0); }, 0);
-    var ytdTotal = ex.reduce(function (s, r) { return s + (Number(r.amount) || 0); }, 0);
-    var remaining = budgetTotal - ytdTotal;
-    var usedPct = budgetTotal ? ytdTotal / budgetTotal * 100 : 0;
-    var incTotal = inc.reduce(function (s, r) { return s + (Number(r.amount) || 0); }, 0);
-    var c0 = incTotal - ytdTotal;
-    var rows = CA.map(function (c) { var a = byCat[c.name] || 0; return { name: c.name, ytd: a, yearly: c.yearly, pct: c.yearly ? a / c.yearly * 100 : 0 }; }).sort(function (a, b) { return b.pct - a.pct; });
-    var over = rows.filter(function (c) { return c.pct > 100; });
-    var ahead = rows.filter(function (c) { return c.pct > elapsedPct + 15 && c.pct <= 100; });
-    var normal = rows.filter(function (c) { return c.pct <= elapsedPct + 15; });
-    var top = over[0] || rows[0] || { name: '—', pct: 0, ytd: 0, yearly: 0 };
-    // 摊销
-    var LUMP = { '房租': 3, '保险_基础': 12, '保险_中端': 12, '公司代账费': 12 };
-    var rawM = {}, amoM = {}; months.forEach(function (m) { rawM[m] = 0; amoM[m] = 0; });
-    ex.forEach(function (r) { var mm = parseInt((r.date || '0-00').slice(5, 7), 10), amt = Number(r.amount) || 0, w = LUMP[r.category_name || r.categoryName] || 1; var k0 = (r.date || '').slice(5, 7); if (rawM[k0] != null) rawM[k0] += amt; for (var k = 0; k < w; k++) { var tm = mm + k; if (tm >= 1 && tm <= 12) amoM[('0' + tm).slice(-2)] += amt / w; } });
-    // 月均口径
-    var doneM = months.filter(function (m) { return m < latest.slice(5, 7) && (expM[m] > 0); });
-    var nMon = doneM.length || 1;
-    var rawAvg = doneM.reduce(function (s, m) { return s + rawM[m]; }, 0) / nMon;
-    var amoAvg = doneM.reduce(function (s, m) { return s + amoM[m]; }, 0) / nMon;
-    var last2 = doneM.slice(-2); var normAvg = last2.length ? last2.reduce(function (s, m) { return s + expM[m]; }, 0) / last2.length : rawAvg;
-    // 顶部洞察：支出最高的两个月
-    var sortedM = months.filter(function (m) { return expM[m] > 0; }).sort(function (a, b) { return expM[b] - expM[a]; });
-    var topMon = sortedM.slice(0, 2);
-    var topMonShare = topMon.reduce(function (s, m) { return s + expM[m]; }, 0) / (ytdTotal || 1) * 100;
-    var topMonTxt = topMon.map(function (m) { return parseInt(m, 10) + '月'; }).join('、');
-    var C = 2 * Math.PI * 64, off = C * (1 - usedPct / 100);
-    var tone = function (p) { return p > 100 ? { txt: '#dc2626', grad: 'linear-gradient(90deg,#fca5a5,#ef4444)' } : p > elapsedPct + 15 ? { txt: '#d97706', grad: 'linear-gradient(90deg,#fcd34d,#f59e0b)' } : { txt: '#16a34a', grad: 'linear-gradient(90deg,#86efac,#22c55e)' }; };
-    var catRow = function (c) { var t = tone(c.pct); return '<div class="bcRow"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:13px;font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">' + escapeHtml(c.name) + '</span><span style="font-size:11.5px;color:#94a3b8;white-space:nowrap">' + fmt(c.ytd) + ' / ' + fmt(c.yearly) + '</span></div><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;width:' + Math.min(c.pct, 100) + '%;background:' + t.grad + ';border-radius:4px"></div></div><span style="width:44px;text-align:right;font-size:12px;font-weight:800;color:' + t.txt + '">' + c.pct.toFixed(0) + '%</span></div></div>'; };
-    var grp = function (t, arr) { var s = '<div style="font-size:12px;font-weight:700;color:#94a3b8;margin:4px 0 14px;letter-spacing:.3px">' + t + '</div>'; arr.forEach(function (c) { s += catRow(c); }); return s; };
-    var gauge = function (label, val, desc, color, big) { return '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f5f9"><div><div style="font-size:' + (big ? 13 : 12) + 'px;font-weight:' + (big ? 700 : 600) + ';color:' + (big ? '#1e293b' : '#475569') + '">' + label + '</div><div style="font-size:10.5px;color:#94a3b8;margin-top:1px">' + desc + '</div></div><div style="font-size:' + (big ? 22 : 15) + 'px;font-weight:800;color:' + color + '">' + fmt(val) + '</div></div>'; };
-
-    var h = '';
-    // HERO
-    h += '<div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border-radius:24px;padding:30px 32px;margin-bottom:16px;color:#fff;box-shadow:0 14px 40px rgba(118,75,162,.35)"><div class="bcHero"><svg width="148" height="148" viewBox="0 0 148 148" style="flex-shrink:0"><circle cx="74" cy="74" r="64" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="12"/><circle cx="74" cy="74" r="64" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 74 74)"/><text x="74" y="68" text-anchor="middle" font-size="30" font-weight="800" fill="#fff">' + usedPct.toFixed(0) + '%</text><text x="74" y="90" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.85)">预算已用</text></svg><div style="flex:1"><div style="display:inline-block;background:rgba(255,200,80,.25);border:1px solid rgba(255,210,90,.5);color:#ffe9b8;font-size:12.5px;font-weight:700;padding:4px 12px;border-radius:20px;margin-bottom:12px">' + (usedPct > elapsedPct + 5 ? '⚠️ 预算偏快' : '✅ 节奏正常') + '</div><div style="font-size:25px;font-weight:800;line-height:1.3;margin-bottom:8px">时间过 ' + elapsedPct.toFixed(0) + '%，预算已花掉 ' + usedPct.toFixed(0) + '%</div><div style="font-size:13.5px;opacity:.9">已用 ' + fmt(ytdTotal) + ' / 全年 ' + fmt(budgetTotal) + ' · 剩 ' + fmt(remaining) + ' · 超前 ' + (usedPct - elapsedPct).toFixed(0) + ' 个百分点</div><div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.2);font-size:13px;line-height:1.6;opacity:.95">💡 支出集中在 <b>' + topMonTxt + '</b>（占已花的 ' + topMonShare.toFixed(0) + '%），多为阶段性大额。剔除后日常其实克制——近月常态约 ' + fmt(normAvg) + '/月。</div></div></div></div>';
-    // TILES
-    var otherOver = over.slice(1).map(function (c) { return escapeHtml(c.name); }).join('·');
-    h += '<div class="bcT3">';
-    h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:10px">🔴 超支重灾区</div><div style="font-size:25px;font-weight:800;color:#dc2626;line-height:1">' + escapeHtml(top.name) + ' ' + (top.pct / 100).toFixed(1) + '倍</div><div style="font-size:12.5px;color:#64748b;margin-top:9px">已花 ' + fmt(top.ytd) + ' · 预算 ' + fmt(top.yearly) + '</div><div style="font-size:11.5px;color:#94a3b8;margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9">' + (over.length > 1 ? '另有 ' + otherOver + ' 共 ' + (over.length - 1) + ' 类超支' : '其余类目尚在预算内') + '</div></div>';
-    h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:6px">📅 月度支出 · 三个口径</div>' + gauge('摊销月均', amoAvg, '周期支出摊平后', '#5a4bb8', true) + gauge('原始月均', rawAvg, '实际每月花掉', '#475569') + '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:9px 0"><div><div style="font-size:12px;font-weight:600;color:#475569">常态月均</div><div style="font-size:10.5px;color:#94a3b8;margin-top:1px">近月日常（剔除一次性）</div></div><div style="font-size:15px;font-weight:800;color:#16a34a">' + fmt(normAvg) + '</div></div></div>';
-    h += '<div class="bcTile"><div style="font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:10px">💰 现金流</div><div style="font-size:25px;font-weight:800;color:' + (c0 >= 0 ? '#16a34a' : '#dc2626') + ';line-height:1">' + (c0 >= 0 ? '+' : '') + fmt(c0) + '</div><div style="font-size:12.5px;color:#64748b;margin-top:9px">收 ' + fmt(incTotal) + ' · 支 ' + fmt(ytdTotal) + '</div><div style="font-size:11.5px;color:#d97706;margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9">' + (incTotal < ytdTotal * 0.6 ? '⚠️ 收入或未记全，缺口仅供参考' : '收入 − 支出') + '</div></div>';
-    h += '</div>';
-    // DETAIL
-    h += '<div class="bcTile" style="margin-bottom:16px"><div class="bcH">📊 预算执行明细<span class="bcSub">全部 ' + rows.length + ' 类目 · 已花 / 预算</span></div><div class="bcCols">' + grp('🔴 已超支 (' + over.length + ')', over) + grp('🟡 进度偏快 (' + ahead.length + ')', ahead) + grp('🟢 正常 (' + normal.length + ')', normal) + '</div></div>';
-    // AMORT
-    var maxR = Math.max.apply(null, months.map(function (m) { return Math.max(rawM[m], amoM[m]); }).concat([1]));
-    var am = '';
-    months.forEach(function (m) { if (rawM[m] === 0 && amoM[m] === 0) return; var lower = amoM[m] < rawM[m]; am += '<div class="bcAm"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:12.5px;font-weight:700;color:#334155">' + Y + '-' + m + '</span><span style="font-size:12px;color:#94a3b8">' + (rawM[m] ? fmt(rawM[m]) : '—') + ' <span style="color:#cbd5e0">→</span> <b style="color:' + (lower ? '#16a34a' : '#475569') + '">' + fmt(amoM[m]) + '</b></span></div><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:30px;font-size:10px;color:#cbd5e0">原始</span><div class="bcAmb"><div style="height:100%;width:' + (rawM[m] / maxR * 100) + '%;background:#fca5a5;border-radius:3px"></div></div></div><div style="display:flex;align-items:center;gap:8px"><span style="width:30px;font-size:10px;color:#cbd5e0">摊销</span><div class="bcAmb"><div style="height:100%;width:' + (amoM[m] / maxR * 100) + '%;background:linear-gradient(90deg,#86efac,#22c55e);border-radius:3px"></div></div></div></div>'; });
-    h += '<div class="bcTile"><div class="bcH">📈 周期支出摊销<span class="bcSub">原始 vs 摊销 · 房租按3月、保险/年费按12月</span></div><div class="bcAm2">' + am + '</div></div>';
-
-    var css = '<style>'
-      + '#page-checkup .bcHero{display:flex;align-items:center;gap:34px}'
-      + '#page-checkup .bcT3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}'
-      + '#page-checkup .bcTile{background:#fff;border-radius:18px;padding:22px;border:1px solid #eef0f6;box-shadow:0 4px 18px rgba(15,23,42,.05)}'
-      + '#page-checkup .bcH{font-size:16px;font-weight:700;color:#1e293b;margin:0 0 18px}'
-      + '#page-checkup .bcSub{font-size:12px;color:#94a3b8;font-weight:500;margin-left:7px}'
-      + '#page-checkup .bcCols{columns:2;column-gap:40px}'
-      + '#page-checkup .bcRow{margin-bottom:15px;break-inside:avoid;-webkit-column-break-inside:avoid}'
-      + '#page-checkup .bcAm2{columns:2;column-gap:36px}'
-      + '#page-checkup .bcAm{margin-bottom:16px;break-inside:avoid;-webkit-column-break-inside:avoid}'
-      + '#page-checkup .bcAmb{height:6px;border-radius:3px;background:#f1f5f9;overflow:hidden;flex:1}'
-      + '@media(max-width:820px){#page-checkup .bcT3{grid-template-columns:1fr}#page-checkup .bcCols,#page-checkup .bcAm2{columns:1}#page-checkup .bcHero{flex-direction:column;gap:20px;text-align:center}}'
-      + '</style>';
-    host.innerHTML = css + '<div style="background:#eef1f8;border-radius:16px;padding:22px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif">' + h + '</div>';
-  } catch (e) { var hh = document.getElementById('page-checkup'); if (hh) hh.innerHTML = '<div style="padding:20px;color:#dc2626">预算体检加载失败：' + escapeHtml(e && e.message || e) + '</div>'; }
+    const year=new Date().getFullYear(),budget=rvBudget(year)||[],range={start:year+'-01-01',end:localDateString()},x=rvMetrics(range);
+    const rows=budget.map(c=>{const amount=rvSum(expenses.filter(e=>e.date>=range.start&&e.date<=range.end&&e.categoryId===c.id))-rvSum(rvFundRows().filter(e=>e.kind==='return'&&e.date>=range.start&&e.date<=range.end&&e.categoryId===c.id));return {...c,amount,remaining:Math.round((Number(c.yearly)-amount)*100)/100};}).sort((a,b)=>a.remaining-b.remaining);
+    const over=rows.filter(c=>c.remaining<0),total=rvSum(budget.map(c=>({amount:c.yearly})));
+    rvPut('page-checkup',`<h2 class="page-title">🩺 年度预算体检</h2><section class="overview-card"><h3>${year} 年 · 截至 ${range.end}</h3><div class="overview-grid"><div><p>年度预算</p><strong>${scopeMoney(total)}</strong></div><div><p>已记录净付款</p><strong>${scopeMoney(x.cash)}</strong></div><div><p>${x.cash>total?'超出年度预算':'年度剩余'}</p><strong>${scopeMoney(Math.abs(total-x.cash))}</strong></div></div></section><section class="rv-section"><h3>${over.length} 个类目超过年度预算</h3><p class="muted">按全年累计判断，不把月均当作月度上限；房租、保险按实际付款日期保留。</p>${rvTable(over.map(c=>`<tr><td>${escapeHtml(c.name)}</td><td>${scopeMoney(c.yearly)}</td><td>${scopeMoney(c.amount)}</td><td>${scopeMoney(-c.remaining)}</td></tr>`),['类目','年度预算','净付款','超出'])}</section><button class="btn btn-primary" onclick="switchPage('budget')">查看及调整年度预算</button>`);
 }
 
         function renderBudgetStatus() {
@@ -6438,112 +6707,20 @@ function renderBudgetCheckup() {
         }
 
         function renderYearlyStats() {
-            const year = parseInt(document.getElementById('yearSelect').value);
-
-            // 筛选该年所有消费
-            const yearExpenses = expenses.filter(e => new Date(e.date).getFullYear() === year);
-            const totalSpent = yearExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-            // 月度数据
-            const monthlyData = {};
-            for (let m = 1; m <= 12; m++) {
-                monthlyData[m] = { total: 0, count: 0 };
-            }
-
-            yearExpenses.forEach(e => {
-                const m = new Date(e.date).getMonth() + 1;
-                monthlyData[m].total += e.amount;
-                monthlyData[m].count++;
-            });
-
-            // 类目统计
-            const categoryData = {};
-            yearExpenses.forEach(e => {
-                if (!categoryData[e.categoryName]) {
-                    categoryData[e.categoryName] = 0;
-                }
-                categoryData[e.categoryName] += e.amount;
-            });
-
-            // 排序
-            const sortedCategories = Object.entries(categoryData)
-                .sort((a, b) => b[1] - a[1]);
-
-            // 计算统计数据
-            const monthsWithData = Object.values(monthlyData).filter(m => m.total > 0).length;
-            const avgMonthly = monthsWithData > 0 ? totalSpent / monthsWithData : 0;
-            const maxMonth = Math.max(...Object.values(monthlyData).map(m => m.total));
-            const minMonthWithData = Math.min(...Object.values(monthlyData).filter(m => m.total > 0).map(m => m.total)) || 0;
-
-            // 渲染年度汇总
-            document.getElementById('yearSummary').innerHTML = `
-                <h3>📊 ${year}年度汇总</h3>
-                <div class="year-summary-grid">
-                    <div class="year-summary-item">
-                        <div class="label">年度总支出</div>
-                        <div class="value">¥${totalSpent.toFixed(0)}</div>
-                    </div>
-                    <div class="year-summary-item">
-                        <div class="label">消费笔数</div>
-                        <div class="value">${yearExpenses.length}</div>
-                    </div>
-                    <div class="year-summary-item">
-                        <div class="label">月均消费</div>
-                        <div class="value">¥${avgMonthly.toFixed(0)}</div>
-                    </div>
-                    <div class="year-summary-item">
-                        <div class="label">日均消费</div>
-                        <div class="value">¥${(totalSpent / 365).toFixed(0)}</div>
-                    </div>
-                    <div class="year-summary-item">
-                        <div class="label">最高月份</div>
-                        <div class="value">¥${maxMonth.toFixed(0)}</div>
-                    </div>
-                    <div class="year-summary-item">
-                        <div class="label">最低月份</div>
-                        <div class="value">¥${minMonthWithData.toFixed(0)}</div>
-                    </div>
-                </div>
-            `;
-
-            // 渲染月度卡片
-            const currentMonth = new Date().getMonth() + 1;
-            const thisYear = new Date().getFullYear();
-
-            document.getElementById('yearGrid').innerHTML = Object.entries(monthlyData).map(([m, data]) => `
-                <div class="month-card ${year === thisYear && parseInt(m) === currentMonth ? 'current' : ''}"
-                     onclick="jumpToMonth(${year}, ${m})">
-                    <div class="month-name">${m}月</div>
-                    <div class="month-amount">¥${data.total.toFixed(0)}</div>
-                    <div class="month-count">${data.count}笔</div>
-                </div>
-            `).join('');
-
-            // 渲染类目排行
-            document.getElementById('yearCategoryRank').innerHTML = sortedCategories.length > 0 ?
-                sortedCategories.map(([name, amount], index) => `
-                    <div class="record-item" style="margin-bottom: 8px;">
-                        <div class="info">
-                            <div class="desc" style="font-weight: 600;">
-                                ${index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}.`} ${name}
-                            </div>
-                            <div class="cat">${((amount / totalSpent) * 100).toFixed(1)}% 占比</div>
-                        </div>
-                        <div class="amount" style="color: var(--gray-800);">¥${amount.toFixed(0)}</div>
-                    </div>
-                `).join('') : '<div class="no-data">暂无消费数据</div>';
+            const year=Number(document.getElementById('yearSelect').value),range=rvRange('year',year,1),x=rvMetrics(range);
+            const months=Array.from({length:12},(_,i)=>{const key=year+'-'+String(i+1).padStart(2,'0'),r=rvRange('month',year,i+1),v=rvMetrics(r);return {key,month:i+1,...v,future:r.future,known:v.count>0||v.events.length>0||rvMonthStatus(key).verified};});
+            const known=months.filter(m=>!m.future&&m.known),max=known.length?Math.max(...known.map(m=>m.cash)):null;
+            const items=[['全年已记净付款',known.length?scopeMoney(x.cash):'未知'],['消费笔数',String(x.count)],['有记录月份',known.length+' 个月'],['最高已记月份',max===null?'—':scopeMoney(max)]];
+            rvPut('yearSummary',`<h3>📊 ${year} 年度汇总</h3><div class="year-summary-grid">${items.map(([label,value])=>`<div class="year-summary-item"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('')}</div><p style="margin-top:16px;font-size:13px">未知月份不补零，统计仅包含已有明细。完整同比请到月／季／年复盘。</p>`);
+            rvPut('yearGrid',months.map(m=>`<button class="month-card ${m.key===localDateString().slice(0,7)?'current':''}" onclick="jumpToMonth(${year},${m.month})"><div class="month-name">${m.month}月</div><div class="month-amount">${m.future?'未开始':m.known?scopeMoney(m.cash):'未知'}</div><div class="month-count">${m.future?'—':m.count+' 笔'}</div></button>`).join(''));
+            const cats=categories.map(c=>({...c,amount:rvSum(expenses.filter(e=>e.date>=range.start&&e.date<=range.end&&e.categoryId===c.id))})).filter(c=>c.amount!==0).sort((a,b)=>b.amount-a.amount);
+            rvPut('yearCategoryRank',cats.map(c=>`<div class="record-item"><div class="info">${escapeHtml(c.name)}</div><div class="amount">${scopeMoney(c.amount)}</div></div>`).join('')||'<p class="muted">该年度暂无消费记录。</p>');
         }
 
-        function jumpToMonth(year, month) {
-            // 切换到记录页面并选择对应月份
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById('page-history').classList.add('active');
-            document.querySelector('.tab:nth-child(6)').classList.add('active');
-
-            const select = document.getElementById('historyMonth');
-            select.value = `${year}-${month}`;
-            renderHistory();
+        function jumpToMonth(year,month) {
+            switchPage('history');renderMonthSelector();const select=document.getElementById('historyMonth'),value=year+'-'+month;
+            if(![...select.options].some(o=>o.value===value)){const option=document.createElement('option');option.value=value;option.textContent=year+'年'+month+'月';select.appendChild(option);}
+            select.value=value;renderHistory();
         }
 
         // ==================== 收入功能 ====================
@@ -7005,10 +7182,18 @@ function renderBudgetCheckup() {
         }
 
         function renderIncomeTable() {
-            const year=document.getElementById('incomeYearSelect').value,month=document.getElementById('incomeMonthFilter').value;
-            const rows=incomes.filter(e=>e.date.startsWith(year)&&(month==='all'||Number(e.date.slice(5,7))===Number(month)));
-            rvPut('incomeSummaryCards',`${rows.length} 笔已记录收入 · ${rows.length||rvRecordingPolicy().noIncomeEntryMeansZero?scopeMoney(rvSum(rows)):'未记录'}。${rvRecordingPolicy().noIncomeEntryMeansZero?'按你的记账约定，未新增收入即无进账。':'仅展示已录入收入。'}`);
-            renderIncomeList();
+            const year=Number(document.getElementById('incomeYearSelect').value),today=localDateString(),rows=[];
+            for(let m=1;m<=12;m++){
+                const month=year+'-'+String(m).padStart(2,'0');if(month>today.slice(0,7))break;
+                const end=month===today.slice(0,7)?today:month+'-'+new Date(year,m,0).getDate(),x=rvMetrics({start:month+'-01',end});
+                const inc=rvSum(incomes.filter(i=>i.date>=month+'-01'&&i.date<=end)),known=!!x.count||rvMonthStatus(month).verified||!!x.events.length;
+                rows.push({month:m,totalIncome:inc,totalExpense:known?x.cash:null,balance:known?inc-x.cash:null});
+            }
+            const inc=rvSum(incomes.filter(i=>i.date.startsWith(String(year))&&i.date<=today)),spent=rvSum(rows.filter(r=>r.totalExpense!==null).map(r=>({amount:r.totalExpense}))),known=rows.some(r=>r.totalExpense!==null);
+            rvPut('incomeSummaryCards',[["全年已记收入",scopeMoney(inc)],["全年已记净付款",known?scopeMoney(spent):'未知'],["已记收支差额",known?scopeMoney(inc-spent):'—']].map(([a,b])=>`<div class="income-summary-card"><div class="label">${a}</div><div class="value">${b}</div></div>`).join(''));
+            rvPut('incomeTableBody',rows.map(r=>`<tr><td>${r.month} 月</td><td>${scopeMoney(r.totalIncome)}</td><td>${r.totalExpense===null?'未知':scopeMoney(r.totalExpense)}</td><td>${r.balance===null?'—':scopeMoney(r.balance)}</td></tr>`).join(''));
+            const totals={salary:0,bonus:0,side:0,other:0};incomes.filter(i=>i.date.startsWith(String(year))).forEach(i=>{const key=i.type==='工资'?'salary':['奖金','业绩奖金'].includes(i.type)?'bonus':['副业','副业收入','兼职'].includes(i.type)?'side':'other';totals[key]+=Number(i.amount);});
+            renderIncomeComposeChart(totals);renderMonthlyCompareChart(rows);renderIncomeList();
         }
 
         function renderIncomeComposeChart(yearTotals) {
@@ -7028,7 +7213,7 @@ function renderBudgetCheckup() {
                 ctx.fillStyle = '#a0aec0';
                 ctx.font = '14px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('暂无收入数据', width / 2, height / 2);
+                ctx.fillText(rvRecordingPolicy().noIncomeEntryMeansZero?'本年无进账':'暂无收入数据', width / 2, height / 2);
                 document.getElementById('incomeComposeLegend').innerHTML = '';
                 return;
             }
@@ -7183,70 +7368,10 @@ function renderBudgetCheckup() {
             });
         }
 
-        function renderMonthlyCompareChart(monthlyData) {
-            const canvas = document.getElementById('monthlyCompareChart');
-            const { ctx, width, height } = setupHiDPICanvas(canvas);
-
-            const hasData = monthlyData.some(m => m.totalIncome > 0 || m.totalExpense > 0);
-            if (!hasData) {
-                ctx.fillStyle = '#a0aec0';
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('暂无数据', width / 2, height / 2);
-                return;
-            }
-
-            const padding = { top: 30, right: 20, bottom: 40, left: 60 };
-            const chartWidth = width - padding.left - padding.right;
-            const chartHeight = height - padding.top - padding.bottom;
-
-            const maxVal = Math.max(...monthlyData.map(m => Math.max(m.totalIncome, m.totalExpense, Math.abs(m.balance))));
-            const barWidth = chartWidth / 12 / 4;
-
-            // 绘制网格线
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 1;
-            for (let i = 0; i <= 4; i++) {
-                const y = padding.top + (chartHeight / 4) * i;
-                ctx.beginPath();
-                ctx.moveTo(padding.left, y);
-                ctx.lineTo(width - padding.right, y);
-                ctx.stroke();
-
-                const val = maxVal - (maxVal / 4) * i;
-                ctx.fillStyle = '#718096';
-                ctx.font = '10px sans-serif';
-                ctx.textAlign = 'right';
-                ctx.fillText((val / 10000).toFixed(0) + 'w', padding.left - 8, y + 4);
-            }
-
-            // 绘制柱状图
-            monthlyData.forEach((m, i) => {
-                const x = padding.left + (chartWidth / 12) * i + chartWidth / 24;
-
-                if (m.totalIncome > 0 || m.totalExpense > 0) {
-                    // 收入柱（绿色）
-                    const incomeHeight = (m.totalIncome / maxVal) * chartHeight;
-                    ctx.fillStyle = '#48bb78';
-                    ctx.fillRect(x - barWidth * 1.2, padding.top + chartHeight - incomeHeight, barWidth, incomeHeight);
-
-                    // 支出柱（红色）
-                    const expenseHeight = (m.totalExpense / maxVal) * chartHeight;
-                    ctx.fillStyle = '#f56565';
-                    ctx.fillRect(x, padding.top + chartHeight - expenseHeight, barWidth, expenseHeight);
-
-                    // 结余柱（蓝色）
-                    const balanceHeight = (Math.abs(m.balance) / maxVal) * chartHeight;
-                    ctx.fillStyle = '#4299e1';
-                    ctx.fillRect(x + barWidth * 1.2, padding.top + chartHeight - balanceHeight, barWidth, balanceHeight);
-                }
-
-                // X轴标签
-                ctx.fillStyle = '#718096';
-                ctx.font = '10px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(m.month + '月', x, height - 10);
-            });
+        function renderMonthlyCompareChart(rows) {
+            const canvas=document.getElementById('monthlyCompareChart');if(!canvas)return;
+            if(window.incomeCompareInst)window.incomeCompareInst.destroy();
+            window.incomeCompareInst=new Chart(canvas.getContext('2d'),{type:'bar',data:{labels:rows.map(r=>r.month+'月'),datasets:[{label:'收入',data:rows.map(r=>r.totalIncome),backgroundColor:'#48bb78'},{label:'已记净付款',data:rows.map(r=>r.totalExpense),backgroundColor:'#667eea'}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>c.dataset.label+' '+scopeMoney(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>v>=10000?Number((v/10000).toFixed(1))+'万':v}}}}});
         }
 
         function renderYearlyCompareChart(currentYear) {
@@ -7580,7 +7705,7 @@ function renderBudgetCheckup() {
         // ==================== 存量资产管理 ====================
         let allocChartInst = null;   // Chart.js 环形图实例
         let trendChartInst = null;   // Chart.js 趋势线图实例
-        let currentTrendRange = '1Y';
+        let currentTrendRange = 'ALL';
 
         function initAssets() {
             // loadDataFromCloud has already selected the authoritative source.
@@ -7621,7 +7746,7 @@ function renderBudgetCheckup() {
             for(let i=6;i>=1;i--){
                 const d=new Date(now.getFullYear(),now.getMonth()-i,1),key=localDateString(d).slice(0,7);months.push(key);
                 const ex=expenses.filter(e=>e.date?.startsWith(key)),inc=incomes.filter(e=>e.date?.startsWith(key));
-                if(!ex.length||!inc.length)missing.push(key);
+                if(!ex.length||(!inc.length&&!rvRecordingPolicy().noIncomeEntryMeansZero))missing.push(key);
                 totalExp+=ex.reduce((n,e)=>n+Number(e.amount||0),0);totalInc+=inc.reduce((n,e)=>n+Number(e.amount||0),0);
             }
             return {months,missing,label:months[0]+' 至 '+months[5],avgExp:missing.length?null:totalExp/6,avgInc:missing.length?null:totalInc/6};
@@ -7708,12 +7833,9 @@ function renderBudgetCheckup() {
         }
 
         function renderAssets() {
-            loadBucketMap();
-            document.getElementById('heroNetWorth').textContent=scopeMoney(assetTotals().net);
-            const dates=assets.map(a=>a.updateTime?.slice(0,10)).filter(Boolean).sort(),missing=assets.filter(a=>!a.updateTime).length;
-            const stale=assets.filter(a=>!a.updateTime||Date.now()-Date.parse(a.updateTime)>30*86400000).length;
-            document.getElementById('heroDate').textContent=dates.length?`余额登记于 ${dates[0]}${dates.at(-1)!==dates[0]?' 至 '+dates.at(-1):''}${rvRecordingPolicy().assetsCarryForward?' · 未更新时沿用此余额':stale?' · '+stale+' 项未更新':''}${missing?'（含 '+missing+' 项未核对）':''}`:'余额尚未核对';
-            bindRangeTabs();renderTrendChart(currentTrendRange);renderDetailGroups();rvPut('assetFunds',rvFundsUI());
+            const t=assetTotals(),dates=assets.map(a=>a.updateTime?.slice(0,10)).filter(Boolean).sort();
+            rvPut('heroNetWorth',scopeMoney(t.net));rvPut('heroDate',escapeHtml(dates.at(-1)||'暂无'));rvPut('heroDelta','');
+            renderKPICards(t.net);renderHealthScore(t.net);renderMilestones(t.net);renderAllocChart(t.gross);bindRangeTabs();renderTrendChart(currentTrendRange);renderDetailGroups(t.gross);renderCategoryTrendChart();rvPut('assetFunds',rvFundsUI());
         }
 
 
@@ -7741,7 +7863,7 @@ function renderBudgetCheckup() {
             const point=r=>({x:Date.UTC(Number(r.month.slice(0,4)),Number(r.month.slice(5,7))-1,1),y:Number(r.total)});
             const read=(event,elements)=>{if(elements.length){const h=rows[elements[0].index];document.getElementById('trendReadout').textContent=`${h.month} · ${scopeMoney(h.total)}`;}};
             trendChartInst=new Chart(canvas.getContext('2d'),{
-                type:'line',data:{datasets:[{data:rows.map(point),borderColor:'#334f69',backgroundColor:'rgba(51,79,105,.06)',borderWidth:2,fill:true,tension:0,pointRadius:3,pointHoverRadius:5,pointHitRadius:16}]},
+                type:'line',data:{datasets:[{data:rows.map(point),borderColor:'#667eea',backgroundColor:'rgba(102,126,234,.08)',borderWidth:2,fill:true,tension:0,pointRadius:3,pointHoverRadius:5,pointHitRadius:16}]},
                 options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'nearest',axis:'x',intersect:false},onHover:read,onClick:read,
                     plugins:{legend:{display:false},tooltip:{enabled:true,callbacks:{title:items=>rows[items[0].dataIndex].month,label:c=>'净资产 '+scopeMoney(c.parsed.y)}}},
                     scales:{x:{type:'linear',min:point(rows[0]).x,max:rows.length>1?point(rows.at(-1)).x:point(rows[0]).x+86400000,grid:{display:false},ticks:{maxTicksLimit:6,callback:v=>{const d=new Date(Number(v));return d.getUTCFullYear()+'/'+String(d.getUTCMonth()+1).padStart(2,'0');}}},y:{ticks:{callback:v=>Math.abs(v)>=10000?Number((v/10000).toFixed(1))+'万':v},grid:{color:'#edf0f3'}}}}
@@ -7767,13 +7889,58 @@ function renderBudgetCheckup() {
         }
 
         // ==================== STEP 7 · 资产明细分组卡片 ====================
-        function renderDetailGroups() {
-            const rows=Object.entries(BUCKET_LABELS).flatMap(([key,label])=>{
-                const items=assets.filter(a=>bucketOf(a.typeId)===key);
-                return items.map(a=>`<tr><td>${escapeHtml(a.name)}</td><td>${label}</td><td class="money">${scopeMoney(a.value)}</td><td>${escapeHtml(a.updateTime?.slice(0,10)||'未核对')}</td></tr>`);
+        function renderDetailGroups(totalAssets) {
+            const groups = {
+                liquid:   { label: '流动资产', color: '#378ADD', items: [] },
+                invest:   { label: '投资资产', color: '#1D9E75', items: [] },
+                property: { label: '不动产',   color: '#EF9F27', items: [] },
+                debt:     { label: '负债',     color: '#B4B2A9', items: [] },
+                receivable: { label: '待收及其他', color: '#9f7aea', items: [] },
+            };
+
+            assets.forEach(a => {
+                const b = bucketOf(a.typeId);
+                const typeName = ASSET_TYPES.find(t => t.id === a.typeId)?.name || '';
+                groups[b].items.push({ ...a, typeName });
             });
-            const totals=assetTotals();
-            rvPut('detailGroups',rvTable(rows,['项目','分组','余额','更新日期'])+`<p class="muted">资产合计 ${scopeMoney(totals.gross)} − 负债 ${scopeMoney(totals.debt)} = 净资产 ${scopeMoney(totals.net)}。待收款计入净资产，不当作可用现金。</p>`);
+
+            const fmt = v => v >= 10000
+                ? `${(v / 10000).toFixed(1)}万`
+                : `¥${Math.round(v).toLocaleString()}`;
+
+            const html = Object.entries(groups)
+                .filter(([, g]) => g.items.length > 0)
+                .map(([, g]) => {
+                    const subtotal = g.items.reduce((s, a) => s + (a.value || 0), 0);
+                    const itemsHtml = g.items.map(a => {
+                        const pct = totalAssets > 0 ? Math.round(a.value / totalAssets * 100) : 0;
+                        return `<div class="detail-item" onclick="showUpdateAssets()">
+                            <div>
+                                <div class="detail-item__name">${escapeHtml(a.icon || '')} ${escapeHtml(a.name)}</div>
+                                <div class="detail-item__sub">${escapeHtml(a.typeName)}</div>
+                            </div>
+                            <div>
+                                <div class="detail-item__value">${scopeMoney(a.value || 0)}</div>
+                                <div class="detail-item__pct">${pct}%</div>
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                    return `<div class="detail-group">
+                        <div class="detail-group__header">
+                            <span class="detail-group__label">
+                                <span class="detail-group__dot" style="background:${g.color}"></span>
+                                ${g.label} · ${g.items.length} 项
+                            </span>
+                            <span class="detail-group__subtotal">${scopeMoney(subtotal)}</span>
+                        </div>
+                        ${itemsHtml}
+                    </div>`;
+                }).join('');
+
+            const detailGroupsEl = document.getElementById('detailGroups');
+            if (detailGroupsEl) detailGroupsEl.innerHTML = html ||
+                '<div style="text-align:center;padding:24px;color:var(--gray-500);font-size:13px;">暂无资产数据<br>点击「⟳ 快照」录入</div>';
         }
 
 
@@ -8542,9 +8709,298 @@ function renderBudgetCheckup() {
                 console.error('恢复会话失败:', e);
             }
         };
+
+        function renderDailyReminder() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const daysLeft = daysInMonth - day + 1;
+
+            // 本月可控预算（日常+弹性）
+            const totalBudget = getTotalMonthlyBudget();
+
+            // 本月已花（不含刚性）
+            const monthSpent = expenses.filter(e => {
+                const d = new Date(e.date);
+                const cat = categories.find(c => c.id === e.categoryId);
+                return d.getFullYear() === year && d.getMonth() + 1 === month && cat && cat.type !== '刚性';
+            }).reduce((sum, e) => sum + (e.amount || 0), 0);
+
+            const remaining = totalBudget - monthSpent;
+            const dailyAvailable = daysLeft > 0 ? Math.floor(remaining / daysLeft) : remaining;
+
+            // 今日已花
+            const todaySpent = expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month && d.getDate() === day;
+            }).reduce((sum, e) => sum + (e.amount || 0), 0);
+
+            // 记账天数
+            const recordDays = new Set(expenses.filter(e => {
+                const d = new Date(e.date);
+                return d.getFullYear() === year && d.getMonth() + 1 === month;
+            }).map(e => e.date)).size;
+
+            // 根据状态生成提醒文案
+            let emoji, mainText, subText;
+
+            if (remaining <= 0) {
+                emoji = '🚨';
+                mainText = '本月预算已超支';
+                subText = `超出 ¥${Math.abs(remaining).toFixed(0)}，接下来${daysLeft}天尽量控制开支`;
+            } else if (dailyAvailable < 100) {
+                emoji = '⚠️';
+                mainText = `今天还能花 ¥${Math.max(0, dailyAvailable - todaySpent).toFixed(0)}`;
+                subText = `预算吃紧，剩${daysLeft}天 · 日均可花 ¥${dailyAvailable}`;
+            } else if (todaySpent === 0 && day > 1) {
+                emoji = '📝';
+                mainText = `今天还没记账哦～`;
+                subText = `日均可花 ¥${dailyAvailable} · 剩余预算 ¥${remaining.toFixed(0)}`;
+            } else {
+                emoji = '✨';
+                mainText = `今天还能花 ¥${Math.max(0, dailyAvailable - todaySpent).toFixed(0)}`;
+                subText = `剩${daysLeft}天 · 日均 ¥${dailyAvailable} · 已连续记账${recordDays}天`;
+            }
+
+            // 进度条百分比
+            const progressPercent = Math.min((monthSpent / totalBudget) * 100, 100);
+            const progressColor = progressPercent > 90 ? '#fc8181' : progressPercent > 70 ? '#fbd38d' : 'rgba(255,255,255,0.8)';
+
+            document.getElementById('dailyReminderContent').innerHTML = `
+                <div style="font-size: 13px; opacity: 0.85; margin-bottom: 4px;">${emoji} ${month}月${day}日 · 还剩${daysLeft}天</div>
+                <div style="font-size: 24px; font-weight: 700; margin-bottom: 6px;">${mainText}</div>
+                <div style="font-size: 13px; opacity: 0.8; margin-bottom: 12px;">${subText}</div>
+                <div style="background: rgba(255,255,255,0.2); border-radius: 10px; height: 8px; overflow: hidden;">
+                    <div style="background: ${progressColor}; height: 100%; border-radius: 10px; width: ${progressPercent}%; transition: width 0.5s;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; opacity: 0.7; margin-top: 4px;">
+                    <span>已花 ¥${monthSpent.toFixed(0)}</span>
+                    <span>预算 ¥${totalBudget}</span>
+                </div>
+            `;
+        }
+
+        function renderDashboardNetworth() {
+            const total = assetTotals().net;
+            const goalAmount = 1000000; // 百万目标
+            const progress = Math.max(0, Math.min((total / goalAmount) * 100, 100));
+
+            document.getElementById('dashboardNetworthValue').textContent = '¥' + total.toLocaleString();
+            document.getElementById('dashboardGoalPercent').textContent = progress.toFixed(1) + '%';
+            document.getElementById('dashboardGoalFill').style.width = progress + '%';
+        }
+
+        function renderDashboardVitalSigns() {
+            const today=localDateString(),b=assetBuckets(),t=assetTotals(),year=today.slice(0,4),budget=rvBudget(year)||[],total=rvSum(budget.map(c=>({amount:c.yearly}))),spent=rvMetrics({start:year+'-01-01',end:today}).cash;
+            const items=[['💵','流动资产',scopeMoney(b.liquid),'按登记余额'],['📊','年度预算使用',total?(spent/total*100).toFixed(1)+'%':'未设置','全年累计评估'],['💎','负债',scopeMoney(t.debt),'与资产分别列示']];
+            rvPut('dashboardVitalSigns',items.map(([icon,label,value,hint])=>`<div class="vital-sign-item"><div class="vital-sign-icon">${icon}</div><div class="vital-sign-value">${value}</div><div class="vital-sign-label">${label}</div><div class="vital-sign-hint">${hint}</div></div>`).join(''));
+        }
+
+        function renderDashboardBudget() {
+            const year=new Date().getFullYear(),budget=rvBudget(year)||[];
+            const rows=budget.map(c=>{const spent=rvSum(expenses.filter(e=>e.date.startsWith(String(year))&&e.categoryId===c.id))-rvSum(rvFundRows().filter(e=>e.kind==='return'&&e.date.startsWith(String(year))&&e.categoryId===c.id));return {...c,spent,percent:c.yearly>0?spent/c.yearly*100:0};}).sort((a,b)=>b.percent-a.percent).slice(0,4);
+            rvPut('dashboardBudgetProgress',rows.map(c=>`<div class="progress-item"><div class="progress-label"><span>${escapeHtml(c.name)}</span><span>${scopeMoney(c.spent)} / ${scopeMoney(c.yearly)}</span></div><div class="progress-bar"><div class="progress-fill ${c.percent>100?'red':c.percent>80?'yellow':'green'}" style="width:${Math.max(0,Math.min(c.percent,100))}%"></div></div></div>`).join('')+`<button class="btn btn-outline btn-sm" onclick="switchPage('budget')">查看全部年度预算</button>`);
+        }
+
+        function renderDashboardGoals() {
+            const topGoals = goals.slice(0, 3); // 只显示前3个目标
+
+            if (topGoals.length === 0) {
+                document.getElementById('dashboardGoalsProgress').innerHTML =
+                    '<div style="color: var(--gray-500); text-align: center; padding: 20px;">暂无储蓄目标</div>';
+                return;
+            }
+
+            document.getElementById('dashboardGoalsProgress').innerHTML = topGoals.map(goal => {
+                const percent = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount * 100) : 0;
+                return `
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>${escapeHtml(goal.name)}</span>
+                            <span>${percent.toFixed(0)}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill purple" style="width: ${Math.min(percent, 100)}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderKPICards() {
+            const b=assetBuckets(),t=assetTotals(),hints={liquid:'可用现金',invest:'占总资产',property:'占总资产',debt:'从净资产中扣除',receivable:'不计入可用现金'};
+            rvPut('kpiCards',Object.entries(BUCKET_LABELS).map(([k,label])=>`<div class="kpi-card" style="border-top-color:${BUCKET_COLORS[k]}"><div class="kpi-card__label">${label}</div><div class="kpi-card__value">${scopeMoney(b[k])}</div><div class="kpi-card__hint">${hints[k]}${['invest','property'].includes(k)&&t.gross>0?' '+(b[k]/t.gross*100).toFixed(1)+'%':''}</div></div>`).join(''));
+        }
+
+        function renderHealthScore() {
+            const t=assetTotals(),b=assetBuckets();rvPut('healthScoreNum','');rvPut('healthScoreLabel','按已登记余额');
+            rvPut('healthMetrics',`<p>总资产 ${scopeMoney(t.gross)} − 负债 ${scopeMoney(t.debt)} = 净资产 ${scopeMoney(t.net)}。</p><p>可用现金 ${scopeMoney(b.liquid)}；待收及其他 ${scopeMoney(b.receivable)} 单独列示。</p>`);
+        }
+
+        function renderGrowthCards(totalAssets) {
+            const sortedHistory = getMonthlyLatestHistory();
+
+            if (sortedHistory.length === 0) {
+                document.getElementById('assetsGrowthCards').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-label">本月</div>
+                        <div class="stat-value">--</div>
+                        <div class="stat-change">暂无数据</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">今年</div>
+                        <div class="stat-value">--</div>
+                        <div class="stat-change">暂无数据</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">累计</div>
+                        <div class="stat-value">--</div>
+                        <div class="stat-change">暂无数据</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">增幅</div>
+                        <div class="stat-value">--</div>
+                        <div class="stat-change">暂无数据</div>
+                    </div>
+                `;
+                return;
+            }
+
+            const now = new Date();
+            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const lastMonthKey = now.getMonth() === 0
+                ? `${now.getFullYear() - 1}-12`
+                : `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`;
+            const yearStartKey = `${now.getFullYear()}-01`;
+            const lastYearEndKey = `${now.getFullYear() - 1}-12`;
+            const firstRecordKey = sortedHistory[0]?.month;
+
+            // 获取各时间点的资产
+            const currentTotal = totalAssets;
+            const lastMonthRecord = sortedHistory.find(h => h.month === lastMonthKey);
+            const yearStartRecord = sortedHistory.find(h => h.month === yearStartKey) || sortedHistory.find(h => h.month === lastYearEndKey);
+            const firstRecord = sortedHistory[0];
+
+            // 计算增长
+            const monthGrowth = lastMonthRecord ? currentTotal - lastMonthRecord.total : 0;
+            const monthGrowthPct = lastMonthRecord && lastMonthRecord.total > 0
+                ? (monthGrowth / lastMonthRecord.total * 100) : 0;
+
+            const yearGrowth = yearStartRecord ? currentTotal - yearStartRecord.total : 0;
+            const yearGrowthPct = yearStartRecord && yearStartRecord.total > 0
+                ? (yearGrowth / yearStartRecord.total * 100) : 0;
+
+            const totalGrowth = firstRecord ? currentTotal - firstRecord.total : 0;
+            const totalGrowthPct = firstRecord && firstRecord.total > 0
+                ? (totalGrowth / firstRecord.total * 100) : 0;
+
+            document.getElementById('assetsGrowthCards').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">本月增长</div>
+                    <div class="stat-value" style="color: ${monthGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${monthGrowth >= 0 ? '+' : ''}${(monthGrowth/10000).toFixed(1)}w
+                    </div>
+                    <div class="stat-change ${monthGrowth >= 0 ? 'up' : 'down'}">
+                        ${monthGrowth >= 0 ? '↑' : '↓'} ${Math.abs(monthGrowthPct).toFixed(1)}%
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">今年增长</div>
+                    <div class="stat-value" style="color: ${yearGrowth >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${yearGrowth >= 0 ? '+' : ''}${(yearGrowth/10000).toFixed(1)}w
+                    </div>
+                    <div class="stat-change ${yearGrowth >= 0 ? 'up' : 'down'}">
+                        ${yearGrowth >= 0 ? '↑' : '↓'} ${Math.abs(yearGrowthPct).toFixed(1)}%
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">累计增幅</div>
+                    <div class="stat-value" style="color: ${totalGrowthPct >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${totalGrowthPct >= 0 ? '+' : ''}${totalGrowthPct.toFixed(0)}%
+                    </div>
+                    <div class="stat-change">${totalGrowth >= 0 ? '+' : ''}${(totalGrowth/10000).toFixed(1)}w · ${sortedHistory.length}月</div>
+                </div>
+            `;
+        }
+
+        function renderMilestones(netWorth) {
+            const target=1000000,pct=Math.max(0,Math.min(100,netWorth/target*100));
+            document.getElementById('milestoneFill').style.width=pct+'%';rvPut('milestonePct',pct.toFixed(1)+'%');
+            document.getElementById('milestoneSub').textContent=netWorth>=target?'已达到百万目标':'距 ¥1,000,000 还差 '+scopeMoney(target-netWorth);
+            rvPut('milestoneNodes','');rvPut('milestoneLabels','<span style="left:0;transform:none">0</span><span style="left:100%;transform:translateX(-100%)">100万</span>');
+        }
+
+        function renderAllocChart(totalAssets) {
+            const buckets = assetBuckets();
+
+            const labels = ['流动资产', '投资资产', '不动产', '待收及其他'];
+            const dataVals = [buckets.liquid, buckets.invest, buckets.property, buckets.receivable];
+            const colors = ['#378ADD', '#1D9E75', '#EF9F27', '#9f7aea'];
+
+            const canvas = document.getElementById('allocChart');
+            if (!canvas) return;
+
+            if (allocChartInst) { allocChartInst.destroy(); allocChartInst = null; }
+
+            // 中心总额
+            const fmtTotal = totalAssets >= 10000
+                ? `${(totalAssets/10000).toFixed(1)}万`
+                : `¥${Math.round(totalAssets).toLocaleString()}`;
+            const allocTotalEl = document.getElementById('allocTotal');
+            if (!allocTotalEl) return;
+            allocTotalEl.textContent = fmtTotal;
+
+            allocChartInst = new Chart(canvas.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{ data: dataVals, backgroundColor: colors, borderWidth: 0 }]
+                },
+                options: {
+                    cutout: '68%',
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: c => {
+                                    const v = c.parsed;
+                                    const pct = totalAssets > 0 ? (v / totalAssets * 100).toFixed(1) : 0;
+                                    return ` ${scopeMoney(v)} (${pct}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 自定义图例
+            document.getElementById('assetsLegend').innerHTML = labels.map((l, i) => {
+                const v = dataVals[i];
+                if (v <= 0) return '';
+                const pct = totalAssets > 0 ? Math.round(v / totalAssets * 100) : 0;
+                const amt = v >= 10000 ? `${(v/10000).toFixed(1)}万` : `¥${Math.round(v).toLocaleString()}`;
+                return `<div class="assets-legend-item">
+                    <div class="assets-legend-color" style="background:${colors[i]};"></div>
+                    <span style="flex:1;">${l}</span>
+                    <span style="color:var(--gray-800);font-weight:500;margin-right:4px;">${amt}</span>
+                    <span style="color:var(--gray-500);font-size:12px;">${pct}%</span>
+                </div>`;
+            }).join('');
+        }
+
+        function renderCategoryTrendChart() {
+            const canvas=document.getElementById('assetsCategoryChart');if(!canvas)return;
+            if(window.categoryTrendChartInst)window.categoryTrendChartInst.destroy();
+            const rows=getMonthlyLatestHistory().filter(h=>h.details).slice(-12),colors=['#4299e1','#48bb78','#ed8936','#9f7aea','#ed64a6','#38b2ac','#718096'];
+            const items=ASSET_TYPES.flatMap(t=>t.items).filter(item=>rows.some(h=>Number(h.details[item.id])>0));
+            window.categoryTrendChartInst=new Chart(canvas.getContext('2d'),{type:'line',data:{labels:rows.map(h=>h.month),datasets:items.map((a,i)=>({label:a.name,data:rows.map(h=>Object.hasOwn(h.details,a.id)?Number(h.details[a.id]):null),borderColor:colors[i%colors.length],backgroundColor:colors[i%colors.length],borderWidth:2,pointRadius:2,tension:0,spanGaps:false}))},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11}}},tooltip:{callbacks:{label:c=>c.dataset.label+' '+scopeMoney(c.parsed.y)}}},scales:{x:{grid:{display:false},ticks:{maxTicksLimit:5}},y:{ticks:{callback:v=>Number((v/10000).toFixed(1))+'万'}}}}});
+        }
     </script>
 
-    <script src="review.js?v=20261012.3"></script>
+    <script src="review.js?v=20261012.4"></script>
     <!-- 自动快照 Modal -->
     <div id="autoBackupModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
         <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">

@@ -1,10 +1,12 @@
 # Finance
 
-Personal ledger with Supabase Auth, owner-scoped RLS and annual budgets. Version **2026.10.12.3**.
+Personal ledger with Supabase Auth, owner-scoped RLS and annual budgets. Version **2026.10.12.4**.
 
 ## Product structure
 
-Six primary pages: overview, entry, annual budgets, monthly/quarterly/annual review, assets and settings. Income details remain under entry, savings goals under assets, and backup/restore tools under settings. Duplicate charts, calendar streaks, automatic wealth milestones and arbitrary financial scores have been removed.
+Restored the original purple/blue design, card layouts and five primary tabs: overview, entry, analysis, wealth and settings. Analysis contains reviews, charts, calendar and annual statistics; wealth contains assets, income, annual budgets, budget checks and goals. Existing financial records and annual budget versions are not reverted.
+
+Detail repairs retain guarded writes, exact hover/tap values, calendar-based trend ranges and numeric chart tables. Direct links correctly activate the parent navigation. Asset allocation excludes liabilities from the gross-assets donut; the million-goal fill and headline use the same target. Category charts use non-overlapping legends and retain missing values as unknown. Quick-entry presets only fill the form and require Save. Annual summaries and income comparisons never invent zero expenses for missing historical months.
 
 - Personal and business budgets are separate. Category IDs 3 and 22 default to business; individual expenses may override their default. Budgets are annual; monthly averages are references, not monthly limits.
 - `review_data.budgetYears` preserves original and current budgets plus adjustment reasons. Absent historical budgets remain unknown. Changes to category structure preserve original annual versions; new categories start at zero pending an explicit budget decision.
@@ -23,13 +25,13 @@ JSON append, full replacement and snapshot restore use `finance_import_atomic`. 
 
 `finance_backups` stores checkpoints before imports and the first actual daily modification (Asia/Shanghai). `finance_changes` stores before/after values from the safety upgrade onward. Clients cannot update/delete protected history or insert audit events. Internal append-only audit triggers use SECURITY DEFINER with an empty search path and owner checks; public RPCs use SECURITY INVOKER and owner-scoped RLS.
 
-Backups within the same Supabase project do not protect against loss of that project. Download an independent complete backup from Settings. Local IndexedDB snapshots are owner/profile-scoped; legacy snapshots without ownership metadata are not auto-assigned.
+Backups within the same Supabase project do not protect against loss of that project. Download an independent complete backup using the header’s cloud backup action. Local IndexedDB snapshots are owner/profile-scoped; legacy snapshots without ownership metadata are not auto-assigned.
 
 **Never commit financial backups, credentials or real user fixtures to this public repository.**
 
 ## Existing database setup
 
-Apply these additive setup scripts in order on an existing project: `finance-data-integrity.sql`, `finance-safety-upgrade.sql`, `finance-budget-scope.sql`, `finance-review-upgrade.sql`. They are not Supabase CLI migration-history entries. Version 2026.10.12.3 requires no new schema changes and does not rewrite existing financial rows.
+Apply these additive setup scripts in order on an existing project: `finance-data-integrity.sql`, `finance-safety-upgrade.sql`, `finance-budget-scope.sql`, `finance-review-upgrade.sql`. They are not Supabase CLI migration-history entries. Version 2026.10.12.4 requires no new schema changes and does not rewrite existing financial rows.
 
 ## Verification
 
