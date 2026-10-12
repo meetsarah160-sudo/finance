@@ -2969,6 +2969,7 @@
         .scope-setting-label { grid-column:2 / -1; color:var(--gray-600); font-size:12px; }
         @media(max-width:600px) { .scope-budget-grid { grid-template-columns:1fr; } }
     </style>
+<link rel="stylesheet" href="review.css?v=20261012.2">
 </head>
 <body>
     <!-- 登录页面 -->
@@ -3072,7 +3073,7 @@
                 <!-- 双列布局：预算执行 + 储蓄目标 -->
                 <div class="dashboard-two-col">
                     <div class="dashboard-card">
-                        <h3>📊 本月预算执行</h3>
+                        <h3>📊 年度预算执行</h3>
                         <div id="dashboardBudgetProgress"></div>
                     </div>
                     <div class="dashboard-card">
@@ -3207,7 +3208,7 @@
             <!-- 预算页面 -->
             <div id="page-budget" class="page">
                 <div id="annualScopeBudget" class="scope-panel"></div>
-                <h2 class="page-title">📊 本月预算</h2>
+                <h2 class="page-title">📊 年度预算</h2>
                 
                 <div class="summary-cards" id="summaryCards"></div>
                 
@@ -3469,10 +3470,10 @@
             
             <!-- 月度报告页面 -->
             <div id="page-report" class="page">
-                <h2 class="page-title">📋 月度财务报告</h2>
+                <h2 class="page-title">📋 月／季／年复盘</h2>
                 
                 <div style="margin-bottom: 20px;">
-                    <select id="reportMonth" onchange="renderReport()" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300);"></select>
+                    <label>归属 <select id="reportScope" onchange="renderReport()"><option value="">全部</option><option value="personal">个人</option><option value="business">创业</option></select></label> <label>复盘周期 <select id="reportMode" onchange="renderReport()"><option value="month">月度</option><option value="quarter">季度</option><option value="year">年度</option></select></label> <label>所选月份（季度／年度自动归入） <select id="reportMonth" onchange="renderReport()" style="padding: 10px 15px; border-radius: 8px; border: 2px solid var(--gray-300);"></select></label>
                 </div>
                 
                 <div id="reportContent"></div>
@@ -3489,7 +3490,7 @@
                 </div>
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <select id="historyMonth" onchange="renderHistory()" style="padding: 10px; border-radius: 8px; border: 2px solid var(--gray-300);"></select>
+                    <select id="historyMonth" onchange="renderHistory()" style="padding: 10px; border-radius: 8px; border: 2px solid var(--gray-300);"></select></label>
                     <span id="historyTotal" style="font-size: 14px; color: var(--gray-600);"></span>
                 </div>
                 
@@ -3500,7 +3501,7 @@
             <div id="page-analysis" class="page">
                 <!-- 二级导航 -->
                 <div class="sub-tabs">
-                    <button class="sub-tab active" onclick="switchAnalysisTab('report')">📋 月度报告</button>
+                    <button class="sub-tab active" onclick="switchAnalysisTab('report')">📋 月／季／年复盘</button>
                     <button class="sub-tab" onclick="switchAnalysisTab('charts')">📈 图表分析</button>
                     <button class="sub-tab" onclick="switchAnalysisTab('calendar')">📅 日历热力图</button>
                     <button class="sub-tab" onclick="switchAnalysisTab('yearly')">📊 年度统计</button>
@@ -3550,9 +3551,9 @@
                 <div class="settings-header">
                     <div class="type-legend">
                         <span>类型：</span>
-                        <span class="rigid">刚性=不计入月预算</span>
-                        <span class="daily">日常=固定月预算</span>
-                        <span class="flexible">弹性=年预算÷12</span>
+                        <span class="rigid">刚性=固定责任，纳入年度预算</span>
+                        <span class="daily">日常=经常发生</span>
+                        <span class="flexible">弹性=年内灵活使用</span>
                     </div>
                 </div>
                 
@@ -3647,14 +3648,14 @@
                 </div>
                 
                 <!-- 年度汇总 -->
-                <div class="year-summary" id="yearSummary"></div>
+                <div id="yearSummary"></div>
                 
                 <!-- 月度卡片 -->
-                <h3 style="margin-bottom: 15px; font-size: 16px;">📆 各月消费</h3>
-                <div class="year-grid" id="yearGrid"></div>
+                
+                <div id="yearGrid"></div>
                 
                 <!-- 年度类目排行 -->
-                <h3 style="margin-bottom: 15px; font-size: 16px;">🏆 类目消费排行</h3>
+                
                 <div id="yearCategoryRank"></div>
             </div>
         </div>
@@ -3806,11 +3807,12 @@
         let goals = [];
         let assets = [];
         let assetHistory = []; // 资产历史记录
+        let reviewData = {};
         let configRevision = null;
         let configLoadedFor = null;
         let configSyncQueue = Promise.resolve();
         let configSyncPending = 0;
-        const APP_VERSION = '2026.10.12.1';
+        const APP_VERSION = '2026.10.12.2';
 
         function localDateString(date = new Date()) {
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -3820,7 +3822,7 @@
             return JSON.parse(JSON.stringify({
                 categories, assets_data: assets, asset_history: assetHistory,
                 asset_types: ASSET_TYPES, expense_overrides: monthlyExpenseOverrides,
-                incomes_data: incomes, goals_data: goals, bucket_map: BUCKET_MAP
+                incomes_data: incomes, goals_data: goals, bucket_map: BUCKET_MAP, review_data: reviewData
             }));
         }
 
@@ -3973,6 +3975,7 @@
             localStorage.setItem('finance_incomes_' + currentUser, JSON.stringify(incomes));
             localStorage.setItem('finance_goals_' + currentUser, JSON.stringify(goals));
             localStorage.setItem('finance_bucket_map_' + currentUser, JSON.stringify(BUCKET_MAP));
+            localStorage.setItem('finance_review_data_' + currentUser, JSON.stringify(reviewData));
         }
 
         function assertSupabaseOk(result, action) {
@@ -4334,6 +4337,7 @@
                 ASSET_TYPES = Array.isArray(config?.asset_types) ? config.asset_types : JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES));
                 monthlyExpenseOverrides = config?.expense_overrides || {};
                 BUCKET_MAP = config?.bucket_map || {};
+                reviewData = config?.review_data || {};
                 incomes = Array.isArray(config?.incomes_data) ? config.incomes_data : legacyIncomes.map(i => ({
                     id: i.id, date: i.date, item: i.item, amount: Number(i.amount), type: i.type
                 }));
@@ -4370,6 +4374,7 @@
                 ASSET_TYPES = safeParse('finance_asset_types_' + profile, JSON.parse(JSON.stringify(DEFAULT_ASSET_TYPES)));
                 monthlyExpenseOverrides = safeParse('finance_expense_overrides_' + profile, {});
                 BUCKET_MAP = safeParse('finance_bucket_map_' + profile, {});
+                reviewData = safeParse('finance_review_data_' + profile, {});
                 normalizeFinanceData();
                 init();
                 setSyncStatus('error');
@@ -4468,6 +4473,7 @@
         }
 
         async function deleteExpenseFromCloud(id) {
+            if(reviewData.funds?.[id]){showToast('此记录关联保证金／预付资金，请先在复盘中核对并撤销资金分类','warning');return false;}
             try {
                 await checkedSupabase(db.from('expenses').delete().eq('id', id), '删除消费记录');
                 localStorage.setItem('finance_expenses_' + currentUser, JSON.stringify(expenses));
@@ -4534,7 +4540,7 @@
                 assetHistory: assetHistory,
                 monthlyExpenseOverrides: monthlyExpenseOverrides,
                 assetTypes: ASSET_TYPES,
-                bucketMap: BUCKET_MAP
+                bucketMap: BUCKET_MAP, reviewData: reviewData
             };
             
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -4587,7 +4593,7 @@
                         user: currentUser,
                         exportTime: new Date().toISOString(),
                         categories, expenses, incomes, goals, assets,
-                        assetHistory, monthlyExpenseOverrides, assetTypes: ASSET_TYPES, bucketMap: BUCKET_MAP
+                        assetHistory, monthlyExpenseOverrides, assetTypes: ASSET_TYPES, bucketMap: BUCKET_MAP, reviewData: reviewData
                     }
                 };
                 const idb = await openBackupDB();
@@ -4669,11 +4675,11 @@
         }
 
         // Cloud backup and import share the same portable, versioned format.
-        const BACKUP_FIELDS = {categories:'categories',incomes:'incomes_data',goals:'goals_data',assets:'assets_data',assetHistory:'asset_history',assetTypes:'asset_types',monthlyExpenseOverrides:'expense_overrides',bucketMap:'bucket_map'};
+        const BACKUP_FIELDS = {categories:'categories',incomes:'incomes_data',goals:'goals_data',assets:'assets_data',assetHistory:'asset_history',assetTypes:'asset_types',monthlyExpenseOverrides:'expense_overrides',bucketMap:'bucket_map',reviewData:'review_data'};
         function portableCloudState(s) {
             const c=s.config;
             const out={version:'v5',user:c.user_id,exportTime:new Date().toISOString(),expenses:s.expenses.map(e=>({id:e.id,date:e.date,item:e.item,amount:Number(e.amount),categoryId:e.category_id,categoryName:e.category_name,type:e.type,...(Object.hasOwn(e,'budget_scope')?{budgetScope:e.budget_scope}: {})}))};
-            for(const [key,col] of Object.entries(BACKUP_FIELDS)) out[key]=c[col] ?? (['monthlyExpenseOverrides','bucketMap'].includes(key)?{}:[]);
+            for(const [key,col] of Object.entries(BACKUP_FIELDS)) out[key]=c[col] ?? (['monthlyExpenseOverrides','bucketMap','reviewData'].includes(key)?{}:[]);
             return out;
         }
         function downloadJSON(data,name) {
@@ -4696,6 +4702,7 @@
         }
         function validateBackup(d, full=false) {
             if(!d || typeof d!=='object' || Array.isArray(d)) throw new Error('备份必须是 JSON 对象');
+            if(d.reviewData!==undefined)rvValidate(d.reviewData,d.expenses||null);
             const arrays=['expenses','categories','incomes','goals','assets','assetHistory','assetTypes'];
             for(const k of arrays) {
                 if((full || d[k]!==undefined) && !Array.isArray(d[k])) throw new Error(`缺少或无效的 ${k} 数组`);
@@ -4739,6 +4746,8 @@
                     if(old && old.name!==c.name) throw new Error(`分类 ID ${c.id} 对应不同名称，需先整理备份分类`);
                 }
                 result.monthlyExpenseOverrides={...data.monthlyExpenseOverrides,...base.monthlyExpenseOverrides};
+                // Review state has cross-record references. Never silently merge conflicting versions.
+                if(data.reviewData && JSON.stringify(data.reviewData)!==JSON.stringify(base.reviewData||{})) throw new Error('追加导入不合并复盘配置；请单独核对或使用全量恢复');
             }
             validateBackup(result,true);
             const ids=new Set();
@@ -5525,7 +5534,7 @@
             }
             
             const types = [
-                { type: '刚性', icon: '🔒', title: '刚性（不计入月预算）', collapsed: true },
+                { type: '刚性', icon: '🔒', title: '刚性（固定责任）', collapsed: true },
                 { type: '日常', icon: '📅', title: '日常（计入月预算）', collapsed: false },
                 { type: '弹性', icon: '💫', title: '弹性（计入月预算）', collapsed: false }
             ];
@@ -6148,6 +6157,7 @@ function renderBudgetCheckup() {
         let expenseEditBusy = false;
         async function saveEditExpense(id) {
             if (expenseEditBusy) return;
+            if(reviewData.funds?.[id]){showToast('此记录关联保证金／预付资金，请先核对并撤销资金分类再修改','warning');return;}
             const expense = expenses.find(e => String(e.id) === String(id));
             if (!expense) return;
             const date = document.getElementById('editDate').value;
@@ -6208,7 +6218,7 @@ function renderBudgetCheckup() {
                 <div class="category-setting-item" style="background: ${cat.type === '刚性' ? 'var(--pink-100)' : cat.type === '日常' ? '#fefcbf' : 'var(--green-100)'}">
                     <span style="font-weight: 600;">${escapeHtml(cat.id)}</span>
                     <input type="text" value="${escapeHtml(cat.name)}" onchange="updateCategory(${index}, 'name', this.value)">
-                    <input type="number" value="${escapeHtml(cat.yearly)}" onchange="updateCategory(${index}, 'yearly', parseInt(this.value))">
+                    <input type="number" value="${escapeHtml(cat.yearly)}" onchange="updateCategory(${index}, 'yearly', Number(this.value))">
                     <select onchange="updateCategory(${index}, 'type', this.value)">
                         <option value="刚性" ${cat.type === '刚性' ? 'selected' : ''}>刚性</option>
                         <option value="日常" ${cat.type === '日常' ? 'selected' : ''}>日常</option>
@@ -8783,6 +8793,7 @@ function renderBudgetCheckup() {
 
         function saveBucketMap() {
             localStorage.setItem('finance_bucket_map_' + currentUser, JSON.stringify(BUCKET_MAP));
+            localStorage.setItem('finance_review_data_' + currentUser, JSON.stringify(reviewData));
         }
 
         function assetBuckets() {
@@ -10325,6 +10336,7 @@ function renderBudgetCheckup() {
         };
     </script>
 
+    <script src="review.js?v=20261012.2"></script>
     <!-- 自动快照 Modal -->
     <div id="autoBackupModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
         <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">

@@ -50,3 +50,37 @@ Node 22+. Tests use an in-memory database without credentials or personal record
 - Add scheduled external backups with retention and a separately administered recovery destination; no such service is configured.
 - Split the monolithic HTML, add CI and broader visual/mobile coverage.
 - Reconcile missing statements and asset valuations. The application cannot prove historical completeness without those sources.
+
+### Annual review upgrade (2026.10.12.2)
+
+Apply `finance-review-upgrade.sql` after `finance-budget-scope.sql`, then publish
+`index.html`, `review.js`, and `review.css` together. The setup adds only
+`user_configs.review_data`; original expense rows, category IDs and budget amounts
+are not migrated or inferred. RLS and authenticated ownership stay unchanged.
+Old import payloads that omit `review_data` preserve the existing review state.
+
+- Annual personal/business budgets use **net payments** (original expenses minus
+  explicitly registered fund returns), including cash occupied by deposits and
+  top-ups. Consumption is shown separately. These are not bank balances.
+- Budget versions retain original/current categories and a reasoned change log.
+  Historical years without saved budgets are unknown, never assigned today's budget.
+- Monthly, quarterly and annual reports cap the current period at today. Comparisons
+  use the same dates last year (Feb 29 clamps to Feb 28). Percentage changes require
+  both periods' months to be explicitly reconciled; missing data is not zero.
+- Reconciliation fingerprints include rows, income, fund settlements and pending
+  items. Later edits invalidate the prior acknowledgement. Current months cannot
+  be marked complete. Unknown amounts are pending items, never fabricated expenses.
+- Deposits/prepayments require manual classification of an existing payment.
+  Noncash consumption and returns are separately registered with dated evidence;
+  totals cannot exceed principal. Operators must confirm that settlements were not
+  already entered elsewhere; same-day matching amounts are rejected for review.
+  Classified source payments cannot be edited/deleted until classification is
+  cleared. Balances are not automatically added to asset totals.
+- Full JSON/cloud/IndexedDB backups include review state. Conflicting review state
+  is not silently merged in append imports. Full restore is explicitly previewed.
+- Subscription/treating suggestions are candidates for reflection, not automatic
+  labels of waste or financial-health scores. Original manually overridden month
+  totals remain preserved, while these new reports use auditable transaction rows.
+
+Validation: `node --test regression-tests.cjs`; database changes should additionally
+be exercised under the authenticated role in a transaction that ends in ROLLBACK.
