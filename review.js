@@ -56,12 +56,13 @@ function rvFingerprint(month) {
 }
 function rvMonthStatus(month) {
     const pending=rvState().pending.filter(p=>p.date.startsWith(month)&&!p.resolvedAt).length;
-    const record=rvState().months[month];
-    const closed=month<localDateString().slice(0,7);
-    const verified=!!record && record.fingerprint===rvFingerprint(month) && pending===0 && closed;
+    const record=rvState().months[month],current=localDateString().slice(0,7),closed=month<current;
+    const verified=!!record&&record.fingerprint===rvFingerprint(month)&&pending===0&&closed;
     const has=expenses.some(e=>e.date.startsWith(month))||rvFundRows().some(e=>e.date.startsWith(month));
-    return {verified,pending,has,label:verified?'已核对完整':pending?`${pending} 笔待补金额`:record?'账本变化／进行中，需重新核对':has?'有记录，尚未核对完整':'未记录／待核对（不等于零）'};
+    const label=month>current?'未开始':month===current?'进行中':verified?'已核对':pending?`${pending} 笔待补金额`:record?'改账后待复核':has?'待核对':'未记录';
+    return {verified,pending,has,closed,label};
 }
+
 function rvComplete(range){return !range.future && rvMonths(range.start,range.end).every(m=>rvMonthStatus(m).verified);}
 function rvComparison(range,scope='') {
     const previous=rvPreviousYear(range),a=rvMetrics(range,scope),b=rvMetrics(previous,scope);
@@ -82,16 +83,16 @@ function rvBudgetCards(year) {
 }
 function renderScopeBudgets(){
     const years=rvYears();if(!years.includes(scopeBudgetYear))scopeBudgetYear=years[0];
-    const html=`<div class="scope-heading"><h3>年度预算 · 个人与创业</h3><select aria-label="年度预算年份" onchange="setScopeBudgetYear(this.value)">${years.map(y=>`<option ${y===scopeBudgetYear?'selected':''}>${y}</option>`).join('')}</select></div>${rvBudgetCards(scopeBudgetYear)}<p class="scope-note">按净付款占用年度额度，保证金／预付也占用资金；消费统计另列。个人与创业不自动互抵，年度剩余不等于可用现金。备用金年内累计使用，月均仅作参考，跨年不自动结转。</p>`;
-    rvPut('dashboardScopeBudget',html);rvPut('annualScopeBudget',html);
+    rvPut('annualScopeBudget',`<div class="scope-heading"><h3>个人与创业</h3><select aria-label="年度预算年份" onchange="setScopeBudgetYear(this.value)">${years.map(y=>`<option ${y===scopeBudgetYear?'selected':''}>${y}</option>`).join('')}</select></div>${rvBudgetCards(scopeBudgetYear)}<p class="scope-note">年度额度累计使用，月均仅作参考；个人与创业分别计算。预算剩余不等于可用现金。</p>`);
 }
+
 function setScopeBudgetYear(value){scopeBudgetYear=Number(value);renderBudgetStatus();}
 function renderBudgetStatus(){
     renderScopeBudgets();const year=scopeBudgetYear,budget=rvBudget(year);
     rvPut('summaryCards',`<p class="scope-note">预算按年度评估；房租、保险和大额购置按付款日期列示，不根据名称自动摊销。</p>`);
     rvPut('budgetList',`<div class="rv-table-wrap"><table class="rv-table"><thead><tr><th>类目</th><th>年度预算</th><th>净付款</th><th>年度剩余</th></tr></thead><tbody>${(budget||categories).map(c=>{
         const amount=rvSum(expenses.filter(e=>e.date.startsWith(String(year))&&e.categoryId===c.id))-rvSum(rvFundRows().filter(e=>e.kind==='return'&&e.date.startsWith(String(year))&&e.categoryId===c.id));
-        return `<tr><td>${escapeHtml(c.name)}</td><td>${budget?scopeMoney(c.yearly):'未知'}</td><td>${scopeMoney(amount)}</td><td>${budget?scopeMoney(Number(c.yearly)-amount):'—'}</td></tr>`;
+        return `<tr><td><button class="text-button" onclick="rvCategoryRecords(${Number(c.id)},${year})">${escapeHtml(c.name)}</button></td><td>${budget?scopeMoney(c.yearly):'未知'}</td><td>${scopeMoney(amount)}</td><td>${budget?scopeMoney(Number(c.yearly)-amount):'—'}</td></tr>`;
     }).join('')}</tbody></table></div>${rvBudgetEditor(year)}`);
 }
 function rvBudgetEditor(year){
@@ -106,7 +107,7 @@ async function rvSave(next,nextCategories=null){
     reviewData=next;if(nextCategories)categories=nextCategories;
     try{
         if(!await syncAllToCloud()){if(currentUser===profile){reviewData=old;categories=oldCats;saveConfigLocalBackup();}return false;}
-        if(currentUser!==profile)return true;renderBudgetStatus();renderReport();renderDashboard();renderSettings();showToast('已保存到云端','success');return true;
+        if(currentUser!==profile)return true;renderBudgetStatus();renderReport();renderDashboard();renderSettings();rvPut('recordPending',rvPendingUI());rvPut('assetFunds',rvFundsUI());showToast('已保存到云端','success');return true;
     }finally{rvBusy=false;}
 }
 async function rvCreateBudget(){
@@ -139,25 +140,22 @@ async function updateCategory(index,field,value){
     await rvSave(d,next);
 }
 function renderBudgetTip(){rvPut('budgetTip','年度预算累计使用；生活费是日常消耗，小零用是小额个人支出，备用金用于临时升级。月均不是每月额度上限。');}
-function renderDashboardBudget(){
-    const year=new Date().getFullYear(),summary=scopeSummary(year);
-    rvPut('dashboardBudgetProgress',Object.entries(summary).map(([k,b])=>`<p>${BUDGET_SCOPE_LABELS[k]} · ${b.known?(b.remaining<0?'年度超支 ':'年度剩余 ')+scopeMoney(Math.abs(b.remaining)):'预算未知'}</p>`).join(''));
-}
 function renderCompareCards(){rvPut('compareCards','<p class="scope-note">同比请查看「月／季／年复盘」：使用相同日期范围，未核对完整时只展示已记录金额，不计算误导性的增减比例。</p>');}
-function renderDailyReminder(){
-    const month=localDateString().slice(0,7),latest=expenses.map(e=>e.date).sort().at(-1);
-    rvPut('dailyReminderContent',`<div class="rv-section"><strong>账本进度</strong><p>最新支出：${latest?escapeHtml(latest):'尚无记录'} · ${escapeHtml(rvMonthStatus(month).label)}</p><button class="btn btn-outline btn-sm" onclick="switchPage('analysis', event)">打开复盘与待核对事项</button></div>`);
-}
 function renderDashboardKPI(){
-    const today=localDateString(),r={start:today.slice(0,7)+'-01',end:today},x=rvMetrics(r),inc=incomes.filter(e=>e.date>=r.start&&e.date<=r.end);
-    const items=[['本月已记录净付款',scopeMoney(x.cash)],['本月已确认消费',scopeMoney(x.consumption)],['本月已记录收入',inc.length?scopeMoney(rvSum(inc)):'未记录'],['本月账本状态',rvMonthStatus(today.slice(0,7)).label]];
-    rvPut('dashboardKPI',items.map(([label,value])=>`<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value rv-value">${value}</div></div>`).join(''));
+    const today=localDateString(),x=rvMetrics({start:today.slice(0,7)+'-01',end:today}),y=rvMetrics({start:today.slice(0,4)+'-01-01',end:today});
+    const inc=incomes.filter(e=>e.date>=today.slice(0,7)+'-01'&&e.date<=today);
+    const items=[['本月净付款',scopeMoney(x.cash),'支出减已登记退回'],['今年净付款',scopeMoney(y.cash),'个人与创业合计'],['本月收入',inc.length||rvRecordingPolicy().noIncomeEntryMeansZero?scopeMoney(rvSum(inc)):'未记录',rvRecordingPolicy().noIncomeEntryMeansZero?'未新增即无进账':'仅展示已录入金额'],['已记录净资产',scopeMoney(assetTotals().net),'余额日期见资产页']];
+    rvPut('dashboardKPI',items.map(([label,value,note])=>`<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value rv-value">${value}</div><p class="muted">${note}</p></div>`).join(''));
 }
+
 function initReportMonthSelector(){
     const el=document.getElementById('reportMonth');if(!el)return;
-    const value=el.value||localDateString().slice(0,7);
-    el.innerHTML=rvYears().flatMap(y=>Array.from({length:12},(_,i)=>`${y}-${String(12-i).padStart(2,'0')}`)).map(m=>`<option value="${m}" ${m===value?'selected':''}>${m}</option>`).join('');
+    const mode=document.getElementById('reportMode')?.value||'month',value=el.value||localDateString().slice(0,7),today=localDateString().slice(0,7);
+    const [y,m]=value.split('-').map(Number),selected=mode==='year'?`${y}-01`:mode==='quarter'?`${y}-${String(Math.floor((m-1)/3)*3+1).padStart(2,'0')}`:value;
+    const months=mode==='year'?[1]:mode==='quarter'?[10,7,4,1]:[12,11,10,9,8,7,6,5,4,3,2,1];
+    el.innerHTML=rvYears().flatMap(y=>months.map(m=>({value:`${y}-${String(m).padStart(2,'0')}`,label:mode==='year'?`${y} 年`:mode==='quarter'?`${y} 年第 ${Math.ceil(m/3)} 季度`:`${y} 年 ${m} 月`}))).filter(o=>o.value<=today).map(o=>`<option value="${o.value}" ${o.value===selected?'selected':''}>${o.label}</option>`).join('');
 }
+
 function rvReportRange(){
     const [y,m]=(document.getElementById('reportMonth')?.value||localDateString().slice(0,7)).split('-').map(Number);
     const mode=document.getElementById('reportMode')?.value||'month';return {...rvRange(mode,y,mode==='quarter'?Math.ceil(m/3):m),mode,year:y};
@@ -165,35 +163,40 @@ function rvReportRange(){
 function rvTable(rows,headers){return `<div class="rv-table-wrap"><table class="rv-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;}
 function rvReview(range,scope=''){
     if(range.future)return '<p>该期间尚未开始。</p>';
-    const issues=rvFundIssues();
-    const x=rvMetrics(range,scope),compare=rvComparison(range,scope),months=rvMonths(range.start,range.end);
-    const known=x.count>0||x.events.length>0||rvComplete(range);
-    const inc=incomes.filter(e=>e.date>=range.start&&e.date<=range.end), latest=x.rows.map(e=>e.date).sort().at(-1);
-    const byCat=categories.map(c=>({c,amount:rvSum(x.rows.filter(e=>e.categoryId===c.id))})).filter(r=>r.amount!==0).sort((a,b)=>b.amount-a.amount);
+    const x=rvMetrics(range,scope),compare=rvComparison(range,scope),months=rvMonths(range.start,range.end),current=localDateString().slice(0,7);
+    const known=x.count>0||x.events.length>0||rvComplete(range),latest=x.rows.map(e=>e.date).sort().at(-1);
+    const previousKnown=compare.b.count>0||compare.b.events.length>0||rvComplete(compare.previous);
+    const byId=new Map();for(const e of x.rows){const id=String(e.categoryId);if(!byId.has(id))byId.set(id,{name:categories.find(c=>String(c.id)===id)?.name||e.categoryName||'待归类',amount:0});byId.get(id).amount+=rvCents(e.amount);}
+    const byCat=[...byId.values()].sort((a,b)=>b.amount-a.amount);
     const top=x.rows.filter(e=>e.amount>0).slice().sort((a,b)=>b.amount-a.amount).slice(0,5);
-    const gift=x.rows.filter(e=>e.categoryId===14),subs=x.rows.filter(e=>/会员|订阅|话费|充值|服务器/.test(e.item));
+    const gifts=x.rows.filter(e=>e.categoryId===14),subs=x.rows.filter(e=>/会员|订阅|服务器|App|软件/i.test(e.item));
     const tips=[];
-    if(months.some(m=>!rvMonthStatus(m).verified))tips.push('先补齐待核对月份，再判断是否减少消费；目前总额是已记录金额。');
-    if(gift.length)tips.push(`本期自愿赠请 ${scopeMoney(rvSum(gift))}（${gift.length} 笔）。复盘哪些是自己愿意的，哪些只是碍于情面；它们不是自动判定的浪费。`);
-    if(subs.length)tips.push(`检查 ${subs.length} 笔会员／充值／服务项目的使用频率；这是按名称筛出的候选，未自动认定为订阅或重复扣费。`);
-    if(top.length)tips.push(`最大一笔「${top[0].item}」${scopeMoney(top[0].amount)}，先区分集中付款和持续开销，再决定是否调整年度预算。`);
-    if(!tips.length)tips.push('本期暂无足够记录，先核对账本完整性。');
-    const rows=['personal','business'].map(scope=>{const c=rvComparison(range,scope);return `<tr><td>${BUDGET_SCOPE_LABELS[scope]}</td><td>${c.a.count||rvComplete(range)?scopeMoney(c.a.cash):'未记录'}</td><td>${c.b.count||rvComplete(c.previous)?scopeMoney(c.b.cash):'未记录／未知'}</td><td>${c.percent===null?'数据不足／基期为零':(c.percent>=0?'+':'')+c.percent.toFixed(1)+'%'}</td></tr>`;});
-    return `${issues.length?'<p class="rv-section scope-over">部分资金关联原账已变化，相关核销暂停计算；请到资金面板核对，当前消费及净付款统计可能不完整。</p>':''}<div class="rv-section"><h3>${escapeHtml(range.start)} 至 ${escapeHtml(range.end)} · ${BUDGET_SCOPE_LABELS[scope]||'全部账本'}</h3><p>最新记录：${latest?escapeHtml(latest):'无'}。${rvComplete(range)?'所涉月份已核对完整。':'本期尚未核对完整，不代表完整消费总额。'}</p><div class="scope-budget-grid"><div class="scope-budget-card"><h4>净付款 ${known?scopeMoney(x.cash):'未记录／未知'}</h4><p>原账付款 ${scopeMoney(rvSum(x.rows))} − 已登记资金退回 ${scopeMoney(x.returns)}</p></div><div class="scope-budget-card"><h4>已确认消费 ${known?scopeMoney(x.consumption):'未记录／未知'}</h4><p>剔除已确认保证金／预付款 ${scopeMoney(x.held)}，加已登记核销 ${scopeMoney(x.used)}。</p></div></div><p class="scope-note">未分类为资金占用的旧账仍按原记录统计；未核销预付资金的消费可能尚未补齐。全部账本收入${inc.length?'已记录 '+scopeMoney(rvSum(inc)):'尚未记录'}，不据此推算真实结余或储蓄率。历史手填月度汇总保留在备份；本报告统一使用可追溯明细。</p></div>
-    <div class="rv-section"><h3>去年同期对比</h3><p>对比区间：${compare.previous.start} 至 ${compare.previous.end}；本年未结束时仅比较同一截止日。</p>${rvTable(rows,['归属','本期净付款','去年同期已记录','同比'])}<p class="scope-note">只有双方所涉月份均核对完整才计算比例。2024／2025 等历史数据未找到时展示未知，不补零。</p></div>
-    <div class="rv-section"><h3>每月对比与完整度</h3>${rvTable(months.map(m=>{
-        const end=m===range.end.slice(0,7)?range.end:`${m}-${new Date(Number(m.slice(0,4)),Number(m.slice(5)),0).getDate()}`;
-        const c=rvComparison({start:m+'-01',end},scope),s=rvMonthStatus(m);
-        return `<tr><td>${m}</td><td>${c.a.count||s.verified?scopeMoney(c.a.cash):'未记录'}</td><td>${c.b.count||rvComplete(c.previous)?scopeMoney(c.b.cash):'未知'}</td><td>${escapeHtml(s.label)}</td><td><button class="btn btn-outline btn-sm" onclick="rvReconcile('${m}')">核对完整</button></td></tr>`;
-    }),['月份','本年净付款','去年同月同期','完整度','确认'])}</div>
-    <div class="rv-section"><h3>付款结构与大额项目</h3>${rvTable(byCat.map(r=>`<tr><td>${escapeHtml(r.c.name)}</td><td>${scopeMoney(r.amount)}</td></tr>`),['类目','原账付款'])}<ul>${top.map(e=>`<li>${e.date} · ${escapeHtml(e.item)} · ${scopeMoney(e.amount)}</li>`).join('')||'<li>无记录</li>'}</ul><p class="scope-note">季度房租、年度保险和设备款可能集中支付；不自动按月摊销，不把一次性大额解释为生活费持续上涨。</p></div>
-    <div class="rv-section"><h3>本期复盘建议</h3><ol>${tips.slice(0,3).map(t=>`<li>${escapeHtml(t)}</li>`).join('')}</ol></div>`;
+    if(gifts.length)tips.push(`自愿赠请 ${scopeMoney(rvSum(gifts))}，共 ${gifts.length} 笔：优先复盘哪些赠送、请客符合你的本意，哪些下次可以不花。`);
+    if(subs.length)tips.push(`会员及软件候选 ${scopeMoney(rvSum(subs))}，共 ${subs.length} 笔：检查实际使用频率和重叠服务。按摘要筛选，需你核实用途。`);
+    if(top.length)tips.push(`最大一笔「${top[0].item}」${scopeMoney(top[0].amount)}：结合全年额度判断；集中交租、保险或设备款不代表日常生活费持续上涨。`);
+    if(!tips.length)tips.push('本期记录不足，暂不生成省钱结论。');
+    const state=range.mode==='month'?rvMonthStatus(months[0]).label:rvComplete(range)?'已核对':range.end<range.plannedEnd?'进行中':'待核对';
+    const monthly=months.length>1?`<section class="rv-section"><h3>每月付款</h3>${rvTable(months.map(m=>{
+        const end=m===range.end.slice(0,7)?range.end:`${m}-${new Date(Number(m.slice(0,4)),Number(m.slice(5)),0).getDate()}`,c=rvComparison({start:m+'-01',end},scope),s=rvMonthStatus(m);
+        return `<tr><td>${m}</td><td>${c.a.count||c.a.events.length||s.verified?scopeMoney(c.a.cash):'未记录'}</td>${previousKnown?`<td>${c.b.count||c.b.events.length||rvComplete(c.previous)?scopeMoney(c.b.cash):'未记录'}</td>`:''}<td>${escapeHtml(s.label)}</td></tr>`;
+    }),['月份','本期净付款',...(previousKnown?['去年同期']:[]),'状态'])}</section>`:'';
+    const incomeRows=incomes.filter(e=>e.date>=range.start&&e.date<=range.end),incomeKnown=incomeRows.length>0||rvRecordingPolicy().noIncomeEntryMeansZero;
+    const incomeText=!scope&&incomeKnown?`<p class="muted">本期收入 ${scopeMoney(rvSum(incomeRows))}${known?' · 已记收支差额 '+scopeMoney(rvSum(incomeRows)-x.cash):''}</p>`:'';
+    const split=!scope?`<p class="muted">个人 ${scopeMoney(rvMetrics(range,'personal').cash)} · 创业 ${scopeMoney(rvMetrics(range,'business').cash)}</p>`:'';
+    const compareText=previousKnown?`去年同期已记录 ${scopeMoney(compare.b.cash)}${compare.percent!==null?' · 同比 '+(compare.percent>=0?'+':'')+compare.percent.toFixed(1)+'%':' · 尚不满足完整同比条件'}`:'去年同期缺少记录，暂不比较。';
+    const catRows=byCat.map(c=>`<tr><td>${escapeHtml(c.name)}</td><td>${scopeMoney(c.amount/100)}</td></tr>`);
+    const reconciliation=months.map(m=>{const s=rvMonthStatus(m);return `<tr><td>${m}</td><td>${escapeHtml(s.label)}</td><td>${s.closed&&!s.verified&&!s.pending?`<button class="btn btn-outline btn-sm" onclick="rvReconcile('${m}')">确认已核对</button>`:s.pending?`<button class="btn btn-outline btn-sm" onclick="switchPage('record');document.querySelector('#recordPending details').open=true">处理待补记录</button>`:'—'}</td></tr>`;});
+    return `<section class="rv-section"><div class="card-header-flex"><h3>${escapeHtml(range.start)} — ${escapeHtml(range.end)}</h3><span class="status-label">${state}</span></div><p class="muted">${BUDGET_SCOPE_LABELS[scope]||'全部账本'} · 支出 ${x.count} 笔${latest?' · 最新 '+escapeHtml(latest):''}</p><div class="report-amount">${known?scopeMoney(x.cash):'未记录'}</div><p>已记录净付款</p>${split}${incomeText}<p class="muted">${compareText}</p>${x.held||x.used||x.returns?`<p class="muted">按已登记资金用途调整后消费 ${scopeMoney(x.consumption)}；资金退回 ${scopeMoney(x.returns)}。</p>`:''}</section>
+    ${rvFundIssues().length?'<p class="scope-over">资金关联原账有变化，请到资产页核对；相关统计暂不完整。</p>':''}${monthly}
+    <section class="rv-section"><h3>本期复盘</h3><ol>${tips.slice(0,3).map(t=>`<li>${escapeHtml(t)}</li>`).join('')}</ol></section>
+    <section class="rv-section"><h3>钱花在哪里</h3>${catRows.length?rvTable(catRows.slice(0,6),['类目','原账付款']):'<p class="muted">暂无支出记录。</p>'}${catRows.length>6?`<details><summary>其余 ${catRows.length-6} 个类目</summary>${rvTable(catRows.slice(6),['类目','原账付款'])}</details>`:''}<details><summary>大额支出前 ${top.length} 笔</summary>${rvTable(top.map(e=>`<tr><td>${escapeHtml(e.date)}</td><td>${escapeHtml(e.item)}</td><td>${scopeMoney(e.amount)}</td></tr>`),['日期','事项','金额'])}</details></section>
+    <details class="rv-section"><summary>账本核对与统计说明</summary><p class="muted">当月记账仍在进行，月末后再确认。未记录不等于零；同比仅在两期均核对完整后计算。季度房租、年度保险按实际付款日期列示。</p>${rvTable(reconciliation,['月份','状态','操作'])}<p class="muted">本页使用可追溯明细；旧版手填月度汇总保留在备份中。金额未知的事项不计入总额；支出未核齐时不推算完整结余。保证金、预付的确认与核销在资产页管理。</p></details>`;
 }
+
 function renderReport(){
-    if(!document.getElementById('reportContent'))return;
-    const range=rvReportRange();rvPut('reportContent',rvReview(range,document.getElementById('reportScope')?.value||'')+rvPendingUI()+rvFundsUI());
+    const range=rvReportRange();rvPut('reportContent',rvReview(range,document.getElementById('reportScope')?.value||''));
 }
-function renderBudgetCheckup(){rvPut('page-checkup',`<h2>年度预算复盘</h2>${rvBudgetCards(new Date().getFullYear())}${rvReview(rvRange('year',new Date().getFullYear(),1))}`);}
+
 async function rvReconcile(month){
     const status=rvMonthStatus(month);
     if(month>=localDateString().slice(0,7))return showToast('本月仍在进行中，结束后再确认完整','warning');
@@ -202,7 +205,7 @@ async function rvReconcile(month){
     const d=rvCopy(rvState());d.months[month]={at:new Date().toISOString(),fingerprint:rvFingerprint(month)};await rvSave(d);
 }
 function rvPendingUI(){
-    return `<details class="rv-section" open><summary>全部账本待补记录（不计入消费）</summary><p>金额未知保留待办，不填零、不猜金额。补入账本后可关联已有记录完成核对。</p><div class="rv-controls"><input id="rvPendingDate" type="date" aria-label="待补日期"><input id="rvPendingItem" placeholder="待补事项" aria-label="待补事项"><button class="btn btn-outline" onclick="rvAddPending()">添加待补</button></div>${rvTable(rvState().pending.map((p,i)=>`<tr><td>${escapeHtml(p.date)}</td><td>${escapeHtml(p.item)}</td><td>${p.resolvedAt?'已处理：'+escapeHtml(p.resolution):'金额未知，未计入'}</td><td>${p.resolvedAt?'':`<button class="btn btn-outline btn-sm" onclick="rvResolvePending(${i})">处理</button>`}</td></tr>`),['日期','事项','状态','操作'])}</details>`;
+    return `<details class="rv-section"><summary>待补记录 · ${rvState().pending.filter(p=>!p.resolvedAt).length} 笔</summary><p>金额未知保留待办，不填零、不猜金额。补入账本后可关联已有记录完成核对。</p><div class="rv-controls"><input id="rvPendingDate" type="date" aria-label="待补日期"><input id="rvPendingItem" placeholder="待补事项" aria-label="待补事项"><button class="btn btn-outline" onclick="rvAddPending()">添加待补</button></div>${rvTable(rvState().pending.map((p,i)=>`<tr><td>${escapeHtml(p.date)}</td><td>${escapeHtml(p.item)}</td><td>${p.resolvedAt?'已处理：'+escapeHtml(p.resolution):'金额未知，未计入'}</td><td>${p.resolvedAt?'':`<button class="btn btn-outline btn-sm" onclick="rvResolvePending(${i})">处理</button>`}</td></tr>`),['日期','事项','状态','操作'])}</details>`;
 }
 async function rvAddPending(){const date=document.getElementById('rvPendingDate').value,item=cleanText(document.getElementById('rvPendingItem').value,160);if(!rvDateOK(date)||!item.trim())return showToast('填写日期和事项','error');const d=rvCopy(rvState());d.pending.push({id:crypto.randomUUID(),date,item});await rvSave(d);}
 async function rvResolvePending(i){
@@ -257,11 +260,37 @@ function rvValidate(value,rows=null){
     }
     return value;
 }
-function renderDashboardVitalSigns(){
-    const current=localDateString().slice(0,7),state=rvMonthStatus(current);
-    rvPut('dashboardVitalSigns',`<p class="scope-note" style="grid-column:1/-1">财务判断以年度预算及完整账单为基础。${escapeHtml(state.label)}；收入未核对完整时不计算储蓄率，也不根据单月大额付款评分。</p>`);
+
+// Presentation helpers do not mutate financial records.
+function rvTrendRows(rows,range,today=localDateString()) {
+    const count=rangeMonths[range]||12,end=today.slice(0,7),d=new Date(Number(end.slice(0,4)),Number(end.slice(5,7))-(Number.isFinite(count)?count:1),1);
+    const start=count===Infinity?'0000-01':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    return rows.filter(h=>h.month>=start&&h.month<=end).sort((a,b)=>a.month.localeCompare(b.month));
 }
-function renderYearlyStats(){
-    const year=Number(document.getElementById('yearSelect')?.value)||new Date().getFullYear();
-    rvPut('yearSummary',rvBudgetCards(year));rvPut('yearGrid',rvReview(rvRange('year',year,1)));rvPut('yearCategoryRank','');
+function rvTrendDelta(rows){
+    if(rows.length<2)return rows.length?'仅一条快照，暂无变化可比较':'—';
+    const first=Number(rows[0].total),diff=Math.round((Number(rows.at(-1).total)-first)*100)/100;
+    return `${diff<0?'−':diff>0?'+':''}${scopeMoney(Math.abs(diff))}${first>0?' ('+(diff>0?'+':'')+(diff/first*100).toFixed(1)+'%)':''}`;
+}
+function rvAttention(){
+    const pending=rvState().pending.filter(p=>!p.resolvedAt),policy=rvRecordingPolicy();
+    return `<h3>账本进度</h3><p class="muted">${policy.noIncomeEntryMeansZero?'按你的约定：未新增收入即无进账；资产沿用上次登记余额。':'收入及资产按已登记记录展示。'}</p>${pending.length?`<div class="attention-row"><span>${pending.length} 笔金额待补，未计入支出</span><button class="text-button" onclick="switchPage('record');document.querySelector('#recordPending details').open=true">处理</button></div>`:'<p class="muted">没有待补金额的事项。</p>'}`;
+}
+function rvRecordingPolicy(){return rvState().recordingPolicy||{};}
+function rvCategoryRecords(id,year){
+    const rows=expenses.filter(e=>Number(e.categoryId)===Number(id)&&e.date.startsWith(String(year))).sort((a,b)=>b.date.localeCompare(a.date));
+    const modal=document.createElement('div');modal.className='modal-overlay';modal.id='categoryRecordsModal';
+    modal.innerHTML=`<div class="modal"><div class="card-header-flex"><h3>${escapeHtml(categories.find(c=>c.id===id)?.name||'类目')} · ${year}</h3><button class="btn btn-outline btn-sm" onclick="document.getElementById('categoryRecordsModal').remove()">关闭</button></div><p class="muted">${rows.length} 笔原账付款 · ${scopeMoney(rvSum(rows))}</p>${rvTable(rows.map(e=>`<tr><td>${escapeHtml(e.date)}</td><td>${escapeHtml(e.item)}</td><td>${scopeMoney(e.amount)}</td></tr>`),['日期','事项','金额'])}</div>`;
+    document.body.appendChild(modal);
+}
+
+async function rvSaveGoals(next){
+    if(rvBusy)return false;const before=rvCopy(goals),profile=currentUser;rvBusy=true;goals=next;
+    try{if(!await syncAllToCloud()){if(currentUser===profile){goals=before;saveConfigLocalBackup();}return false;}renderGoals();showToast('目标已保存到云端','success');return true;}finally{rvBusy=false;}
+}
+async function rvSaveCategories(next,reason){
+    const d=rvCopy(rvState()),year=new Date().getFullYear();if(!d.budgetYears[year])d.budgetYears[year]=rvBudgetVersion(year);
+    const v=d.budgetYears[year],before=rvSum(v.current.map(c=>({amount:c.yearly}))),after=rvSum(next.map(c=>({amount:c.yearly})));
+    v.history.push({at:new Date().toISOString(),name:'类目结构',before,after,reason});v.current=rvCopy(next);
+    const ok=await rvSave(d,next);if(ok){renderCategoryGrid();renderBudgetTip();}return ok;
 }

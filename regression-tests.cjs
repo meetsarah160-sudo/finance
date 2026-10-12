@@ -44,7 +44,7 @@ test('refresh failure does not show sync success',async()=>{const h=harness();aw
 test('local date does not use the previous UTC calendar date',()=>{const h=harness();assert.equal(h.run(`localDateString(new Date(2026,9,11,0,1))`),'2026-10-11');});
 test('default asset groups preserve investment classification',()=>{const h=harness();assert.equal(h.run('bucketOf("invest")'),'invest');assert.equal(h.run('bucketOf("protect")'),'invest');assert.equal(h.run('BUCKET_MAP.invest="invalid";bucketOf("invest")'),'invest');});
 test('net worth subtracts positive debt balances',()=>{const h=harness();h.run('BUCKET_MAP.loan="debt";assets=[{typeId:"liquid",value:1000},{typeId:"loan",value:300}]');assert.equal(h.run('assetTotals().net'),700);assert.equal(h.run('assetTotals().gross'),1000);});
-test('category deletion cannot break historical references',async()=>{const h=harness();await h.run('loadDataFromCloud()');h.run('categories=[{id:1,name:"used"},{id:9,name:"unused"},{id:12,name:"keep"}];expenses=[{categoryId:1}]');await h.run('deleteCategory(0)');assert.equal(h.run('categories.length'),3);h.run('renderSettings=renderCategoryGrid=renderBudgetTip=renderBudgetStatus=()=>{}');await h.run('deleteCategory(1)');assert.equal(h.run('categories[1].id'),12);});
+test('category deletion cannot break historical references',async()=>{const h=harness();await h.run('loadDataFromCloud()');h.run('categories=[{id:1,name:"used",yearly:100},{id:9,name:"unused",yearly:100},{id:12,name:"keep",yearly:100}];expenses=[{id:"e",categoryId:1,date:"2026-01-01",amount:10}]');await h.run('deleteCategory(0)');assert.equal(h.run('categories.length'),3);h.run('renderSettings=renderCategoryGrid=renderBudgetTip=renderBudgetStatus=renderDashboard=renderReport=()=>{}');await h.run('deleteCategory(1)');assert.equal(h.run('categories[1].id'),12);});
 test('editing legacy income updates the authoritative config',async()=>{const h=harness();await h.run('loadDataFromCloud()');h.run('renderIncomeTable=closeIncomeEditModal=()=>{};document.getElementById=id=>({value:({editIncomeDate:"2026-03-01",editIncomeType:"工资",editIncomeItem:"edited",editIncomeAmount:"123"})[id]})');await h.run('saveIncomeEdit("old-income")');await h.run('loadDataFromCloud()');assert.equal(h.run('incomes[0].amount'),123);assert.equal(h.run('incomes[0].item'),'edited');});
 
 function importFixture(){return {version:'v5',user:'test',categories:[{id:1,name:'food',type:'日常',yearly:100}],expenses:[],incomes:[],goals:[],assets:[],assetHistory:[],assetTypes:[],monthlyExpenseOverrides:{},bucketMap:{}};}
@@ -119,3 +119,58 @@ test('review settings survive reload without hydration writes',async()=>{const h
 test('failed review save rolls back visible config and leaves pending recovery copy',async()=>{const h=harness();await h.run('loadDataFromCloud()');h.setFailure(true);assert.equal(await h.run(`rvSave({...rvState(),pending:[{id:'p',date:'2026-09-16',item:'taxi'}]})`),false);assert.equal(h.run('rvState().pending.length'),0);assert.ok(h.cache.has('finance_pending_config_test'));});
 test('budget adjustment retains original and survives cloud reload; stale update cannot overwrite',async()=>{const h=harness({categories:[{id:1,name:'food',yearly:100}]});await h.run('loadDataFromCloud()');h.run('renderSettings=renderBudgetStatus=renderReport=renderDashboard=()=>{}');assert.equal(await h.run(`rvChangeBudget(new Date().getFullYear(),1,120,'annual adjustment')`),true);await h.run('loadDataFromCloud()');assert.equal(h.run('reviewData.budgetYears[new Date().getFullYear()].original[0].yearly'),100);assert.equal(h.run('categories[0].yearly'),120);h.tables.user_configs[0].updated_at='2099-01-01';assert.equal(await h.run(`rvChangeBudget(new Date().getFullYear(),1,200,'conflict')`),false);assert.equal(h.run('categories[0].yearly'),120);});
 test('legacy overwrite preserves review data, conflicting append refuses silently dropping review changes',()=>{const h=harness();const base=importFixture();base.reviewData={pending:[{id:'p',date:'2026-09-16',item:'taxi'}]};const old=importFixture();const p=h.run(`buildImportPlan(${JSON.stringify(old)},${JSON.stringify(base)},'覆盖')`);assert.deepEqual(clone(p.config.review_data),base.reviewData);assert.throws(()=>h.run(`buildImportPlan({reviewData:{pending:[]}},${JSON.stringify(base)},'追加')`),/不合并/);});
+
+// Regression coverage for simplification: financial semantics and failure recovery.
+test('calendar trend windows exclude stale rows, handle year boundary and empty ranges',()=>{
+ const h=harness(),rows=[{month:'2024-01',total:1},{month:'2025-11',total:2},{month:'2025-12',total:3},{month:'2026-01',total:4},{month:'2026-03',total:5}];
+ assert.equal(h.run(`rvTrendRows(${JSON.stringify(rows)},'3M','2026-01-15').map(x=>x.month).join(',')`),'2025-11,2025-12,2026-01');
+ assert.equal(h.run(`rvTrendRows(${JSON.stringify(rows)},'3M','2026-10-12').length`),0);
+ assert.equal(h.run(`rvTrendRows(${JSON.stringify(rows)},'ALL','2026-01-15').length`),4);
+ assert.match(h.run('rvTrendDelta([{total:100},{total:70}])'),/−¥30\.00.*-30\.0%/);
+ assert.equal(h.run('rvTrendDelta([])'),'—');assert.match(h.run('rvTrendDelta([{total:5}])'),/仅一条/);
+});
+test('current month report has no close-month action or repeated unknown table',()=>{
+ const h=harness();h.run(`categories=[{id:1,name:'food',yearly:100}];expenses=[{id:'x',date:localDateString(),amount:10,categoryId:1,item:'food'}];`);
+ const html=h.run(`rvReview({...rvRange('month',new Date().getFullYear(),new Date().getMonth()+1),mode:'month'})`);
+ assert.match(html,/进行中/);assert.doesNotMatch(html,/onclick="rvReconcile/);assert.doesNotMatch(html,/每月付款/);assert.match(html,/去年同期缺少记录/);assert.match(html,/¥10\.00/);
+});
+test('quarter report produces per-month rows and no fabricated historical expense zeros',()=>{
+ const h=harness();h.run(`categories=[{id:1,name:'food',yearly:100}];expenses=[{id:'x',date:'2026-09-01',amount:10,categoryId:1,item:'food'}];`);
+ const html=h.run(`rvReview({...rvRange('quarter',2026,3,'2026-10-12'),mode:'quarter'})`);
+ assert.match(html,/每月付款/);assert.match(html,/2026-07<\/td><td>未记录/);assert.doesNotMatch(html,/去年同期<\/th>/);
+});
+test('declared no-income and carry-forward policy survives reload and backup',async()=>{
+ const policy={noIncomeEntryMeansZero:true,assetsCarryForward:true};const h=harness({review_data:{recordingPolicy:policy},incomes_data:[]});await h.run('loadDataFromCloud()');
+ assert.equal(h.run('rvRecordingPolicy().noIncomeEntryMeansZero'),true);await h.run('syncAllToCloud()');await h.run('loadDataFromCloud()');
+ assert.deepEqual(clone(h.run('configPayload().review_data.recordingPolicy')),policy);assert.equal(h.run('incomes.length'),0);assert.equal(h.run('assets[0].value'),100);
+});
+function assetFixture(){const h=harness({asset_types:[{id:'liquid',name:'cash',items:[{id:'bank',name:'bank'}]}]});return h;}
+function assetForm(h,value,month=null){h.run(`document.getElementById=id=>({value:id==='assetMonth'?${month?JSON.stringify(month):'localDateString().slice(0,7)'}:${JSON.stringify(value)}});renderAssets=renderDashboard=closeUpdateAssetsModal=()=>{}`);}
+test('blank, negative and excessive precision asset amounts never write or change a balance',async()=>{
+ for(const value of ['', '-1','1.234','NaN']){const h=assetFixture();await h.run('loadDataFromCloud()');assetForm(h,value);await h.run('saveUpdatedAssets()');assert.equal(h.run('assets[0].value'),100);assert.equal(h.run('assetHistory.length'),1);assert.equal(h.writes.length,0);}
+});
+test('failed snapshot save restores all balances and history and retains recovery copy',async()=>{
+ const h=assetFixture();await h.run('loadDataFromCloud()');assetForm(h,'0');h.setFailure(true);await h.run('saveUpdatedAssets()');assert.equal(h.run('assets[0].value'),100);assert.equal(h.run('assetHistory.length'),1);assert.ok(h.cache.has('finance_pending_config_test'));assert.equal(h.run('assetWriteBusy'),false);
+});
+test('historical snapshot appends without rewriting current balances or older snapshots',async()=>{
+ const h=assetFixture();await h.run('loadDataFromCloud()');assetForm(h,'55.25','2025-12');await h.run('saveUpdatedAssets()');await h.run('loadDataFromCloud()');assert.equal(h.run('assets[0].value'),100);assert.equal(h.run('assetHistory[0].total'),100);assert.equal(h.run('assetHistory.at(-1).total'),55.25);
+});
+test('explicit zero current balance is supported and snapshot is appended once',async()=>{
+ const h=assetFixture();await h.run('loadDataFromCloud()');assetForm(h,'0');await h.run('Promise.all([saveUpdatedAssets(),saveUpdatedAssets()])');await h.run('loadDataFromCloud()');assert.equal(h.run('assets[0].value'),0);assert.equal(h.run('assetHistory.length'),2);assert.equal(h.run('assetHistory[0].total'),100);
+});
+test('snapshot delete failure restores history',async()=>{
+ const h=assetFixture();await h.run('loadDataFromCloud()');h.setFailure(true);await h.run(`deleteAssetHistoryEntry('legacy_2026-01-01')`);assert.equal(h.run('assetHistory.length'),1);
+});
+test('unsaved asset type draft cannot leak into other config saves',async()=>{
+ const h=assetFixture();await h.run('loadDataFromCloud()');h.run(`assetTypeDraft=rvCopy(ASSET_TYPES);assetTypeDraft[0].items.push({id:'draft',name:'draft'})`);await h.run('syncAllToCloud()');assert.equal(h.tables.user_configs[0].asset_types[0].items.length,1);
+ h.setFailure(true);await h.run('saveAssetTypes()');assert.equal(h.run('ASSET_TYPES[0].items.length'),1);assert.equal(h.run('assets.length'),1);
+});
+test('failed new income keeps form and source income unchanged',async()=>{
+ const h=harness();await h.run('loadDataFromCloud()');h.run(`document.getElementById=id=>({value:({incomeDate:'2026-10-12',incomeItem:'new',incomeAmount:'10',incomeType:'工资'})[id]})`);h.setFailure(true);await h.run('saveIncome()');assert.equal(h.run('incomes.length'),1);assert.equal(h.run('incomes[0].id'),'old-income');assert.ok(h.cache.has('finance_pending_config_test'));
+});
+test('failed income and goal deletions do not appear to succeed locally',async()=>{
+ const h=harness();await h.run('loadDataFromCloud()');h.setFailure(true);await h.run(`deleteIncome('old-income')`);assert.equal(h.run('incomes.length'),1);await h.run('deleteGoal(0)');assert.equal(h.run('goals.length'),1);
+});
+test('category additions start with no invented budget and retain original annual budget',async()=>{
+ const h=harness({categories:[{id:1,name:'food',yearly:100,type:'日常'}]});await h.run('loadDataFromCloud()');h.run('renderCategoryGrid=renderBudgetTip=renderBudgetStatus=renderSettings=renderReport=renderDashboard=()=>{}');await h.run('addCategory()');assert.equal(h.run('categories[1].yearly'),0);assert.equal(h.run('reviewData.budgetYears[new Date().getFullYear()].original[0].yearly'),100);assert.equal(h.run('scopeSummary(new Date().getFullYear()).personal.budget'),100);
+});
